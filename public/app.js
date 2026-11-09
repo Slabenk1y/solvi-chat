@@ -284,6 +284,8 @@ function openStorePreview(item) {
     duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360 ✦ = 6 часов' : '180 ✦ = 3 часа'} активного диалога за каждый час статуса. При повторной покупке время прибавляется к остатку.`;
     $('#storePreviewBenefit').append(duration);
   }
+  if (modal.parentElement !== document.body) document.body.append(modal);
+  document.body.classList.add('store-preview-open');
   modal.hidden = false;
 }
 function startStorePreview() {
@@ -303,6 +305,7 @@ function startStorePreview() {
     state.applyingStorePreview = false;
   }
   $('#storePreviewModal').hidden = true;
+  document.body.classList.remove('store-preview-open');
   const restoreButton = $('#storePreviewRestoreButton');
   if (restoreButton) restoreButton.hidden = false;
   showToast('Примерка включена только у тебя. Токены не списаны, покупка не выполнена.', 4200);
@@ -1745,7 +1748,7 @@ async function blockPartner() {
     showToast('Пользователь заблокирован.');
   } catch (error) { showToast(error.message); }
 }
-function closeModals() { $$('.modal-backdrop').forEach(modal => { modal.hidden = true; }); }
+function closeModals() { $('.modal-backdrop').forEach(modal => { modal.hidden = true; }); document.body.classList.remove('store-preview-open'); }
 function logout(showMessage = true, revokeServer = true) {
   restoreStorePreview(false);
   const oldToken = state.token;
@@ -2011,7 +2014,7 @@ $('#authRulesButton').addEventListener('click', () => { $('#rulesModal').hidden 
 $$('[data-close-modal]').forEach(button => button.addEventListener('click', closeModals));
 $('#storePreviewTryOnButton')?.addEventListener('click', startStorePreview);
 $('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePreview(true));
-$$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; }));
+$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) { modal.hidden = true; if (modal.id === 'storePreviewModal') document.body.classList.remove('store-preview-open'); } }));
 $('#endChatButton').addEventListener('click', async () => {
   if (!state.activeMatch) return;
   if (!await appDialog({title:'Завершить диалог?',message:'После завершения ты сможешь сохранить текст переписки в Избранное.',confirmText:'Завершить',danger:true})) return;
