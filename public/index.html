@@ -108,7 +108,6 @@
         <button class="side-link" type="button" data-view="feedback"><span class="side-icon">✉</span> Тикеты</button>
         <button class="side-link" type="button" data-view="growth"><span class="side-icon">✧</span> Задания и бонусы</button>
         <button class="side-link" type="button" data-view="settings"><span class="side-icon">⚙</span> Настройки</button>
-        <button id="adminNavButton" class="side-link owner-nav" type="button" data-view="admin" hidden><span class="side-icon">⌘</span> Управление</button>
         <div class="sidebar-bottom">
           <div class="privacy-card"><span class="privacy-icon">⌁</span><div><strong>Без лишнего следа</strong><p>Переписка удаляется после завершения диалога.</p></div></div>
           <button id="logoutButton" class="logout-button" type="button"><span>↗</span> Выйти</button>
@@ -326,12 +325,6 @@
         <section id="blockedPanel" class="settings-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">ТВОИ ГРАНИЦЫ</div><h1>Заблокированные</h1><p>Здесь можно посмотреть список и снять блокировку. Разблокировка не начинает новый диалог автоматически.</p></div><div class="panel-heading-icon">⊘</div></div>
           <div id="blockedList" class="favorites-list"></div>
-        </section>
-        <section id="adminPanel" class="settings-panel" hidden>
-          <div class="panel-heading"><div><div class="eyebrow">ПАНЕЛЬ ВЛАДЕЛЬЦА</div><h1>Центр управления</h1><p>Статистика, активные диалоги, одноразовые подарки первым участникам и журнал действий. Просмотр переписки доступен только по причине и уведомляет обе стороны.</p></div><div class="panel-heading-icon">⌘</div></div>
-          <a class="button button-primary" href="/owner" style="display:inline-flex;margin:0 0 16px;text-decoration:none">Открыть мобильную панель владельца ↗</a><div id="adminStats" class="admin-stats"></div>
-          <div class="settings-card"><div class="admin-section-title"><h2>Последние аккаунты</h2><span class="muted">Управление статусами</span></div><div id="adminUsers" class="admin-users"></div></div>
-          <div class="settings-card"><div class="admin-section-title"><h2>Жалобы пользователей</h2><button id="refreshReportsButton" class="button button-secondary" type="button">Обновить</button></div><div id="adminReports" class="admin-reports"></div></div>
         </section>
         <section id="settingsPanel" class="settings-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">ПОДСТРОЙ ПОД СЕБЯ</div><h1>Настройки</h1><p>Твои предпочтения синхронизируются с аккаунтом.</p></div><div class="panel-heading-icon">⚙</div></div>
