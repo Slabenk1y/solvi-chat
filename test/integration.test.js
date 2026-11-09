@@ -112,10 +112,12 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.items.some(item => item.id === 'wallpaper-deep-space' && item.category === 'Темы' && item.slot === 'theme' && item.owned && item.equipped));
     assert.equal(storeBefore.equipped.theme, 'wallpaper-deep-space', 'legacy wallpaper equipment should migrate into full interface themes');
     assert.equal(storeBefore.equipped.wallpaper, undefined, 'legacy wallpaper slot should be retired');
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1d')?.price, 270);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1d')?.price, 480);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-30d')?.price, 4200);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-30d')?.price, 7200);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1h')?.price, 180);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1h')?.price, 360);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-24h')?.price, 4320);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-24h')?.price, 8640);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-3h')?.hours, 3);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-3h')?.hours, 3);
     assert.equal(storeBefore.items.find(item => item.id === 'theme-aurora')?.price, 300);
     assert.equal(storeBefore.items.find(item => item.id === 'stickers-night-owl')?.price, 330);
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
