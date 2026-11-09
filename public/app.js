@@ -950,7 +950,7 @@ function renderFilters() {
   state.selectedInterests = state.selectedInterests.slice(0, interestLimit);
   state.selectedFlirtInterests = state.selectedFlirtInterests.slice(0, interestLimit);
   state.selectedRoleplayInterests = state.selectedRoleplayInterests.slice(0, interestLimit);
-  $$('[data-match-mode]').forEach(button => {
+  $$$('[data-match-mode]').forEach(button => {
     const active = button.dataset.matchMode === state.matchingMode;
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
