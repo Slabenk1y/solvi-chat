@@ -737,7 +737,7 @@ function fallbackAiReply(session, isGreeting = false) {
 async function generateAiReply(session, isGreeting = false) {
   const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
   if (!apiKey) return fallbackAiReply(session, isGreeting);
-  const model = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
+  const model = String(process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
   const contents = session.history.slice(-12);
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
