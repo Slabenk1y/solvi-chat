@@ -1,0 +1,56 @@
+name: Unpack SOVLI source archive
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unpack SOVLI ZIP
+        shell: bash
+        run: |
+          set -e
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" ! -path "./.git/*" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ZIP archive not found"
+            exit 1
+          fi
+
+          mkdir -p /tmp/sovli-unpack
+          unzip -q "$ZIP_FILE" -d /tmp/sovli-unpack
+
+          shopt -s dotglob nullglob
+          ITEMS=(/tmp/sovli-unpack/*)
+
+          if [ ${#ITEMS[@]} -eq 1 ] && [ -d "${ITEMS[0]}" ]; then
+            SOURCE_DIR="${ITEMS[0]}"
+          else
+            SOURCE_DIR="/tmp/sovli-unpack"
+          fi
+
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/workflows/unpack-sovli.yml' \
+            "$SOURCE_DIR"/ ./
+
+          rm -f "$ZIP_FILE"
+
+      - name: Save unpacked files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Unpack SOVLI source archive"
+            git push
+          fi
