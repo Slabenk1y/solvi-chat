@@ -30,12 +30,12 @@ test('snapshot restores account data and dependent rows even when SQLite columns
   const result = restoreSnapshot(target, snapshot);
 
   assert.equal(result.rowCount, 2);
-  assert.deepEqual(target.prepare('SELECT id, username, role FROM users').get(), {
+  assert.deepEqual({ ...target.prepare('SELECT id, username, role FROM users').get() }, {
     id: 'u1',
     username: 'SovliOwner',
     role: 'member'
   });
-  assert.deepEqual(target.prepare('SELECT id, user_id FROM sessions').get(), {
+  assert.deepEqual({ ...target.prepare('SELECT id, user_id FROM sessions').get() }, {
     id: 's1',
     user_id: 'u1'
   });
@@ -82,7 +82,7 @@ test('missing avatar assets are detached from restored accounts instead of retur
   };
 
   restoreSnapshot(db, snapshot);
-  assert.deepEqual(db.prepare('SELECT avatar_file, avatar_mime FROM users').get(), {
+  assert.deepEqual({ ...db.prepare('SELECT avatar_file, avatar_mime FROM users').get() }, {
     avatar_file: null,
     avatar_mime: null
   });
