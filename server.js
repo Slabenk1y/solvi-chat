@@ -1437,9 +1437,9 @@ async function main() {
         transaction(() => {
           dbRun('INSERT INTO paymentwall_token_purchases (id,provider_reference,user_id,token_amount,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
             [crypto.randomUUID(), reference, user.id, tokenAmount, 'credited', at, at]);
-          dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokenAmount, userId]);
+          dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokenAmount, user.id]);
           dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)',
-            [crypto.randomUUID(), userId, 'cash_topup', tokenAmount, 'Покупка токенов за реальные деньги · Paymentwall', at]);
+            [crypto.randomUUID(), user.id, 'cash_topup', tokenAmount, 'Покупка токенов за реальные деньги · Paymentwall', at]);
         });
       } catch (error) {
         if (!dbGet('SELECT id FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference])) {
