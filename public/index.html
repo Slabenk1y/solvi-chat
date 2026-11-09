@@ -58,7 +58,7 @@
         <div class="guest-entry">
           <div class="guest-entry-caption"><span></span> ИЛИ ПОПРОБУЙ БЕЗ РЕГИСТРАЦИИ <span></span></div>
           <button id="guestButton" class="button button-secondary button-wide" type="button"><span>Продолжить гостем</span><span>👀</span></button>
-          <p>Гостевой профиль живёт 24 часа. Его можно сохранить в постоянный аккаунт.</p>
+          <p>Гостевой профиль сохраняется в этом браузере до 180 дней. Просто закрой вкладку — аккаунт останется. Для входа с другого устройства сохрани постоянный аккаунт.</p>
         </div>
         <div class="auth-divider"><span></span> <small>ТВОЁ ПРОСТРАНСТВО</small> <span></span></div>
         <p class="auth-legal">Продолжая, ты принимаешь <button id="authRulesButton" type="button">правила сообщества</button> и соглашаешься общаться уважительно.</p>
@@ -72,7 +72,6 @@
       <a class="brand" href="#home" aria-label="SOVLI — главная"><span class="brand-mark">◉</span><span>sovli</span></a>
       <div class="topbar-center"><span class="live-indicator"></span><span id="onlineCount">0</span> в сети</div>
       <div class="topbar-actions">
-        <button id="themeButton" class="icon-button" type="button" aria-label="Сменить тему" title="Сменить тему">☾</button>
         <button id="settingsTopButton" class="icon-button" type="button" aria-label="Настройки" title="Настройки">⚙</button>
         <button id="profileTopButton" class="user-chip" type="button"><span id="topAvatar" class="avatar avatar-small">◉</span><span id="topUsername">Профиль</span><span class="chevron">⌄</span></button>
       </div>
@@ -97,7 +96,7 @@
         <div class="sidebar-bottom">
           <div class="privacy-card"><span class="privacy-icon">⌁</span><div><strong>Без лишнего следа</strong><p>Переписка удаляется после завершения диалога.</p></div></div>
           <button id="logoutButton" class="logout-button" type="button"><span>↗</span> Выйти</button>
-          <div class="sidebar-version">SOVLI <span>v1.2.0</span></div>
+          <div class="sidebar-version">SOVLI <span>v1.4.0</span></div>
         </div>
       </aside>
 
@@ -205,7 +204,7 @@
             <button id="saveProfileButton" class="button button-primary" type="button">Сохранить изменения <span class="button-arrow">↗</span></button>
           </div>
           <div id="guestClaimCard" class="guest-claim-card" hidden>
-            <div class="guest-claim-icon">✦</div><div class="guest-claim-copy"><h2>Сохрани свой профиль</h2><p>Придумай постоянный ник и пароль. Так ты сможешь вернуться с другого устройства, а гостевой таймер перестанет действовать.</p></div>
+            <div class="guest-claim-icon">✦</div><div class="guest-claim-copy"><h2>Сохрани свой профиль</h2><p>Гостевой профиль хранится в этом браузере до 180 дней. Создай пароль, чтобы восстановить его на любом устройстве и не зависеть от данных браузера.</p></div>
             <label class="field-label" for="claimUsername">Новый ник</label><input id="claimUsername" class="field" minlength="3" maxlength="20" autocomplete="username" placeholder="Твой уникальный ник">
             <label class="field-label" for="claimPassword">Новый пароль</label><input id="claimPassword" class="field" type="password" minlength="8" maxlength="72" autocomplete="new-password" placeholder="Не менее 8 символов">
             <p id="claimError" class="form-error"></p><button id="claimGuestButton" class="button button-primary" type="button">Сохранить аккаунт ↗</button>
@@ -234,7 +233,7 @@
           <div id="blockedList" class="favorites-list"></div>
         </section>
         <section id="adminPanel" class="settings-panel" hidden>
-          <div class="panel-heading"><div><div class="eyebrow">ПАНЕЛЬ ВЛАДЕЛЬЦА</div><h1>Центр управления</h1><p>Только агрегированная статистика и жалобы, отправленные пользователями. Личного скрытого просмотра чатов нет.</p></div><div class="panel-heading-icon">⌘</div></div>
+          <div class="panel-heading"><div><div class="eyebrow">ПАНЕЛЬ ВЛАДЕЛЬЦА</div><h1>Центр управления</h1><p>Статистика, активные диалоги, одноразовые подарки первым участникам и журнал действий. Просмотр переписки доступен только по причине и уведомляет обе стороны.</p></div><div class="panel-heading-icon">⌘</div></div>
           <a class="button button-primary" href="/owner" style="display:inline-flex;margin:0 0 16px;text-decoration:none">Открыть мобильную панель владельца ↗</a><div id="adminStats" class="admin-stats"></div>
           <div class="settings-card"><div class="admin-section-title"><h2>Последние аккаунты</h2><span class="muted">Управление статусами</span></div><div id="adminUsers" class="admin-users"></div></div>
           <div class="settings-card"><div class="admin-section-title"><h2>Жалобы пользователей</h2><button id="refreshReportsButton" class="button button-secondary" type="button">Обновить</button></div><div id="adminReports" class="admin-reports"></div></div>
@@ -242,7 +241,7 @@
         <section id="settingsPanel" class="settings-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">ПОДСТРОЙ ПОД СЕБЯ</div><h1>Настройки</h1><p>Твои предпочтения синхронизируются с аккаунтом.</p></div><div class="panel-heading-icon">⚙</div></div>
           <div class="settings-grid">
-            <article class="settings-card"><div class="settings-card-icon">◐</div><div class="settings-card-copy"><h2>Внешний вид</h2><p>Выбери оформление SOVLI.</p><label class="field-label" for="settingTheme">Тема приложения</label><select id="settingTheme" class="field"><option value="system">Как на устройстве</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></div></article>
+            <article class="settings-card"><div class="settings-card-icon">◐</div><div class="settings-card-copy"><h2>Темы и оформление</h2><p>Базовая светлая и тёмная темы уже лежат в твоём инвентаре. Другие оформления можно собирать в магазине.</p><div class="button-row"><button class="button button-secondary" type="button" data-view="inventory">Открыть инвентарь</button><button class="button button-secondary" type="button" data-view="store">Каталог магазина</button></div></div></article>
             <article class="settings-card"><div class="settings-card-icon">♫</div><div class="settings-card-copy"><h2>Звуки</h2><p>Небольшие сигналы при новых событиях.</p><label class="setting-toggle"><span><strong>Звуковые сигналы</strong><small>Входящие сообщения и действия</small></span><input id="settingSounds" type="checkbox"><i></i></label><label class="field-label" for="settingSoundVolume">Громкость <span id="soundVolumeLabel">35%</span></label><input id="settingSoundVolume" class="setting-range" type="range" min="0" max="100" step="5" value="35"></div></article>
             <article class="settings-card"><div class="settings-card-icon">Aa</div><div class="settings-card-copy"><h2>Читаемость</h2><p>Подбери размер текста в сообщениях.</p><label class="field-label" for="settingMessageScale">Размер текста</label><select id="settingMessageScale" class="field"><option value="small">Компактный</option><option value="normal">Обычный</option><option value="large">Крупный</option></select><label class="setting-toggle"><span><strong>Меньше анимаций</strong><small>Учитывать предпочтение reduced motion</small></span><input id="settingReducedMotion" type="checkbox"><i></i></label></div></article>
             <article class="settings-card"><div class="settings-card-icon">↵</div><div class="settings-card-copy"><h2>Управление чатом</h2><p>Настрой отправку и плотность переписки.</p><label class="setting-toggle"><span><strong>Enter отправляет сообщение</strong><small>Shift + Enter всегда добавляет новую строку</small></span><input id="settingEnterToSend" type="checkbox"><i></i></label><label class="setting-toggle"><span><strong>Компактные сообщения</strong><small>Больше сообщений помещается на экране</small></span><input id="settingCompactChat" type="checkbox"><i></i></label><label class="setting-toggle"><span><strong>Браузерные уведомления</strong><small>Только при разрешении браузера</small></span><input id="settingBrowserNotifications" type="checkbox"><i></i></label></div></article>
@@ -252,7 +251,7 @@
         </section>
       </section>
     </main>
-    <footer class="app-footer"><span>SOVLI — разговоры без границ</span><span>SOVLI v1.2.0 · <button id="rulesFooterButton" class="footer-policy-link" type="button">Безопасность и правила</button></span></footer>
+    <footer class="app-footer"><span>SOVLI — разговоры без границ</span><span>SOVLI v1.4.0 · <button id="rulesFooterButton" class="footer-policy-link" type="button">Безопасность и правила</button></span></footer>
   </div>
 
   <div id="rulesModal" class="modal-backdrop" hidden>
