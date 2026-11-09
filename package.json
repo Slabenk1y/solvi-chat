@@ -1,8 +1,8 @@
 {
   "name": "solvi-chat",
-  "version": "1.10.5",
+  "version": "1.10.6",
   "private": true,
-  "description": "SOLVI v1.10.5 — AI chat delivery and natural pacing",
+  "description": "SOLVI v1.10.6 — fix chat composer and gradual AI conversation",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
