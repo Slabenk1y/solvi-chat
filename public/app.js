@@ -149,14 +149,83 @@ function createStorePreview(item) {
   preview.append(scene);
   return preview;
 }
+function createThemeStorePreview(item) {
+  const palettes = {
+    aurora: ['#101d34','#1b3150','#79d7ca','#f2fbff','#a8bfd2'],
+    sunset: ['#30232b','#50343b','#f09b78','#fff3eb','#d9b9ae'],
+    midnight: ['#151525','#222139','#9f88f4','#f2efff','#b1a9ca'],
+    candy: ['#321e38','#512b55','#ec83c0','#fff0fa','#d7b8d4'],
+    arcade: ['#142a35','#1c3c49','#20c6d1','#eaffff','#a7cdd2'],
+    cream: ['#fbf5e9','#fffaf0','#bc8b57','#514333','#96846d'],
+    ice: ['#eff7fb','#fbfeff','#4c9ec6','#253d52','#7c9bb0'],
+    sakura: ['#fff5f8','#fffafd','#d57fa7','#55384a','#a17b90'],
+    violet: ['#241d3b','#382c55','#a47ce9','#f5efff','#c3b1dd'],
+    space: ['#111b31','#1c2b49','#8f83ee','#f2efff','#a9abc9'],
+    paper: ['#eee5d5','#fffaf0','#ad825b','#514333','#96846d'],
+    neon: ['#101b2b','#172c43','#43d5e7','#e9fbff','#9dbdca'],
+    pixel: ['#18263a','#263a54','#e1a64b','#fff5dc','#b9c6d8'],
+    clouds: ['#e9f2fa','#ffffff','#6fa9d0','#31475c','#8ba1b3'],
+    default: ['#f2f1f8','#ffffff','#8278d8','#302d45','#918ca7'],
+    dark: ['#181827','#232337','#8d86ff','#f0efff','#a2a2ba'],
+    light: ['#f5f6fb','#ffffff','#756ee8','#29263e','#88859e']
+  };
+  const colors = palettes[item.value] || palettes.default;
+  const root = document.createElement('div');
+  root.className = 'store-detail-preview theme-context-preview';
+  root.style.setProperty('--mock-bg', colors[0]);
+  root.style.setProperty('--mock-surface', colors[1]);
+  root.style.setProperty('--mock-accent', colors[2]);
+  root.style.setProperty('--mock-ink', colors[3]);
+  root.style.setProperty('--mock-muted', colors[4]);
+  const shell = document.createElement('div'); shell.className = 'theme-mock-shell';
+  const top = document.createElement('div'); top.className = 'theme-mock-top';
+  const brand = document.createElement('strong'); brand.textContent = 'SOVLI';
+  const topLabel = document.createElement('span'); topLabel.textContent = 'ТВОЁ ПРОСТРАНСТВО';
+  top.append(brand, topLabel);
+  const body = document.createElement('div'); body.className = 'theme-mock-body';
+  const rail = document.createElement('aside'); rail.className = 'theme-mock-rail';
+  ['◉','⌕','♡','⚙'].forEach((symbol,index)=>{const icon=document.createElement('i');icon.textContent=symbol;if(index===0)icon.className='active';rail.append(icon);});
+  const chat = document.createElement('div'); chat.className = 'theme-mock-chat';
+  const heading = document.createElement('div'); heading.className = 'theme-mock-heading';
+  const avatar = document.createElement('span'); avatar.className='theme-mock-avatar';avatar.textContent='🌙';
+  const headingCopy = document.createElement('div'); const name=document.createElement('strong');name.textContent='northstar';const online=document.createElement('small');online.textContent='● В сети';headingCopy.append(name,online);heading.append(avatar,headingCopy);
+  const messages=document.createElement('div');messages.className='theme-mock-messages';
+  const incoming=document.createElement('span');incoming.className='theme-mock-bubble incoming';incoming.textContent='Привет! Как настроение?';
+  const outgoing=document.createElement('span');outgoing.className='theme-mock-bubble outgoing';outgoing.textContent='Отличное ✨ А у тебя?';
+  const incoming2=document.createElement('span');incoming2.className='theme-mock-bubble incoming';incoming2.textContent='Теперь ещё лучше :)';
+  messages.append(incoming,outgoing,incoming2);
+  const composer=document.createElement('div');composer.className='theme-mock-composer';composer.textContent='Написать сообщение…';
+  chat.append(heading,messages,composer);body.append(rail,chat);shell.append(top,body);root.append(shell);
+  return root;
+}
+function createMembershipPreview(item) {
+  const premium = item.tier === 'premium';
+  const root=document.createElement('div');root.className=`store-detail-preview membership-context-preview ${premium?'is-premium':'is-vip'}`;
+  const card=document.createElement('div');card.className='membership-mock-card';
+  const cover=document.createElement('div');cover.className='membership-mock-cover';
+  const avatar=document.createElement('div');avatar.className='membership-mock-avatar';avatar.textContent='🌙';
+  const profile=document.createElement('div');profile.className='membership-mock-profile';
+  const name=document.createElement('strong');name.textContent='northstar';
+  const badge=document.createElement('span');badge.className='membership-mock-badge';badge.textContent=premium?'✦ PREMIUM':'✦ VIP';
+  profile.append(name,badge);cover.append(avatar,profile);
+  const sample=document.createElement('div');sample.className='membership-mock-message';
+  const label=document.createElement('small');label.textContent='ТВОЁ СООБЩЕНИЕ';
+  const bubble=document.createElement('span');bubble.textContent=premium?'Можно написать до 5 000 символов ✨':'Можно написать до 3 000 символов ✨';
+  sample.append(label,bubble);
+  const footer=document.createElement('div');footer.className='membership-mock-footer';
+  const token=document.createElement('span');token.textContent='✦ '+(premium?'PREMIUM':'VIP')+' активен';
+  const detail=document.createElement('small');detail.textContent='Отображается в профиле и рядом с ником';
+  footer.append(token,detail);card.append(cover,sample,footer);root.append(card);
+  return root;
+}
 function openStorePreview(item) {
   const modal = $('#storePreviewModal');
   const visual = $('#storePreviewCanvas');
   visual.replaceChildren();
   if (item.slot === 'membership') {
-    const mark = document.createElement('div'); mark.className = 'store-membership-preview-mark';
-    mark.textContent = item.tier === 'premium' ? 'PREMIUM' : 'VIP';
-    visual.append(mark);
+    visual.append(createMembershipPreview(item));
+  } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
+    visual.append(createThemeStorePreview(item));
   } else {
     const preview = createStorePreview(item);
     preview.classList.add('store-detail-preview');
@@ -172,7 +241,9 @@ function openStorePreview(item) {
     sound: 'Меняет короткий звуковой сигнал интерфейса.',
     stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
-    membership: 'Даёт временный статус с косметическими возможностями. Срок добавляется к уже активной привилегии.'
+    membership: item.tier === 'premium'
+      ? 'Premium: до 5 000 символов в одном сообщении, заметный Premium-бейдж и особое оформление карточки профиля. Включает все возможности VIP.'
+      : 'VIP: до 3 000 символов в одном сообщении, VIP-бейдж и золотистое оформление карточки профиля. Обычный лимит — 2 000 символов.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
@@ -275,7 +346,8 @@ function renderStore(data) {
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
     previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
+    const duration = document.createElement('small'); duration.className = 'membership-duration'; duration.textContent = `${pack.hours} ч. · ${pack.tier === 'vip' ? '180' : '360'} ✦ за час`;
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = `Активировать на ${pack.hours} ч.`;
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
       if (!approved) return;
@@ -283,7 +355,7 @@ function renderStore(data) {
       try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    card.append(label, title, copy, previewButton, price, button); membershipRoot.append(card);
+    card.append(label, title, copy, previewButton, duration, price, button); membershipRoot.append(card);
   });
 }
 async function loadInventory() {
@@ -553,6 +625,10 @@ function setUser(user) {
   const isNewAccount = state.user?.id !== user.id;
   state.user = user;
   document.documentElement.dataset.role = user.role === 'owner' ? 'owner' : (user.role || 'member');
+  document.documentElement.dataset.membership = user.subscriptionTier || 'free';
+  const messageLimit = user.subscriptionTier === 'premium' ? 5000 : (user.subscriptionTier === 'vip' ? 3000 : 2000);
+  $('#messageInput').maxLength = messageLimit;
+  $('#messageHint').textContent = `До ${messageLimit.toLocaleString('ru-RU')} символов · Enter — отправить · Shift + Enter — новая строка`;
   if (isNewAccount) state.selectedAvatar = user.avatarUrl ? null : user.avatar;
   setAvatarContent($('#sideAvatar'), user);
   setAvatarContent($('#topAvatar'), user);
