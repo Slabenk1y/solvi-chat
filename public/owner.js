@@ -130,6 +130,7 @@
     $('#loadMoreUsers').hidden=!state.userHasMore;
   }
   async function openUserDetail(id){
+    infoModalRestore=null;
     suspendModalLayers('userDetailModal');
     state.selectedUserId=id;$('#userDetailModal').hidden=false;$('#userDetailTitle').textContent='Загружаем…';$('#userDetailMeta').textContent='';$('#userDetailContent').innerHTML='<p class="empty-state">Загружаем профиль…</p>';
     try{
@@ -354,7 +355,12 @@
   $('#closeInfoModal').addEventListener('click',closeInfo);
   $('#infoModal').addEventListener('click',e=>{if(e.target===$('#infoModal'))closeInfo();});
   $('#infoModalBody').addEventListener('click',e=>{const b=e.target.closest('[data-open-user]');if(b)openUserDetail(b.dataset.openUser);});
-  window.addEventListener('keydown',e=>{if(e.key==='Escape'){['ownerActionModal','userDetailModal','infoModal','dialogInspector'].forEach(id=>{const m=$('#'+id);if(m)m.hidden=true;});}});
+  window.addEventListener('keydown',e=>{
+    if(e.key!=='Escape'||document.querySelector('.confirm-card')||!$('#ownerActionModal').hidden)return;
+    if(!$('#infoModal').hidden){closeInfo();return;}
+    if(!$('#dialogInspector').hidden){$('#dialogInspector').hidden=true;state.inspectMatchId='';return;}
+    if(!$('#userDetailModal').hidden){$('#userDetailModal').hidden=true;state.selectedUserId='';}
+  });
   async function boot(){if(await verifyOwner())await loadStoreItems();else{setConnection('Нужен вход',false);if(state.token&&!$('#loginError').textContent)$('#loginError').textContent='Сессия не имеет прав владельца. Войди аккаунтом владельца.';}}
   boot();
 })();
