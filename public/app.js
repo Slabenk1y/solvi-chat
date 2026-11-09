@@ -11,6 +11,8 @@ const STICKER_PACKS = {
   'stickers-sausage-mouse': ['🐭','🌭','🧀','😳','🏃','💨','👑','🥹'],
   'stickers-deep-sea': ['🐠','🐙','🪼','🐬','🦀','🐚']
 };
+const VIP_STICKERS = ['👑','💎','🪄','🌟','🫶','🚀','🦋','✨'];
+const PREMIUM_STICKERS = ['🪩','🌌','🦄','🪽','🌠','🔮','💫','🪐'];
 function readStoredList(key) { try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
 const state = {
   token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
@@ -199,6 +201,105 @@ function createThemeStorePreview(item) {
   chat.append(heading,messages,composer);body.append(rail,chat);shell.append(top,body);root.append(shell);
   return root;
 }
+function playStoreSoundPreview(value) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) { showToast('Этот браузер не поддерживает воспроизведение звуков.'); return; }
+  try {
+    state.soundContext ||= new AudioContextClass();
+    const ctx = state.soundContext;
+    if (ctx.state === 'suspended') ctx.resume();
+    const presets = {
+      soft: { type:'triangle', start:520, end:410, duration:.12 },
+      orbit: { type:'sine', start:460, end:780, duration:.24 },
+      arcade: { type:'square', start:420, end:920, duration:.1 },
+      royal: { type:'sine', start:520, end:640, duration:.3 },
+      rain: { type:'triangle', start:680, end:360, duration:.22 },
+      bubble: { type:'sine', start:540, end:600, duration:.14 },
+      synth: { type:'sawtooth', start:360, end:680, duration:.17 }
+    };
+    const preset = presets[value] || presets.soft;
+    const now = ctx.currentTime;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = preset.type;
+    oscillator.frequency.setValueAtTime(preset.start, now);
+    oscillator.frequency.linearRampToValueAtTime(preset.end, now + preset.duration * .7);
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.linearRampToValueAtTime(.04, now + .015);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + preset.duration);
+    oscillator.connect(gain); gain.connect(ctx.destination);
+    oscillator.start(now); oscillator.stop(now + preset.duration + .02);
+  } catch { showToast('Не удалось воспроизвести звук в этом браузере.'); }
+}
+function createCosmeticStorePreview(item) {
+  const root = createThemeStorePreview({ ...item, value:'default' });
+  const slot = item.slot === 'wallpaper' ? 'theme' : item.slot;
+  const shell = root.querySelector('.theme-mock-shell');
+  const heading = root.querySelector('.theme-mock-heading');
+  const avatar = root.querySelector('.theme-mock-avatar');
+  const messages = root.querySelector('.theme-mock-messages');
+  const outgoing = root.querySelector('.theme-mock-bubble.outgoing');
+  root.classList.add('cosmetic-context-preview');
+  root.dataset.previewSlot = slot;
+  root.dataset.previewValue = item.value || '';
+  root.style.setProperty('--mock-target', 'var(--mock-accent)');
+  if (slot === 'bubble') {
+    const bubbleColors = {
+      mint:['#bcebd9','#31594c'], berry:['#7850a6','#fff'], lilac:['#a68fea','#fff'],
+      gold:['#dfc17a','#473818'], ocean:['#4d9eae','#fff'], rose:['#e89ab8','#5b3044'],
+      citrus:['#cde77b','#35421e'], graphite:['#45465a','#fff']
+    };
+    const colors = bubbleColors[item.value] || [getComputedStyle(root).getPropertyValue('--mock-accent').trim(),'#fff'];
+    root.style.setProperty('--mock-target', colors[0]);
+    root.style.setProperty('--mock-target-ink', colors[1]);
+    if (outgoing) outgoing.textContent = 'Именно так будет выглядеть твоё сообщение ✨';
+  } else if (slot === 'frame') {
+    if (avatar) avatar.classList.add(`demo-frame-${String(item.value || '').replace(/[^a-z0-9-]/gi,'')}`);
+    if (heading) heading.classList.add('demo-frame-heading');
+  } else if (slot === 'stickers') {
+    const tray = document.createElement('div');
+    tray.className = 'theme-mock-sticker-tray';
+    const stickers = (STICKER_PACKS[item.id] || ['🌙','✨','☕','🪐','🫶']).slice(0,5);
+    stickers.forEach(symbol => { const sticker=document.createElement('span'); sticker.textContent=symbol; tray.append(sticker); });
+    messages?.append(tray);
+  } else if (slot === 'sound') {
+    const sample = document.createElement('div'); sample.className='theme-mock-sound-sample';
+    const wave = document.createElement('span'); wave.className='theme-mock-sound-wave';
+    [9,16,24,12,20,29,14,22,10].forEach(height=>{const bar=document.createElement('i');bar.style.height=`${height}px`;wave.append(bar);});
+    const play = document.createElement('button'); play.type='button'; play.className='theme-mock-sound-play'; play.textContent='▶ Прослушать этот звук';
+    play.addEventListener('click',()=>playStoreSoundPreview(item.value));
+    sample.append(wave,play); messages?.append(sample);
+  } else if (slot === 'title') {
+    const title = document.createElement('span'); title.className='theme-mock-title-preview'; title.textContent=item.name;
+    heading?.append(title);
+  }
+  const note=document.createElement('div');
+  note.className='theme-mock-context-note';
+  note.textContent = slot==='bubble' ? 'Образец исходящего сообщения'
+    : slot==='frame' ? 'Так будет выглядеть аватар в профиле и чате'
+    : slot==='stickers' ? 'Реальные стикеры из выбранного набора'
+    : slot==='sound' ? 'Можно прослушать выбранный звук'
+    : 'Так предмет будет выглядеть внутри SOVLI';
+  root.append(note);
+  return root;
+}
+function storePreviewPerks(item) {
+  if (item.slot === 'membership') {
+    const premium = item.tier === 'premium';
+    return premium
+      ? ['Все возможности VIP: 5 000 символов, 6 фото, 10 языков и 12 интересов', 'Premium-подсветка профиля и исходящих сообщений', '8 эксклюзивных Premium-стикеров + весь набор VIP', 'Дополнительные быстрые фразы для начала диалога']
+      : ['До 3 000 символов и 4 фото за сообщение', 'До 5 языков и 8 интересов в поиске', 'VIP-рамка профиля и особый акцент сообщений', '8 эксклюзивных VIP-стикеров и дополнительные быстрые фразы'];
+  }
+  const perks = {
+    theme:['Меняется всё оформление: фон, панели, рабочая область и чат','Макет выше показывает сочетание поверхностей и текста'],
+    bubble:['Меняется цвет твоих исходящих сообщений','Входящие сообщения сохраняют нейтральный вид'],
+    frame:['Рамка видна на аватаре в профиле','Та же рамка сопровождает аватар в чате'],
+    sound:['Нажми «Прослушать этот звук» прямо в макете','Звук можно сменить в любой момент через инвентарь'],
+    stickers:['В макете показаны реальные стикеры из набора','После покупки они появятся в панели отправки'],
+    title:['Титул отображается рядом с ником в диалоге','Его можно снять или заменить через инвентарь']
+  };
+  return perks[item.slot] || ['Предмет можно примерить до покупки','После покупки его можно включить в инвентаре'];
+}
 function openStorePreview(item) {
   const modal = $('#storePreviewModal');
   const visual = $('#storePreviewCanvas');
@@ -217,15 +318,13 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '6 фото за раз', '10 языков · 12 интересов', 'Эксклюзивная Premium-подсветка'] : ['VIP-значок рядом с ником', '3 000 символов', '4 фото за раз', '5 языков · 8 интересов', 'Сияющая рамка профиля'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '6 фото за раз', '10 языков · 12 интересов', '8 Premium-стикеров'] : ['3 000 символов', '4 фото за раз', '5 языков · 8 интересов', '8 VIP-стикеров', 'Сияющая рамка профиля'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
     visual.append(createThemeStorePreview(item));
   } else {
-    const preview = createStorePreview(item);
-    preview.classList.add('store-detail-preview');
-    visual.append(preview);
+    visual.append(createCosmeticStorePreview(item));
   }
   $('#storePreviewBadge').textContent = item.category || (item.tier === 'premium' ? 'PREMIUM' : 'VIP');
   $('#storePreviewTitle').textContent = item.name || 'Предпросмотр';
@@ -233,19 +332,24 @@ function openStorePreview(item) {
   const effects = {
     theme: 'Полностью меняет оформление SOVLI: фон, палитру, панели, карточки и область диалога.',
     bubble: 'Меняет цвет и визуальный стиль твоих исходящих сообщений.',
-    frame: 'Добавляет декоративную рамку к аватару профиля.',
-    sound: 'Меняет короткий звуковой сигнал интерфейса.',
-    stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
+    frame: 'Добавляет декоративную рамку к аватару профиля и рядом с именем в чате.',
+    sound: 'Меняет короткий звуковой сигнал. Его можно послушать в образце выше.',
+    stickers: 'Открывает дополнительный набор реальных стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
     membership: item.tier === 'premium'
-      ? 'Premium включает VIP: значок, усиленную сияющую рамку профиля, более заметный ореол и отдельную Premium-подсветку. Привилегии визуальные и не дают преимущества в поиске.'
-      : 'VIP добавляет заметный значок рядом с ником, сияющую рамку профиля и акцент исходящих сообщений. Не влияет на очередь поиска и правила безопасности.'
+      ? 'Premium включает VIP: особая рамка, подсветка профиля и сообщений, эксклюзивные стикеры, расширенные лимиты и фразы.'
+      : 'VIP добавляет особый бейдж, рамку профиля, акцент сообщений, эксклюзивные стикеры и расширенные лимиты.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
+  const perksList = $('#storePreviewPerks');
+  if (perksList) {
+    perksList.replaceChildren();
+    storePreviewPerks(item).forEach(line => { const li=document.createElement('li');li.textContent=line;perksList.append(li); });
+  }
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
   if (item.slot === 'membership') {
     const duration = document.createElement('p'); duration.className = 'store-preview-duration';
-    duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360' : '180'} токенов за час привилегии. При повторной покупке время прибавляется к остатку.`;
+    duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360' : '180'} токенов за час. При повторной покупке время прибавляется к остатку.`;
     $('#storePreviewBenefit').append(duration);
   }
   modal.hidden = false;
@@ -621,6 +725,33 @@ function setAvatarContent(element, user) {
   } else element.textContent = user?.avatar || '◉';
 }
 
+function renderMembershipQuickReplies(user) {
+  const list = $('#quickReplies .quick-reply-list');
+  if (!list) return;
+  list.querySelectorAll('[data-membership-quick]').forEach(node => node.remove());
+  const tier = user?.subscriptionTier || 'free';
+  if (tier === 'free') return;
+  const vip = [
+    'Что тебя сегодня порадовало?',
+    'Какую цель хочешь достичь в этом году?'
+  ];
+  const premium = [
+    'Какое место ты мечтаешь посетить?',
+    'Что бы ты создал, если бы не было ограничений?'
+  ];
+  [...vip, ...(tier === 'premium' ? premium : [])].forEach(text => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.membershipQuick = 'true';
+    button.className = 'membership-quick-reply';
+    button.textContent = text;
+    button.addEventListener('click', () => {
+      sendMessage(text, crypto.randomUUID());
+      $('#quickReplies').open = false;
+    });
+    list.append(button);
+  });
+}
 function setUser(user) {
   const isNewAccount = state.user?.id !== user.id;
   state.user = user;
@@ -668,6 +799,7 @@ function setUser(user) {
   applySettings();
   renderAvatarOptions();
   renderStickerPanel();
+  renderMembershipQuickReplies(user);
   try { if (state.token) localStorage.setItem('sovli_user_cache', JSON.stringify(user)); } catch { /* cached profile is optional */ }
 }
 async function api(url, options = {}) {
@@ -1451,7 +1583,9 @@ function renderStickerPanel() {
   panel.replaceChildren();
   const base = state.config.stickers || ['👋', '😂', '❤️', '🔥', '🥹', '🎉', '☕', '🐈'];
   const pack = STICKER_PACKS[state.user?.equipped?.stickers] || [];
-  [...base, ...pack].forEach(sticker => {
+  const tier = state.user?.subscriptionTier || 'free';
+  const membershipStickers = tier === 'premium' ? [...VIP_STICKERS, ...PREMIUM_STICKERS] : (tier === 'vip' ? VIP_STICKERS : []);
+  [...new Set([...base, ...pack, ...membershipStickers])].forEach(sticker => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'sticker-choice';
@@ -1464,7 +1598,6 @@ function renderStickerPanel() {
     panel.append(button);
   });
 }
-
 async function submitReport() {
   $('#reportError').textContent = '';
   try {
