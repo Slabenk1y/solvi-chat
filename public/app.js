@@ -558,19 +558,22 @@ async function redeemPromo() {
 async function loadPaidMemberships(){
   const root=$('#paidMembershipOffers');if(!root)return;
   try{
-    const data=await api('/api/billing/catalog');root.replaceChildren();
-    (data.products||[]).forEach(product=>{
-      const card=document.createElement('article');card.className='paid-membership-card paid-'+product.tier;
-      const kicker=document.createElement('span');kicker.className='membership-kicker';kicker.textContent=product.tier==='premium'?'PREMIUM · 30 ДНЕЙ':'VIP · 30 ДНЕЙ';
-      const title=document.createElement('h3');title.textContent=product.name;
-      const description=document.createElement('p');description.textContent=product.description;
-      const price=document.createElement('strong');price.textContent=(Number(product.amountMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(product.currency).toUpperCase()});
-      const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Оплатить картой':'Онлайн-оплата не подключена';button.disabled=!data.configured;
-      button.addEventListener('click',async()=>{button.disabled=true;try{const checkout=await api('/api/billing/checkout',{method:'POST',body:JSON.stringify({productId:product.id})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
-      card.append(kicker,title,description,price,button);root.append(card);
-    });
-    if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Stripe подключается владельцем через секреты STRIPE_SECRET_KEY и STRIPE_WEBHOOK_SECRET в Render. До этого кнопки оплаты выключены.';root.append(note);}
-  }catch(error){const note=document.createElement('p');note.className='muted';note.textContent='Денежные тарифы временно недоступны.';root.append(note);}
+    const data=await api('/api/billing/token-topup');root.replaceChildren();
+    const card=document.createElement('article');card.className='paid-membership-card';
+    const kicker=document.createElement('span');kicker.className='membership-kicker';kicker.textContent='ПОПОЛНЕНИЕ БАЛАНСА';
+    const title=document.createElement('h3');title.textContent='Токены SOLVI';
+    const description=document.createElement('p');description.textContent='Покупай токены за реальные деньги на защищённой странице платёжного сервиса, затем трать их на VIP/Premium, темы, рамки, стикеры и другие товары магазина.';
+    const packages=document.createElement('div');packages.className='topup-pack-list';
+    (data.packages||[]).forEach(pack=>{const line=document.createElement('span');line.textContent=pack.name+' · '+Number(pack.tokens).toLocaleString('ru-RU')+' ✦';packages.append(line);});
+    const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Открыть оплату':'Онлайн-платежи пока не подключены';button.disabled=!data.configured;
+    button.addEventListener('click',async()=>{button.disabled=true;try{const checkout=await api('/api/billing/token-topup/checkout',{method:'POST',body:JSON.stringify({packageId:'solvi-1500'})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
+    card.append(kicker,title,description,packages,button);root.append(card);
+    if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Для запуска нужны ключи PAYMENTWALL_PUBLIC_KEY и PAYMENTWALL_PRIVATE_KEY в Render, а также виртуальные пакеты 500 / 1 500 / 5 000 токенов в кабинете Paymentwall. Зачисление происходит только по подписанному серверному уведомлению.';root.append(note);}
+    const params=new URLSearchParams(location.search);
+    const billing=params.get('billing');
+    if(billing==='success'){showToast('Платёж отправлен на подтверждение. Баланс пополнится после серверного уведомления.');params.delete('billing');history.replaceState({},'',location.pathname+(params.toString()?'?'+params.toString():'')+location.hash);}
+    else if(billing==='cancelled'){showToast('Оплата отменена. С баланса ничего не списано.');params.delete('billing');history.replaceState({},'',location.pathname+(params.toString()?'?'+params.toString():'')+location.hash);}
+  }catch(error){const note=document.createElement('p');note.className='muted';note.textContent='Пополнение токенов временно недоступно.';root.append(note);}
 }
 async function loadStore() {
   try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadPaidMemberships(); }
