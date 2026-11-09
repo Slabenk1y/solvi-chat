@@ -14,6 +14,7 @@ const { rateLimit } = require('express-rate-limit');
 const { Server } = require('socket.io');
 const sqlite = require('node:sqlite');
 const { PostgresSnapshotStore } = require('./lib/postgres-snapshot.cjs');
+const { buildVirtualCurrencyWidgetUrl, buildDigitalGoodsCheckoutUrl, verifyPingback } = require('./lib/paymentwall.cjs');
 const SqliteDatabase = sqlite.Database || sqlite.DatabaseSync;
 const APP_VERSION = require('./package.json').version;
 
@@ -213,16 +214,16 @@ const STORE_BUNDLES = Object.freeze([
   { id: 'vip-signature-pack', name: 'VIP · Звёздный след', tier: 'vip', price: 2400, description: '5 эксклюзивных предметов: туманность, метеоритные сообщения, полярная рамка, кометные стикеры и титул «Пыльца комет». Нужен активный VIP или Premium.', itemIds: ['theme-vip-nebula','bubble-vip-meteor','frame-vip-aurora','stickers-vip-comet','title-vip-stardust'] },
   { id: 'premium-quantum-pack', name: 'Premium · Квантовый портал', tier: 'premium', price: 4800, description: '5 мифических предметов: горизонт событий, призматические сообщения, портал измерений, квантовые стикеры и титул «Сингулярность». Нужен активный Premium.', itemIds: ['theme-premium-event-horizon','bubble-premium-prism','frame-premium-portal','stickers-premium-quantum','title-premium-singularity'] }
 ]);
-const BILLING_CURRENCY_RAW = String(process.env.BILLING_CURRENCY || 'eur').trim().toLowerCase();
+const BILLING_CURRENCY_RAW = String(process.env.BILLING_CURRENCY || 'rub').trim().toLowerCase();
 const BILLING_CURRENCY = /^[a-z]{3}$/.test(BILLING_CURRENCY_RAW) ? BILLING_CURRENCY_RAW : 'eur';
-function billingMinorPrice(envName, eurDefault) {
+function billingMinorPrice(envName, defaultMinor) {
   const raw = process.env[envName];
-  const value = raw === undefined || String(raw).trim() === '' ? (BILLING_CURRENCY === 'eur' ? eurDefault : 0) : Number(raw);
+  const value = raw === undefined || String(raw).trim() === '' ? defaultMinor : Number(raw);
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 const BILLING_PRODUCTS = Object.freeze([
-  { id: 'vip-30d', tier: 'vip', days: 30, amountMinor: billingMinorPrice('VIP_PRICE_MINOR', 499), currency: BILLING_CURRENCY, name: 'VIP · 30 дней', description: '30 дней VIP: расширенные лимиты, голосовые до 45 секунд и 5 фото за сообщение.' },
-  { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: billingMinorPrice('PREMIUM_PRICE_MINOR', 899), currency: BILLING_CURRENCY, name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
+  { id: 'vip-30d', tier: 'vip', days: 30, amountMinor: billingMinorPrice('VIP_PRICE_MINOR', BILLING_CURRENCY === 'rub' ? 49900 : ['eur','usd'].includes(BILLING_CURRENCY) ? 499 : 0), currency: BILLING_CURRENCY, name: 'VIP · 30 дней', description: '30 дней VIP: расширенные лимиты, голосовые до 45 секунд и 5 фото за сообщение.' },
+  { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: billingMinorPrice('PREMIUM_PRICE_MINOR', BILLING_CURRENCY === 'rub' ? 89900 : ['eur','usd'].includes(BILLING_CURRENCY) ? 899 : 0), currency: BILLING_CURRENCY, name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
   { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов.' },
@@ -259,6 +260,8 @@ let persistentFlushTimer = null;
 let persistentFlushPromise = null;
 let shuttingDown = false;
 const queue = new Map();
+const queueFallbackTimers = new Map();
+const aiSessions = new Map();
 const disconnectTimers = new Map();
 const guestExpiryTimers = new Map();
 const messageWindows = new Map();
@@ -419,6 +422,10 @@ function storePrice(itemId, fallbackPrice) {
   const row = dbGet('SELECT price, enabled FROM store_price_overrides WHERE item_id = ?', [itemId]);
   return row ? { price: Number(row.price), enabled: Boolean(row.enabled) } : { price: fallbackPrice, enabled: true };
 }
+function cashStorePrice(itemId) {
+  const row = dbGet('SELECT price_minor, currency, enabled FROM cash_store_price_overrides WHERE item_id = ?', [itemId]);
+  return row ? { cashPriceMinor: Number(row.price_minor), cashCurrency: String(row.currency || 'EUR'), cashEnabled: Boolean(row.enabled) } : { cashPriceMinor: 0, cashCurrency: 'RUB', cashEnabled: false };
+}
 function auditAdmin(actorId, action, targetId = null, details = {}) {
   dbRun('INSERT INTO admin_audit_log (id, actor_id, action, target_id, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     [crypto.randomUUID(), actorId, action, targetId, JSON.stringify(details), nowIso()]);
@@ -432,10 +439,13 @@ function isOwner(user) {
   return Boolean(user && process.env.OWNER_PUBLIC_ID && String(user.public_id) === String(process.env.OWNER_PUBLIC_ID));
 }
 function effectiveSubscription(user) {
-  const tier = ['vip', 'premium'].includes(user?.subscription_tier) ? user.subscription_tier : 'free';
-  if (tier === 'free') return 'free';
-  if (user.subscription_expires_at && user.subscription_expires_at <= nowIso()) return 'free';
-  return tier;
+  const now = nowIso();
+  const activeTiers = [
+    { tier: user?.subscription_tier, expiresAt: user?.subscription_expires_at },
+    { tier: user?.paid_subscription_tier, expiresAt: user?.paid_subscription_expires_at }
+  ].filter(entry => ['vip', 'premium'].includes(entry.tier) && (!entry.expiresAt || entry.expiresAt > now));
+  if (activeTiers.some(entry => entry.tier === 'premium')) return 'premium';
+  return activeTiers.some(entry => entry.tier === 'vip') ? 'vip' : 'free';
 }
 function effectivePaidSubscription(user) {
   const tier = ['vip', 'premium'].includes(user?.paid_subscription_tier) ? user.paid_subscription_tier : 'free';
@@ -452,7 +462,7 @@ function membershipLimits(user) {
     attachmentLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
     imageBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 6 * 1024 * 1024),
     audioBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 5 * 1024 * 1024),
-    avatarBytes: tier === 'premium' ? 8 * 1024 * 1024 : (tier === 'vip' ? 4 * 1024 * 1024 : 2 * 1024 * 1024),
+    avatarBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 4 * 1024 * 1024),
     voiceSeconds: tier === 'premium' ? 60 : (tier === 'vip' ? 45 : 30)
   };
 }
@@ -591,7 +601,12 @@ function endMatch(matchId, reason = 'ended', actorId = null) {
   emitToPair(match, 'chat:ended', { matchId, reason, actorId, canFavorite: canArchive });
   return true;
 }
-function removeFromQueue(userId) { queue.delete(userId); }
+function removeFromQueue(userId) {
+  queue.delete(userId);
+  const timer = queueFallbackTimers.get(userId);
+  if (timer) clearTimeout(timer);
+  queueFallbackTimers.delete(userId);
+}
 function eligibleByLanguage(a, b) {
   if (!a.languages.length || !b.languages.length) return true;
   return a.languages.some(language => b.languages.includes(language));
@@ -650,24 +665,151 @@ function addToQueue(socket, preferences) {
   const roleplayIntent = preferences?.roleplayIntent === 'offering' ? 'offering' : 'seeking';
   if (mode === 'roleplay' && !['seeking', 'offering'].includes(preferences?.roleplayIntent)) return { ok: false, error: 'Выбери: ищешь сюжет или предлагаешь сюжет.' };
   const limits = membershipLimits(user);
-  const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(x => LANGUAGES.includes(x)))].slice(0, limits.languageLimit) : [];
-  const allowedInterests = mode === 'flirt' ? FLIRT_INTERESTS : (mode === 'roleplay' ? ROLEPLAY_INTERESTS : INTERESTS);
-  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => allowedInterests.includes(x)))].slice(0, limits.interestLimit) : [];
+  const languages = ['Русский'];
+  const interests = [];
   const entry = { userId, mode, gender: ownGender, desiredGender, roleplayIntent, languages, interests, joinedAt: Date.now() };
+  if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
   tryMatch(userId);
+  // AI fallback is intentionally disabled: matching waits for a real person only.
   return { ok: true };
+}
+const AI_PERSONA_PROFILES = [
+  { names: ['Мира', 'Алиса', 'Ника', 'Лея', 'Соня', 'Варя', 'Эмма'], avatar: '🌙', gender: 'female', style: 'дружелюбная, внимательная, с живым чувством юмора' },
+  { names: ['Лёша', 'Марк', 'Илья', 'Даня', 'Тим', 'Макс', 'Егор'], avatar: '🎧', gender: 'male', style: 'общительный, любознательный, говорит просто и без пафоса' },
+  { names: ['Сэм', 'Рэй', 'Саша', 'Крис', 'Мика'], avatar: '🐸', gender: 'other', style: 'неформальный, доброжелательный, любит необычные идеи и мемы' }
+];
+function chooseAiPersona(entry) {
+  const candidates = AI_PERSONA_PROFILES.filter(persona => entry.desiredGender === 'any' || persona.gender === entry.desiredGender);
+  const pool = candidates.length ? candidates : AI_PERSONA_PROFILES;
+  const profile = pool[Math.floor(Math.random() * pool.length)];
+  const names = profile.names;
+  return {
+    name: names[Math.floor(Math.random() * names.length)],
+    age: 18 + Math.floor(Math.random() * 18),
+    avatar: profile.avatar,
+    gender: profile.gender,
+    style: profile.style
+  };
+}
+async function startAiFallback(userId) {
+  const entry = queue.get(userId);
+  if (!entry) return;
+  const socket = [...io.sockets.sockets.values()].find(item => item.data.userId === userId);
+  if (!socket) { removeFromQueue(userId); return; }
+  if (entry.mode !== 'chat') {
+    socket.emit('queue:aiUnavailable', { reason: 'adult_mode' });
+    return;
+  }
+  if (!String(process.env.GEMINI_API_KEY || '').trim()) {
+    socket.emit('queue:aiUnavailable', { reason: 'api_key' });
+    return;
+  }
+  const persona = chooseAiPersona(entry);
+  const sessionId = `ai:${crypto.randomUUID()}`;
+  const partnerId = `ai-user:${crypto.randomUUID()}`;
+  const interests = entry.interests.slice(0, 5);
+  const languages = entry.languages.length ? entry.languages.join(', ') : 'русский';
+  const systemPrompt = [
+    `Ты ИИ-собеседник SOLVI по имени ${persona.name}, твой вымышленный возраст в этой беседе — ${persona.age} лет. Для каждого нового собеседника тебе случайно назначаются новое имя и возраст; не используй образ из прошлых бесед. Пользователь видит явную отметку «ИИ-собеседник» — никогда не утверждай и не намекай, что ты человек. Если спрашивают о возрасте, называй назначенный возраст как часть образа ИИ-персонажа.`,
+    `Твой характер: ${persona.style}. Общайся естественно, короткими сообщениями, преимущественно строчными буквами, без официоза и без точки в конце обычной короткой реплики.`,
+    'Твоя главная задача — вести настоящий связный диалог, а не собирать анкету. Каждый ответ начинай с реакции на конкретное содержание последнего сообщения пользователя: ответь на его вопрос, прокомментируй факт, поддержи эмоцию или развей мысль. Не игнорируй смысл сообщения и не отвечай универсальными фразами вроде «понятно», «прикольно», «расскажи ещё» без конкретной связи с тем, что сказано. Если пользователь задаёт вопрос — сначала дай прямой ответ, затем при необходимости добавь короткий встречный вопрос по той же теме. Если пользователь делится историей или мнением — обсуди именно её, не меняй тему. Не задавай вопрос автоматически в каждом сообщении: обычно задавай не более одного вопроса на 3 ответа пользователя; иногда несколько реплик подряд просто беседуй без вопросов. Никогда не задавай следующий вопрос из списка знакомства, если пользователь ещё развивает предыдущую тему. Не делай выводов о пользователе без оснований и не выдумывай детали его слов. Не используй шаблонные комплименты и повторяющиеся реакции. В начале один раз поздоровайся и спроси имя. Дальше узнавай человека естественно, без чек-листа: возраст, город, интересы, хобби, любимая еда, семья — только когда это уместно в разговоре. Курение и алкоголь сам не инициируй. Не задавай два вопроса в одной реплике. Учитывай всю доступную историю и не повторяй уже заданное. Будь доброжелательным, но не соглашайся автоматически со всем: можешь иметь мягкое собственное мнение. Не выдумывай настоящую человеческую биографию — честно оставайся ИИ-персонажем. Если человек не хочет отвечать, спокойно продолжи другую тему.',
+    `Интересы пользователя: ${interests.length ? interests.join(', ') : 'пока не указаны'}. Языки: ${languages}. Подхватывай эти темы, но не перечисляй их механически.`,
+    'Задавай по одному живому вопросу, не превращай диалог в интервью. Не проси личные данные, контакты, пароли или адреса. Не выдумывай собственные реальные соцсети, встречи или биографию. Если спрашивают, кто ты, честно отвечай, что ты ИИ-персонаж.',
+    'Для обычного режима общайся дружелюбно и безопасно. Не переходи к сексуальному или откровенному контенту. Не выдавай медицинские, юридические или финансовые советы как специалист.',
+    'Отвечай на русском языке. Максимум 2 коротких предложения. При первом знакомстве отправь одно короткое сообщение: приветствие, представление и один вопрос об имени. Не отправляй несколько сообщений подряд и всегда жди ответ пользователя.'
+  ].join(' ');
+  const partner = { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается на русском языке.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests };
+  const session = { id: sessionId, partnerId, partner, persona, interests, systemPrompt, history: [], messages: [], pending: [], processing: false, turnVersion: 0, createdAt: Date.now() };
+  aiSessions.set(userId, session);
+  removeFromQueue(userId);
+  const commonInterests = interests.slice(0, 3);
+  io.to(userRoom(userId)).emit('match:found', {
+    matchId: sessionId, isAi: true, mode: 'chat', startedAt: nowIso(), partner, commonInterests
+  });
+  queueAiTurn(userId, session, null);
+}
+function fallbackAiReply(session, isGreeting = false) {
+  const options = isGreeting
+    ? [`привет! я ${session.persona.name} ✨ а как тебя зовут?`]
+    : ['ахах, понимаю 😄', 'о, вот это поворот', 'звучит интересно, мне нравится как ты это описываешь', 'да, понимаю о чём ты', 'прикольно, продолжай, я слушаю', 'неожиданно, но в этом есть своя логика'];
+  return options[Math.floor(Math.random() * options.length)];
+}
+async function generateAiReply(session, isGreeting = false) {
+  const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+  if (!apiKey) return fallbackAiReply(session, isGreeting);
+  const model = String(process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
+  const contents = session.history.slice(-12);
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: session.systemPrompt }] }, contents, generationConfig: { temperature: 0.72, maxOutputTokens: 180 } }),
+    signal: AbortSignal.timeout(12_000)
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.error?.message || `Gemini HTTP ${response.status}`);
+  const text = payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  return text ? text.slice(0, 500) : fallbackAiReply(session, isGreeting);
+}
+function aiTypingDelay(text) {
+  const length = String(text || '').trim().length;
+  return Math.min(4600, Math.max(1100, 650 + length * 34 + Math.floor(Math.random() * 750)));
+}
+function queueAiTurn(userId, session, text) {
+  // Keep every user turn in order; never replace a message sent during generation.
+  if (session.processing) {
+    session.pending.push(text);
+    return;
+  }
+  session.pending.push(text);
+  session.processing = true;
+  (async () => {
+    while (session.pending.length && aiSessions.get(userId) === session) {
+      const input = session.pending.shift();
+      const userPrompt = input === null
+        ? 'Начни разговор одним коротким сообщением: поздоровайся, представься как ИИ-персонаж и задай только один простой вопрос об имени.'
+        : input;
+      session.history.push({ role: 'user', parts: [{ text: userPrompt }] });
+      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
+      let generated;
+      try { generated = await generateAiReply(session, input === null); }
+      catch (error) {
+        console.error('[SOLVI] Gemini response failed:', error.message);
+        generated = fallbackAiReply(session, input === null);
+      }
+      if (aiSessions.get(userId) !== session) break;
+      const reply = String(generated || '').split(/\\s*<MSG>\\s*/i).map(value => value.trim()).filter(Boolean)[0]
+        || fallbackAiReply(session, input === null);
+      await new Promise(resolve => setTimeout(resolve, aiTypingDelay(reply)));
+      if (aiSessions.get(userId) !== session) break;
+      const message = {
+        id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
+        client_id: `ai:${crypto.randomUUID()}`, content: reply.slice(0, 500), created_at: nowIso(),
+        delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
+        sticker: null, attachments: [], reactions: [], replyTo: null
+      };
+      session.messages.push(message);
+      session.history.push({ role: 'model', parts: [{ text: message.content }] });
+      session.history = session.history.slice(-20);
+      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false });
+      io.to(userRoom(userId)).emit('ai:message', message);
+    }
+  })().catch(error => {
+    console.error('[SOLVI] AI conversation queue failed:', error.message);
+  }).finally(() => {
+    session.processing = false;
+  });
 }
 function issueToken(user) {
   const sessionId = crypto.randomUUID();
   const createdAt = new Date();
-  const lifetimeMs = user.account_type === 'guest' ? 180 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  const lifetimeMs = user.account_type === 'guest' ? 3 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
   const expiresAt = new Date(createdAt.getTime() + lifetimeMs);
   transaction(() => {
     dbRun('DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?', [user.id, createdAt.toISOString()]);
     dbRun('INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [sessionId, user.id, createdAt.toISOString(), expiresAt.toISOString()]);
   });
-  return jwt.sign({ sub: user.id, publicId: user.public_id, accountType: user.account_type || 'registered' }, JWT_SECRET, { expiresIn: user.account_type === 'guest' ? '180d' : '7d', issuer: 'orbit-chat', jwtid: sessionId }); // issuer kept for existing sessions
+  return jwt.sign({ sub: user.id, publicId: user.public_id, accountType: user.account_type || 'registered' }, JWT_SECRET, { expiresIn: user.account_type === 'guest' ? '3d' : '7d', issuer: 'orbit-chat', jwtid: sessionId }); // issuer kept for existing sessions
 }
 function cleanUsername(value) {
   if (typeof value !== 'string') return null;
@@ -835,6 +977,60 @@ async function main() {
       amount_minor INTEGER NOT NULL, currency TEXT NOT NULL, created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS payment_records_user ON payment_records(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS paymentwall_token_purchases (
+      id TEXT PRIMARY KEY,
+      provider_reference TEXT NOT NULL UNIQUE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_amount INTEGER NOT NULL CHECK(token_amount > 0),
+      status TEXT NOT NULL CHECK(status IN ('credited','reversed')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS paymentwall_token_purchases_user ON paymentwall_token_purchases(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS cash_store_price_overrides (
+      item_id TEXT PRIMARY KEY,
+      price_minor INTEGER NOT NULL CHECK(price_minor >= 30),
+      currency TEXT NOT NULL DEFAULT 'EUR',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      updated_by TEXT REFERENCES users(id),
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS paymentwall_store_orders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      item_kind TEXT NOT NULL CHECK(item_kind IN ('catalog','membership','bundle','paid_tier')),
+      amount_minor INTEGER NOT NULL CHECK(amount_minor >= 30),
+      currency TEXT NOT NULL,
+      billing_email TEXT NOT NULL,
+      provider_reference TEXT UNIQUE,
+      status TEXT NOT NULL CHECK(status IN ('pending','paid','reversed','cancelled')),
+      delivered_item_ids TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS paymentwall_store_orders_user ON paymentwall_store_orders(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS paymentwall_store_orders_status ON paymentwall_store_orders(status, created_at DESC);
+    CREATE TABLE IF NOT EXISTS ad_campaigns (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      sponsor_name TEXT NOT NULL DEFAULT '',
+      target_url TEXT NOT NULL,
+      cta_label TEXT NOT NULL DEFAULT 'Подробнее',
+      placement TEXT NOT NULL DEFAULT 'store',
+      price_minor INTEGER NOT NULL DEFAULT 0 CHECK(price_minor >= 0),
+      currency TEXT NOT NULL DEFAULT 'EUR',
+      payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK(payment_status IN ('unpaid','paid','comped')),
+      status TEXT NOT NULL DEFAULT 'paused' CHECK(status IN ('paused','active','ended')),
+      starts_at TEXT,
+      ends_at TEXT,
+      impressions INTEGER NOT NULL DEFAULT 0,
+      clicks INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS ad_campaigns_live ON ad_campaigns(placement,status,starts_at,ends_at);
     CREATE TABLE IF NOT EXISTS moderation_actions (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, action TEXT NOT NULL, reason TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reports_status (report_id TEXT PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'open', reviewed_by TEXT REFERENCES users(id), reviewed_at TEXT, resolution TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS promo_codes (
@@ -895,6 +1091,7 @@ async function main() {
   if (!promoColumns.includes('target_user_id')) db.exec('ALTER TABLE promo_codes ADD COLUMN target_user_id TEXT REFERENCES users(id) ON DELETE CASCADE');
   db.exec('CREATE INDEX IF NOT EXISTS promo_codes_target_user_idx ON promo_codes(target_user_id, created_at DESC)');
   if (!userColumns.includes('username_key')) db.exec('ALTER TABLE users ADD COLUMN username_key TEXT');
+  if (!userColumns.includes('billing_email')) db.exec("ALTER TABLE users ADD COLUMN billing_email TEXT NOT NULL DEFAULT ''");
   if (!userColumns.includes('settings_json')) db.exec("ALTER TABLE users ADD COLUMN settings_json TEXT NOT NULL DEFAULT '{}'");
   if (!userColumns.includes('account_type')) db.exec("ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'registered'");
   if (!userColumns.includes('guest_expires_at')) db.exec('ALTER TABLE users ADD COLUMN guest_expires_at TEXT');
@@ -957,8 +1154,8 @@ async function main() {
   db.exec("UPDATE users SET settings_json = '{}' WHERE settings_json IS NULL OR settings_json = ''");
   db.exec("UPDATE users SET account_type = 'registered' WHERE account_type IS NULL OR account_type = ''");
   // Extend previously issued guest profiles to the new 180-day retention window.
-  dbRun("UPDATE users SET guest_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0) WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0)");
-  dbRun("UPDATE sessions SET expires_at = (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id) WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL) AND expires_at < (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id)");
+  dbRun("UPDATE users SET guest_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 3.0) WHERE account_type = 'guest'");
+  dbRun("UPDATE sessions SET expires_at = (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id) WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL)");
   // Expired temporary guests are removed during startup cleanup.
   const expiredGuests = dbAll("SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at <= ?", [nowIso()]).map(row => row.id);
   if (expiredGuests.length) {
@@ -1042,7 +1239,7 @@ async function main() {
     const started = Date.now();
     res.on('finish', () => {
       const forwarded = req.get('cf-connecting-ip') ? ' via-cloudflare' : '';
-      if (req.path !== '/api/health' && !req.path.startsWith('/socket.io/')) console.log(`[HTTP] ${req.method} ${req.path} -> ${res.statusCode} ${Date.now() - started}ms${forwarded}`);
+      if (!['/api/health', '/api/ping'].includes(req.path) && !req.path.startsWith('/socket.io/')) console.log(`[HTTP] ${req.method} ${req.path} -> ${res.statusCode} ${Date.now() - started}ms${forwarded}`);
     });
     next();
   });
@@ -1113,6 +1310,8 @@ async function main() {
   app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много попыток. Попробуйте позже.' } }));
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 
+  app.get('/api/ping', (_req, res) => res.status(200).json({ ok: true, service: 'solvi-chat' }));
+
   app.get('/api/health', (_req, res) => {
     const ownerConfigured = Boolean(String(process.env.OWNER_PUBLIC_ID || '').trim());
     const ownerAccountPresent = ownerConfigured && Boolean(dbGet("SELECT id FROM users WHERE public_id = ? AND account_type = 'registered'", [process.env.OWNER_PUBLIC_ID]));
@@ -1155,6 +1354,248 @@ async function main() {
       res.json({ url: result.url });
     } catch { res.status(502).json({ error: 'Платёжный сервис временно недоступен.' }); }
   });
+  const PAYMENTWALL_TOKEN_PACKAGES = Object.freeze([
+    { id: 'solvi-500', tokens: 500, name: 'Стартовый запас', description: '500 токенов для покупок в магазине SOLVI.' },
+    { id: 'solvi-1500', tokens: 1500, name: 'Популярный запас', description: '1 500 токенов для тем, рамок, стикеров и привилегий.' },
+    { id: 'solvi-5000', tokens: 5000, name: 'Большой запас', description: '5 000 токенов для крупных покупок в магазине.' }
+  ]);
+  function paymentwallBaseUrl() {
+    return String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
+  }
+  function paymentwallSettings() {
+    const baseUrl = paymentwallBaseUrl();
+    const publicKey = String(process.env.PAYMENTWALL_VC_PUBLIC_KEY || process.env.PAYMENTWALL_PUBLIC_KEY || '').trim();
+    const privateKey = String(process.env.PAYMENTWALL_VC_PRIVATE_KEY || process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
+    const widgetCode = String(process.env.PAYMENTWALL_VC_WIDGET_CODE || process.env.PAYMENTWALL_WIDGET_CODE || 'p1_1').trim();
+    return { baseUrl, publicKey, privateKey, widgetCode, configured: Boolean(publicKey && privateKey && /^https:\/\//i.test(baseUrl) && widgetCode) };
+  }
+  function paymentwallGoodsSettings() {
+    const baseUrl = paymentwallBaseUrl();
+    const publicKey = String(process.env.PAYMENTWALL_GOODS_PUBLIC_KEY || '').trim();
+    const privateKey = String(process.env.PAYMENTWALL_GOODS_PRIVATE_KEY || '').trim();
+    const widgetCode = String(process.env.PAYMENTWALL_GOODS_WIDGET_CODE || 'p1').trim();
+    return { baseUrl, publicKey, privateKey, widgetCode, configured: Boolean(publicKey && privateKey && /^https:\/\//i.test(baseUrl) && widgetCode) };
+  }
+  app.get('/api/billing/token-topup', authMiddleware, (_req, res) => {
+    const settings = paymentwallSettings();
+    res.json({
+      provider: 'Paymentwall',
+      configured: settings.configured,
+      currency: String(process.env.PAYMENTWALL_DISPLAY_CURRENCY || 'RUB').trim().toUpperCase(),
+      packages: PAYMENTWALL_TOKEN_PACKAGES,
+      billingEmail: String(_req.user?.billing_email || ''),
+      goodsConfigured: paymentwallGoodsSettings().configured,
+      membershipProducts: BILLING_PRODUCTS
+    });
+  });
+  app.post('/api/billing/token-topup/checkout', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Пополнение доступно постоянным пользовательским аккаунтам.' });
+    const settings = paymentwallSettings();
+    if (!settings.configured) return res.status(503).json({ error: 'Платёжный шлюз ещё не настроен. Нужны ключи Paymentwall и публичный HTTPS-адрес проекта.' });
+    const email = String(req.body?.email || req.user.billing_email || '').trim().toLowerCase();
+    if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(email)) return res.status(400).json({ error: 'Укажи действующий email для платёжного чека.' });
+    dbRun('UPDATE users SET billing_email = ? WHERE id = ?', [email, req.user.id]);
+    const registrationTimestamp = Math.floor(Date.parse(req.user.created_at || '') / 1000);
+    try {
+      const url = buildVirtualCurrencyWidgetUrl({
+        publicKey: settings.publicKey,
+        privateKey: settings.privateKey,
+        userId: req.user.public_id,
+        widgetCode: settings.widgetCode,
+        email,
+        paymentSystems: 'all',
+        successUrl: settings.baseUrl + '/?billing=success',
+        failureUrl: settings.baseUrl + '/?billing=cancelled',
+        registrationTimestamp
+      });
+      res.json({ url });
+    } catch (error) {
+      console.error('[BILLING] Paymentwall checkout configuration error:', error.message);
+      res.status(503).json({ error: 'Не удалось подготовить страницу оплаты. Проверь настройки Paymentwall.' });
+    }
+  });
+  app.get('/api/billing/paymentwall/pingback', (req, res) => {
+    const privateKey = String(process.env.PAYMENTWALL_VC_PRIVATE_KEY || process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
+    if (!privateKey) return res.status(503).type('text/plain').send('Paymentwall is not configured');
+    const params = Object.fromEntries(Object.entries(req.query || {}).map(([key, value]) => [key, Array.isArray(value) ? (value.length === 1 ? value[0] : '') : value]));
+    if (!verifyPingback(params, privateKey)) return res.status(400).type('text/plain').send('Invalid signature');
+    const type = String(params.type || '');
+    const reference = String(params.ref || '').trim();
+    const userId = String(params.uid || '').trim();
+    if (!reference || reference.length > 180) return res.status(400).type('text/plain').send('Invalid reference');
+    if (type === '0') {
+      const tokenAmount = Number(params.currency);
+      if (!Number.isSafeInteger(tokenAmount) || tokenAmount < 1 || tokenAmount > 1000000) return res.status(400).type('text/plain').send('Invalid token amount');
+      const user = dbGet('SELECT * FROM users WHERE public_id = ?', [userId]);
+      if (!user || user.account_type === 'guest') return res.status(200).type('text/plain').send('OK');
+      const previous = dbGet('SELECT status FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference]);
+      if (previous) return res.status(200).type('text/plain').send('OK');
+      const at = nowIso();
+      try {
+        transaction(() => {
+          dbRun('INSERT INTO paymentwall_token_purchases (id,provider_reference,user_id,token_amount,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
+            [crypto.randomUUID(), reference, user.id, tokenAmount, 'credited', at, at]);
+          dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokenAmount, user.id]);
+          dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)',
+            [crypto.randomUUID(), user.id, 'cash_topup', tokenAmount, 'Покупка токенов за реальные деньги · Paymentwall', at]);
+        });
+      } catch (error) {
+        if (!dbGet('SELECT id FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference])) {
+          console.error('[BILLING] Paymentwall credit failed:', error.message);
+          return res.status(500).type('text/plain').send('Temporary processing error');
+        }
+      }
+      io?.to?.(userRoom(user.id))?.emit('billing:tokens-credited', { tokens: tokenAmount });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    if (type === '2') {
+      const payment = dbGet('SELECT * FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference]);
+      if (!payment || payment.status === 'reversed') return res.status(200).type('text/plain').send('OK');
+      const at = nowIso();
+      transaction(() => {
+        dbRun('UPDATE users SET tokens = tokens - ? WHERE id = ?', [payment.token_amount, payment.user_id]);
+        dbRun("UPDATE paymentwall_token_purchases SET status = 'reversed', updated_at = ? WHERE provider_reference = ?", [at, reference]);
+        dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)',
+          [crypto.randomUUID(), payment.user_id, 'chargeback', -payment.token_amount, 'Отмена/возврат пополнения · Paymentwall', at]);
+      });
+      io?.to?.(userRoom(payment.user_id))?.emit('billing:tokens-reversed', { tokens: payment.token_amount });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    return res.status(200).type('text/plain').send('OK');
+  });
+
+  app.post('/api/billing/store/checkout', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Денежные покупки доступны постоянным аккаунтам.' });
+    const settings = paymentwallGoodsSettings();
+    if (!settings.configured) return res.status(503).json({ error: 'Прямые денежные покупки магазина ещё не подключены. Нужен отдельный Paymentwall-проект Widget API — Digital Goods.' });
+    const itemId = String(req.body?.itemId || '');
+    const item = STORE_CATALOG.find(row => row.id === itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === itemId) || STORE_BUNDLES.find(row => row.id === itemId) || BILLING_PRODUCTS.find(row => row.id === itemId);
+    if (!item) return res.status(404).json({ error: 'Товар не найден.' });
+    const itemKind = STORE_CATALOG.some(row => row.id === itemId) ? 'catalog'
+      : MEMBERSHIP_PACKAGES.some(row => row.id === itemId) ? 'membership'
+      : STORE_BUNDLES.some(row => row.id === itemId) ? 'bundle' : 'paid_tier';
+    const priceInfo = itemKind === 'paid_tier'
+      ? { cashPriceMinor: item.amountMinor, cashCurrency: item.currency.toUpperCase(), cashEnabled: item.amountMinor >= 30 }
+      : cashStorePrice(item.id);
+    if (!priceInfo.cashEnabled || !Number.isSafeInteger(priceInfo.cashPriceMinor) || priceInfo.cashPriceMinor < 30) return res.status(403).json({ error: 'Для этого товара ещё не установлена денежная цена в панели владельца.' });
+    if (itemKind === 'catalog' && dbGet('SELECT item_id FROM store_inventory WHERE user_id = ? AND item_id = ?', [req.user.id, item.id])) return res.status(409).json({ error: 'Этот товар уже находится в твоей коллекции.' });
+    if (itemKind === 'bundle') {
+      const paidTier = effectivePaidSubscription(req.user);
+      if (item.tier === 'premium' ? paidTier !== 'premium' : !['vip','premium'].includes(paidTier)) return res.status(403).json({ error: 'Для покупки набора сначала нужен оплаченный VIP/Premium.' });
+      if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, item.id])) return res.status(409).json({ error: 'Этот набор уже приобретён.' });
+    }
+    const billingEmail = String(req.body?.email || req.user.billing_email || '').trim().toLowerCase();
+    if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(billingEmail)) return res.status(400).json({ error: 'Укажи действующий email для платёжного чека.' });
+    const currency = String(priceInfo.cashCurrency || 'EUR').toUpperCase();
+    const priceMinor = Number(priceInfo.cashPriceMinor);
+    const orderId = 'solviorder' + crypto.randomUUID().replace(/-/g, '');
+    const registrationTimestamp = Math.floor(Date.parse(req.user.created_at || '') / 1000);
+    const at = nowIso();
+    try {
+      transaction(() => {
+        dbRun('UPDATE users SET billing_email = ? WHERE id = ?', [billingEmail, req.user.id]);
+        dbRun('INSERT INTO paymentwall_store_orders (id,user_id,item_id,item_kind,amount_minor,currency,billing_email,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+          [orderId,req.user.id,item.id,itemKind,priceMinor,currency,billingEmail,'pending',at,at]);
+      });
+      const url = buildDigitalGoodsCheckoutUrl({
+        publicKey: settings.publicKey, privateKey: settings.privateKey,
+        userId: req.user.public_id, widgetCode: settings.widgetCode,
+        orderId, amountMinor: priceMinor, currency, productName: item.name,
+        email: billingEmail, paymentSystems: 'all',
+        successUrl: settings.baseUrl + '/?billing=success',
+        failureUrl: settings.baseUrl + '/?billing=cancelled',
+        registrationTimestamp
+      });
+      res.json({ url });
+    } catch (error) {
+      dbRun("UPDATE paymentwall_store_orders SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),orderId]);
+      console.error('[BILLING] Paymentwall Digital Goods checkout error:', error.message);
+      res.status(503).json({ error: 'Не удалось создать страницу денежной покупки. Проверь настройки Paymentwall.' });
+    }
+  });
+  app.get('/api/billing/paymentwall/goods-pingback', (req, res) => {
+    const privateKey = String(process.env.PAYMENTWALL_GOODS_PRIVATE_KEY || '').trim();
+    if (!privateKey) return res.status(503).type('text/plain').send('Paymentwall Digital Goods is not configured');
+    const params = Object.fromEntries(Object.entries(req.query || {}).map(([key, value]) => [key, Array.isArray(value) ? (value.length === 1 ? value[0] : '') : value]));
+    if (!verifyPingback(params, privateKey)) return res.status(400).type('text/plain').send('Invalid signature');
+    const type = String(params.type || '');
+    const reference = String(params.ref || '').trim();
+    const orderId = String(params.goodsid || '').trim();
+    const publicId = String(params.uid || '').trim();
+    if (!reference || reference.length > 180 || !/^solviorder[a-f0-9]{32}$/.test(orderId)) return res.status(400).type('text/plain').send('Invalid purchase reference');
+    const order = dbGet('SELECT * FROM paymentwall_store_orders WHERE id = ?', [orderId]);
+    if (!order) return res.status(200).type('text/plain').send('OK');
+    const user = getUserById(order.user_id);
+    if (!user || user.public_id !== publicId) return res.status(400).type('text/plain').send('User mismatch');
+    const at = nowIso();
+    if (type === '0') {
+      if (order.status === 'paid' || order.status === 'reversed' || order.status === 'cancelled') return res.status(200).type('text/plain').send('OK');
+      const delivered = [];
+      try {
+        transaction(() => {
+          const item = STORE_CATALOG.find(row => row.id === order.item_id);
+          const membership = MEMBERSHIP_PACKAGES.find(row => row.id === order.item_id);
+          const bundle = STORE_BUNDLES.find(row => row.id === order.item_id);
+          const paidTierProduct = BILLING_PRODUCTS.find(row => row.id === order.item_id);
+          if (order.item_kind === 'catalog' && item) {
+            dbRun('INSERT OR IGNORE INTO store_inventory (user_id,item_id,acquired_at,source) VALUES (?,?,?,?)', [order.user_id,item.id,at,'cash-purchase']);
+            if (Number(dbGet('SELECT changes() AS n').n) > 0) delivered.push(item.id);
+          } else if (order.item_kind === 'bundle' && bundle) {
+            for (const itemId of bundle.itemIds) {
+              dbRun('INSERT OR IGNORE INTO store_inventory (user_id,item_id,acquired_at,source) VALUES (?,?,?,?)', [order.user_id,itemId,at,'cash-purchase']);
+              if (Number(dbGet('SELECT changes() AS n').n) > 0) delivered.push(itemId);
+            }
+          } else if ((order.item_kind === 'membership' && membership) || (order.item_kind === 'paid_tier' && paidTierProduct)) {
+            const tier = membership?.tier || paidTierProduct.tier;
+            const durationMs = membership ? membership.hours * 3600000 : paidTierProduct.days * 86400000;
+            const targetUser = getUserById(order.user_id);
+            const currentExpiry = targetUser.paid_subscription_expires_at && Date.parse(targetUser.paid_subscription_expires_at) > Date.now() ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
+            const currentTier = targetUser.paid_subscription_tier === 'premium' && currentExpiry > Date.now() ? 'premium' : 'vip';
+            const nextTier = currentTier === 'premium' || tier === 'premium' ? 'premium' : 'vip';
+            const expiry = new Date(currentExpiry + durationMs).toISOString();
+            dbRun('UPDATE users SET paid_subscription_tier = ?, paid_subscription_expires_at = ? WHERE id = ?', [nextTier,expiry,order.user_id]);
+          } else throw new Error('The purchased product is no longer available');
+          dbRun("UPDATE paymentwall_store_orders SET provider_reference = ?,status = 'paid',delivered_item_ids = ?,updated_at = ? WHERE id = ? AND status = 'pending'",
+            [reference,JSON.stringify(delivered),at,order.id]);
+        });
+      } catch (error) {
+        if (!dbGet('SELECT id FROM paymentwall_store_orders WHERE provider_reference = ?', [reference])) {
+          console.error('[BILLING] Paymentwall goods delivery failed:', error.message);
+          return res.status(500).type('text/plain').send('Temporary processing error');
+        }
+      }
+      io?.to?.(userRoom(order.user_id))?.emit('billing:store-purchase-completed', { itemId: order.item_id });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    if (type === '2') {
+      const paidOrder = dbGet('SELECT * FROM paymentwall_store_orders WHERE provider_reference = ?', [reference]);
+      if (!paidOrder || paidOrder.status === 'reversed') return res.status(200).type('text/plain').send('OK');
+      transaction(() => {
+        const delivered = safeJsonArray(paidOrder.delivered_item_ids);
+        for (const itemId of delivered) {
+          dbRun('DELETE FROM store_inventory WHERE user_id = ? AND item_id = ?', [paidOrder.user_id,itemId]);
+          dbRun('DELETE FROM store_equipped WHERE user_id = ? AND item_id = ?', [paidOrder.user_id,itemId]);
+        }
+        const membership = MEMBERSHIP_PACKAGES.find(row => row.id === paidOrder.item_id);
+        const paidTierProduct = BILLING_PRODUCTS.find(row => row.id === paidOrder.item_id);
+        if ((paidOrder.item_kind === 'membership' && membership) || (paidOrder.item_kind === 'paid_tier' && paidTierProduct)) {
+          const durationMs = membership ? membership.hours * 3600000 : paidTierProduct.days * 86400000;
+          const targetUser = getUserById(paidOrder.user_id);
+          const currentExpiry = targetUser.paid_subscription_expires_at ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
+          const expiry = new Date(Math.max(Date.now(), (Number.isFinite(currentExpiry) ? currentExpiry : Date.now()) - durationMs)).toISOString();
+          const remainsPremium = Boolean(dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND id <> ? AND status = 'paid' AND item_id IN ('premium-30d','premium-1h','premium-6h','premium-24h') LIMIT 1", [paidOrder.user_id,paidOrder.id]) || dbGet("SELECT id FROM payment_records WHERE user_id = ? AND tier = 'premium' LIMIT 1", [paidOrder.user_id]));
+          const remainsPaid = Boolean(dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND id <> ? AND status = 'paid' AND item_kind IN ('membership','paid_tier') LIMIT 1", [paidOrder.user_id,paidOrder.id]) || dbGet('SELECT id FROM payment_records WHERE user_id = ? LIMIT 1', [paidOrder.user_id]));
+          dbRun('UPDATE users SET paid_subscription_tier = ?, paid_subscription_expires_at = ? WHERE id = ?',
+            [remainsPremium ? 'premium' : (remainsPaid ? 'vip' : 'free'),expiry,paidOrder.user_id]);
+        }
+        dbRun("UPDATE paymentwall_store_orders SET status = 'reversed',updated_at = ? WHERE id = ?", [at,paidOrder.id]);
+      });
+      io?.to?.(userRoom(paidOrder.user_id))?.emit('billing:store-purchase-reversed', { itemId: paidOrder.item_id });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    return res.status(200).type('text/plain').send('OK');
+  });
+
   app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, flirtInterests: FLIRT_INTERESTS, roleplayInterests: ROLEPLAY_INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
   function checkPublicInvite(req, res) {
@@ -1217,7 +1658,7 @@ async function main() {
     const publicId = crypto.randomBytes(5).toString('hex').toUpperCase();
     const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 8);
     const createdAt = nowIso();
-    const guestExpiresAt = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+    const guestExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     transaction(() => {
       dbRun('INSERT INTO users (id, public_id, username, username_key, password_hash, avatar, adult_asserted_at, settings_json, account_type, guest_expires_at, tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)', [id, publicId, username, key, passwordHash, AVATARS[crypto.randomInt(AVATARS.length)], 'NOT_COLLECTED', JSON.stringify(DEFAULT_SETTINGS), 'guest', guestExpiresAt, createdAt]);
     });
@@ -1226,18 +1667,9 @@ async function main() {
     res.status(201).json({ token: issueToken(user), user: publicUser(user) });
   });
 
-  app.post('/api/auth/claim', authMiddleware, async (req, res) => {
+  app.post('/api/auth/claim', authMiddleware, (req, res) => {
     if (req.user.account_type !== 'guest') return res.status(400).json({ error: 'Этот аккаунт уже постоянный.' });
-    const username = cleanUsername(req.body?.username);
-    const password = req.body?.password;
-    if (!username) return res.status(400).json({ error: 'Ник должен содержать от 3 до 20 символов.' });
-    if (typeof password !== 'string' || password.length < 8 || password.length > 72) return res.status(400).json({ error: 'Пароль должен быть длиной от 8 до 72 символов.' });
-    const key = usernameKey(username);
-    if (dbGet('SELECT id FROM users WHERE username_key = ? AND id != ? LIMIT 1', [key, req.user.id])) return res.status(409).json({ error: 'Этот ник уже занят. Попробуй другой.' });
-    const passwordHash = await bcrypt.hash(password, 12);
-    transaction(() => dbRun("UPDATE users SET username = ?, username_key = ?, password_hash = ?, account_type = 'registered', guest_expires_at = NULL WHERE id = ?", [username, key, passwordHash, req.user.id]));
-    const user = getUserById(req.user.id);
-    res.json({ token: issueToken(user), user: publicUser(user) });
+    return res.status(403).json({ error: 'Гостевой аккаунт нельзя превратить в постоянный: ник и пароль гостя менять нельзя.' });
   });
 
   app.post('/api/auth/login', async (req, res) => {
@@ -1316,13 +1748,13 @@ async function main() {
     const equipped = getEquippedItems(req.user.id);
     const items = STORE_CATALOG.map(item => {
       const override = storePrice(item.id, item.price);
-      return { ...item, price: override.price, enabled: override.enabled, owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
+      return { ...item, price: override.price, enabled: override.enabled, ...cashStorePrice(item.id), owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
     });
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
-    res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
-      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, current: effectiveSubscription(user) === item.tier })),
-      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
+    res.json({ balance: Number(user.tokens || 0), billingEmail: String(user.billing_email || ''), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
+      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), current: effectiveSubscription(user) === item.tier })),
+      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), ...cashStorePrice(bundle.id), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id]) || dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
@@ -1360,18 +1792,20 @@ async function main() {
   app.post('/api/store/bundle', authMiddleware, (req, res) => {
     const bundle = STORE_BUNDLES.find(item => item.id === req.body?.bundleId);
     if (!bundle) return res.status(404).json({ error: 'Фирменный набор не найден.' });
+    const bundlePrice = storePrice(bundle.id, bundle.price);
+    if (!bundlePrice.enabled) return res.status(404).json({ error: 'Этот набор временно снят с продажи.' });
     const paidTier = effectivePaidSubscription(req.user);
     if (bundle.tier === 'premium' ? paidTier !== 'premium' : !['vip', 'premium'].includes(paidTier)) return res.status(403).json({ error: 'Наборы доступны только при активной VIP/Premium-привилегии, оплаченной реальными деньгами. Покупка статуса за токены не подходит.' });
     try {
       transaction(() => {
         if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])) throw new Error('Этот набор уже приобретён.');
         const current = dbGet('SELECT tokens FROM users WHERE id = ?', [req.user.id]);
-        if (!current || Number(current.tokens) < bundle.price) throw new Error('Недостаточно токенов для покупки набора.');
+        if (!current || Number(current.tokens) < bundlePrice.price) throw new Error('Недостаточно токенов для покупки набора.');
         const createdAt = nowIso();
-        dbRun('UPDATE users SET tokens = tokens - ? WHERE id = ? AND tokens >= ?', [bundle.price, req.user.id, bundle.price]);
-        dbRun('INSERT INTO store_purchases (id, user_id, item_id, price, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, bundle.id, bundle.price, createdAt]);
+        dbRun('UPDATE users SET tokens = tokens - ? WHERE id = ? AND tokens >= ?', [bundlePrice.price, req.user.id, bundlePrice.price]);
+        dbRun('INSERT INTO store_purchases (id, user_id, item_id, price, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, bundle.id, bundlePrice.price, createdAt]);
         for (const itemId of bundle.itemIds) dbRun('INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, ?)', [req.user.id, itemId, createdAt, bundle.id]);
-        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'bundle_purchase', -bundle.price, `Фирменный набор: ${bundle.name}`, createdAt]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'bundle_purchase', -bundlePrice.price, `Фирменный набор: ${bundle.name}`, createdAt]);
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.json({ ok: true, balance: Number(getUserById(req.user.id).tokens || 0), itemIds: bundle.itemIds });
@@ -1379,18 +1813,20 @@ async function main() {
   app.post('/api/store/membership', authMiddleware, (req, res) => {
     const pack = MEMBERSHIP_PACKAGES.find(item => item.id === req.body?.packageId);
     if (!pack) return res.status(404).json({ error: 'Пакет привилегии не найден.' });
+    const packPrice = storePrice(pack.id, pack.price);
+    if (!packPrice.enabled) return res.status(404).json({ error: 'Этот пакет привилегии временно недоступен.' });
     if (isOwner(req.user)) return res.status(400).json({ error: 'Владельцу не требуется покупать привилегии.' });
     try {
       transaction(() => {
         const current = dbGet('SELECT tokens, subscription_tier, subscription_expires_at FROM users WHERE id = ?', [req.user.id]);
-        if (!current || Number(current.tokens) < pack.price) throw new Error('Недостаточно токенов для покупки привилегии.');
+        if (!current || Number(current.tokens) < packPrice.price) throw new Error('Недостаточно токенов для покупки привилегии.');
         const now = Date.now();
         const oldExpires = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? Date.parse(current.subscription_expires_at) : now;
         const activeTier = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? current.subscription_tier : 'free';
         const tier = activeTier === 'premium' || pack.tier === 'premium' ? 'premium' : 'vip';
         const expires = new Date(oldExpires + pack.hours * 3600000).toISOString();
-        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [pack.price, tier, expires, req.user.id]);
-        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -pack.price, `${pack.name} · ${pack.hours} ч.`, nowIso()]);
+        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [packPrice.price, tier, expires, req.user.id]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -packPrice.price, `${pack.name} · ${pack.hours} ч.`, nowIso()]);
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.json({ ok: true, user: publicUser(getUserById(req.user.id)) });
@@ -1524,7 +1960,7 @@ async function main() {
   });
 
   const avatarUploadLimiter = rateLimit({ windowMs: 10 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false });
-  app.post('/api/avatar/upload', authMiddleware, avatarUploadLimiter, express.raw({ type: '*/*', limit: '8mb' }), (req, res) => {
+  app.post('/api/avatar/upload', authMiddleware, avatarUploadLimiter, express.raw({ type: '*/*', limit: '12mb' }), (req, res) => {
     if (!Buffer.isBuffer(req.body) || req.body.length < 16) return res.status(400).json({ error: 'Файл пустой или слишком маленький.' });
     const avatarLimit = membershipLimits(req.user).avatarBytes;
     if (req.body.length > avatarLimit) return res.status(413).json({ error: `Аватар для твоего статуса должен быть не больше ${Math.round(avatarLimit / 1024 / 1024)} МБ.` });
@@ -2013,14 +2449,14 @@ async function main() {
     const target = getUserById(req.params.id);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден.' });
     const amount = Math.trunc(Number(req.body?.amount));
-    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 160) : '';
+    const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim().slice(0, 160) : (typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 160) : '');
     if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1000000) return res.status(400).json({ error: 'Укажи сумму от 1 до 1 000 000 или от -1 до -1 000 000.' });
     const current = Number(target.tokens || 0);
     if (current + amount < 0) return res.status(400).json({ error: 'Нельзя списать больше текущего баланса.' });
     transaction(() => {
       dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [amount, target.id]);
-      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'admin_adjustment', amount, reason || 'Корректировка владельцем', nowIso()]);
-      auditAdmin(req.user.id, 'token_adjustment', target.id, { amount, reason });
+      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'admin_adjustment', amount, comment || 'Корректировка владельцем', nowIso()]);
+      auditAdmin(req.user.id, 'token_adjustment', target.id, { amount, comment });
     });
     res.json({ ok: true, balance: Number(getUserById(target.id).tokens) });
   });
@@ -2031,6 +2467,7 @@ async function main() {
     const tokens = Math.trunc(Number(req.body?.tokens ?? 100));
     const days = Math.trunc(Number(req.body?.days ?? 7));
     const requestedTier = req.body?.tier === 'premium' ? 'premium' : 'vip';
+    const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim().slice(0, 240) : '';
     if (!Number.isInteger(tokens) || tokens < 1 || tokens > 10000 || ![1, 7, 30, 90].includes(days)) return res.status(400).json({ error: 'Проверь сумму токенов и срок награды.' });
     if (dbGet("SELECT id FROM admin_audit_log WHERE action = 'starter_pack' AND target_id = ? LIMIT 1", [target.id])) return res.status(409).json({ error: 'Стартовый подарок этому пользователю уже выдавался.' });
     const currentTier = effectiveSubscription(target);
@@ -2039,8 +2476,8 @@ async function main() {
     const expiresAt = new Date(currentExpiry + days * 86400000).toISOString();
     transaction(() => {
       dbRun('UPDATE users SET tokens = tokens + ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [tokens, tier, expiresAt, target.id]);
-      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'owner_gift', tokens, 'Стартовый подарок от владельца SOLVI', nowIso()]);
-      auditAdmin(req.user.id, 'starter_pack', target.id, { tokens, tier, days, expiresAt });
+      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'owner_gift', tokens, 'Стартовый подарок от владельца SOLVI' + (comment ? ' · ' + comment : ''), nowIso()]);
+      auditAdmin(req.user.id, 'starter_pack', target.id, { tokens, tier, days, expiresAt, comment });
     });
     res.json({ ok: true, balance: Number(getUserById(target.id).tokens || 0), tier, expiresAt });
   });
@@ -2158,8 +2595,8 @@ async function main() {
     res.json({ ok: true, active: Boolean(active) });
   });
   app.patch('/api/admin/store/:itemId/price', authMiddleware, ownerOnly, (req, res) => {
-    const item = STORE_CATALOG.find(row => row.id === req.params.itemId);
-    if (!item) return res.status(404).json({ error: 'Товар не найден.' });
+    const item = STORE_CATALOG.find(row => row.id === req.params.itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === req.params.itemId) || STORE_BUNDLES.find(row => row.id === req.params.itemId);
+    if (!item) return res.status(404).json({ error: 'Товар или тариф не найден.' });
     const price = Math.trunc(Number(req.body?.price));
     if (!Number.isFinite(price) || price < 0 || price > 10000000) return res.status(400).json({ error: 'Цена должна быть от 0 до 10 000 000.' });
     const enabled = req.body?.enabled === false ? 0 : 1;
@@ -2168,6 +2605,103 @@ async function main() {
       auditAdmin(req.user.id, 'store_price', item.id, { price, enabled: Boolean(enabled) });
     });
     res.json({ ok: true, itemId: item.id, price, enabled: Boolean(enabled) });
+  });
+  app.patch('/api/admin/store/:itemId/cash-price', authMiddleware, ownerOnly, (req, res) => {
+    const item = STORE_CATALOG.find(row => row.id === req.params.itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === req.params.itemId) || STORE_BUNDLES.find(row => row.id === req.params.itemId);
+    if (!item || item.price <= 0) return res.status(404).json({ error: 'Товар не поддерживает прямую денежную цену.' });
+    const priceMinor = Math.trunc(Number(req.body?.priceMinor));
+    const currency = String(req.body?.currency || 'RUB').trim().toUpperCase();
+    if (!Number.isSafeInteger(priceMinor) || priceMinor < 30 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Цена должна быть от 0,30 до 1 000 000 в валюте ISO.' });
+    const enabled = req.body?.enabled === false ? 0 : 1;
+    transaction(() => {
+      dbRun('INSERT INTO cash_store_price_overrides (item_id,price_minor,currency,enabled,updated_by,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET price_minor=excluded.price_minor,currency=excluded.currency,enabled=excluded.enabled,updated_by=excluded.updated_by,updated_at=excluded.updated_at',
+        [item.id,priceMinor,currency,enabled,req.user.id,nowIso()]);
+      auditAdmin(req.user.id,'store_cash_price',item.id,{priceMinor,currency,enabled:Boolean(enabled)});
+    });
+    res.json({ ok:true,itemId:item.id,priceMinor,currency,enabled:Boolean(enabled) });
+  });
+
+  app.get('/api/ads/slot', authMiddleware, (req, res) => {
+    const placement = String(req.query?.placement || 'store');
+    if (placement !== 'store') return res.json({ ad: null });
+    const now = nowIso();
+    const ad = dbGet("SELECT id,title,body,sponsor_name,target_url,cta_label,impressions FROM ad_campaigns WHERE placement = ? AND status = 'active' AND payment_status IN ('paid','comped') AND (starts_at IS NULL OR starts_at <= ?) AND (ends_at IS NULL OR ends_at > ?) ORDER BY created_at DESC LIMIT 1", [placement, now, now]);
+    if (!ad) return res.json({ ad: null });
+    dbRun('UPDATE ad_campaigns SET impressions = impressions + 1, updated_at = ? WHERE id = ?', [now, ad.id]);
+    res.json({ ad: { ...ad, impressions: Number(ad.impressions || 0) + 1 } });
+  });
+  app.post('/api/ads/:id/click', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    const now = nowIso();
+    const ad = dbGet("SELECT id,target_url FROM ad_campaigns WHERE id = ? AND status = 'active' AND payment_status IN ('paid','comped') AND (starts_at IS NULL OR starts_at <= ?) AND (ends_at IS NULL OR ends_at > ?)", [req.params.id, now, now]);
+    if (!ad) return res.status(404).json({ error: 'Рекламное размещение больше недоступно.' });
+    dbRun('UPDATE ad_campaigns SET clicks = clicks + 1, updated_at = ? WHERE id = ?', [now, ad.id]);
+    res.json({ url: ad.target_url });
+  });
+
+  app.get('/api/admin/ad-campaigns', authMiddleware, ownerOnly, (_req, res) => {
+    res.json({ campaigns: dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100') });
+  });
+  app.post('/api/admin/ad-campaigns', authMiddleware, ownerOnly, (req, res) => {
+    const title = String(req.body?.title || '').trim().slice(0, 100);
+    const body = String(req.body?.body || '').trim().slice(0, 500);
+    const sponsorName = String(req.body?.sponsorName || '').trim().slice(0, 80);
+    const targetUrl = String(req.body?.targetUrl || '').trim().slice(0, 600);
+    const ctaLabel = String(req.body?.ctaLabel || 'Подробнее').trim().slice(0, 32) || 'Подробнее';
+    const priceMinor = Math.trunc(Number(req.body?.priceMinor || 0));
+    const currency = String(req.body?.currency || 'EUR').trim().toUpperCase();
+    let parsed; try { parsed = new URL(targetUrl); } catch { return res.status(400).json({ error: 'Укажи корректную ссылку рекламодателя.' }); }
+    if (!title || !sponsorName || parsed.protocol !== 'https:' || !Number.isSafeInteger(priceMinor) || priceMinor < 0 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Проверь название, рекламодателя, HTTPS-ссылку, цену и валюту.' });
+    const startsMs = req.body?.startsAt ? Date.parse(req.body.startsAt) : null;
+    const endsMs = req.body?.endsAt ? Date.parse(req.body.endsAt) : null;
+    if (startsMs !== null && !Number.isFinite(startsMs) || endsMs !== null && !Number.isFinite(endsMs) || startsMs !== null && endsMs !== null && endsMs <= startsMs) return res.status(400).json({ error: 'Проверь период размещения.' });
+    const startsAt = startsMs === null ? null : new Date(startsMs).toISOString();
+    const endsAt = endsMs === null ? null : new Date(endsMs).toISOString();
+    const id = crypto.randomUUID(), at = nowIso();
+    dbRun('INSERT INTO ad_campaigns (id,title,body,sponsor_name,target_url,cta_label,placement,price_minor,currency,payment_status,status,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [id,title,body,sponsorName,targetUrl,ctaLabel,'store',priceMinor,currency,'unpaid','paused',startsAt,endsAt,at,at]);
+    auditAdmin(req.user.id,'ad_campaign_created',id,{ title,sponsorName,priceMinor,currency });
+    res.status(201).json({ ok: true, campaign: dbGet('SELECT * FROM ad_campaigns WHERE id = ?', [id]) });
+  });
+  app.patch('/api/admin/ad-campaigns/:id', authMiddleware, ownerOnly, (req, res) => {
+    const current = dbGet('SELECT * FROM ad_campaigns WHERE id = ?', [req.params.id]);
+    if (!current) return res.status(404).json({ error: 'Рекламная кампания не найдена.' });
+    const paymentStatus = ['unpaid','paid','comped'].includes(req.body?.paymentStatus) ? req.body.paymentStatus : current.payment_status;
+    let status = ['paused','active','ended'].includes(req.body?.status) ? req.body.status : current.status;
+    if (status === 'active' && paymentStatus === 'unpaid') return res.status(400).json({ error: 'Сначала отметь, что рекламодатель оплатил размещение.' });
+    const at = nowIso();
+    dbRun('UPDATE ad_campaigns SET payment_status = ?, status = ?, updated_at = ? WHERE id = ?', [paymentStatus,status,at,current.id]);
+    auditAdmin(req.user.id,'ad_campaign_status',current.id,{ paymentStatus,status });
+    res.json({ ok:true, campaign:dbGet('SELECT * FROM ad_campaigns WHERE id = ?', [current.id]) });
+  });
+  app.delete('/api/admin/ad-campaigns/:id', authMiddleware, ownerOnly, (req, res) => {
+    const current = dbGet('SELECT id FROM ad_campaigns WHERE id = ?', [req.params.id]);
+    if (!current) return res.status(404).json({ error: 'Рекламная кампания не найдена.' });
+    dbRun('DELETE FROM ad_campaigns WHERE id = ?', [current.id]);
+    auditAdmin(req.user.id,'ad_campaign_deleted',current.id,{});
+    res.json({ ok:true });
+  });
+
+  app.get('/api/admin/monetization', authMiddleware, ownerOnly, (_req, res) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const now = nowIso();
+    const activeVip = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE subscription_tier = 'vip' AND (subscription_expires_at IS NULL OR subscription_expires_at > ?)", [now]).n);
+    const activePremium = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE subscription_tier = 'premium' AND (subscription_expires_at IS NULL OR subscription_expires_at > ?)", [now]).n);
+    const paidVip = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE paid_subscription_tier = 'vip' AND paid_subscription_expires_at > ?", [now]).n);
+    const paidPremium = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE paid_subscription_tier = 'premium' AND paid_subscription_expires_at > ?", [now]).n);
+    const tokenSupply = Number(dbGet('SELECT COALESCE(SUM(tokens),0) AS n FROM users').n);
+    const earnedToday = Number(dbGet('SELECT COALESCE(SUM(earned),0) AS n FROM token_earning_daily WHERE day = ?', [today]).n);
+    const tokenFlow = dbGet("SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END),0) AS earned, COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END),0) AS spent FROM token_transactions");
+    const storeSales = Number(dbGet('SELECT COUNT(*) AS n FROM store_purchases').n);
+    const salesByItem = dbAll('SELECT item_id, COUNT(*) AS sales, COALESCE(SUM(price),0) AS tokens FROM store_purchases GROUP BY item_id ORDER BY sales DESC, tokens DESC LIMIT 20');
+    const payments = dbAll('SELECT provider, currency, COUNT(*) AS count, COALESCE(SUM(amount_minor),0) AS amount_minor FROM payment_records GROUP BY provider, currency ORDER BY provider, currency');
+    const cashStoreSales = dbAll("SELECT item_id, currency, COUNT(*) AS sales, COALESCE(SUM(amount_minor),0) AS gross_minor FROM paymentwall_store_orders WHERE status = 'paid' GROUP BY item_id, currency ORDER BY sales DESC, gross_minor DESC LIMIT 30");
+    const cashStoreRecent = dbAll("SELECT o.id,o.user_id,u.username,o.item_id,o.item_kind,o.amount_minor,o.currency,o.status,o.created_at FROM paymentwall_store_orders o JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT 30");
+    const paymentwall = dbGet("SELECT COUNT(*) AS topups, COALESCE(SUM(CASE WHEN status = 'credited' THEN token_amount ELSE 0 END),0) AS tokens_credited, COALESCE(SUM(CASE WHEN status = 'reversed' THEN token_amount ELSE 0 END),0) AS tokens_reversed FROM paymentwall_token_purchases");
+    const paymentwallRecent = dbAll("SELECT p.provider_reference, p.user_id, u.username, p.token_amount, p.status, p.created_at, p.updated_at FROM paymentwall_token_purchases p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 20");
+    const adStats = dbAll("SELECT currency, COUNT(*) AS campaigns, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(CASE WHEN payment_status IN ('paid','comped') THEN price_minor ELSE 0 END),0) AS booked_minor FROM ad_campaigns GROUP BY currency");
+    const adCampaigns = dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100');
+    const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), cashSellable: Number(item.price || 0) > 0 && (STORE_CATALOG.some(row => row.id === item.id) || MEMBERSHIP_PACKAGES.some(row => row.id === item.id) || STORE_BUNDLES.some(row => row.id === item.id)), bundleOnly: Boolean(item.bundleOnly) }));
+    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, cashStoreSales, cashStoreRecent, adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured, paymentwallGoodsConfigured: paymentwallGoodsSettings().configured });
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2417,8 +2951,17 @@ async function main() {
     if (pendingTimer) { clearTimeout(pendingTimer); disconnectTimers.delete(userId); }
     emitOnlineCount();
 
+    const aiSession = aiSessions.get(userId);
+    const requestedMatchId = socket.handshake.auth?.lastMatchId;
+    if (aiSession && (!requestedMatchId || requestedMatchId === aiSession.id)) {
+      socket.data.activeMatchId = aiSession.id;
+      socket.emit('chat:restored', {
+        matchId: aiSession.id, isAi: true, mode: 'chat', startedAt: new Date(aiSession.createdAt).toISOString(),
+        partner: aiSession.partner, commonInterests: aiSession.interests.slice(0, 3), messages: aiSession.messages || []
+      });
+    }
     const activeMatch = getActiveMatch(userId);
-    if (activeMatch) {
+    if (!aiSession && activeMatch) {
       socket.data.activeMatchId = activeMatch.id;
       const partnerId = otherUserId(activeMatch, userId);
       const messages = dbAll('SELECT * FROM messages WHERE match_id = ? ORDER BY created_at ASC LIMIT 200', [activeMatch.id]).map(row => serializeMessage(row, userId));
@@ -2439,6 +2982,14 @@ async function main() {
     });
 
     socket.on('chat:next', (payload, ack = () => {}) => {
+      const aiSession = aiSessions.get(userId);
+      if (aiSession && aiSession.id === payload?.matchId) {
+        aiSessions.delete(userId);
+        const result = addToQueue(socket, payload?.preferences || {});
+        ack(result);
+        if (result.ok && queue.has(userId)) socket.emit('queue:waiting', { joinedAt: queue.get(userId).joinedAt });
+        return;
+      }
       const match = getActiveMatch(userId);
       if (!match || match.id !== payload?.matchId) return ack({ ok: false, error: 'Диалог уже завершён.' });
       endMatch(match.id, 'user_next', userId);
@@ -2501,6 +3052,26 @@ async function main() {
       if (recipientOnline) io.to(userRoom(userId)).emit('chat:status', { messageId: message.id, status: 'delivered', at: message.delivered_at });
     });
 
+    socket.on('ai:send', (payload, ack = () => {}) => {
+      const session = aiSessions.get(userId);
+      if (!session || session.id !== payload?.sessionId) return ack({ ok: false, error: 'ИИ-диалог завершился или сервер перезапустился. Начни новый поиск собеседника.' });
+      const content = typeof payload?.content === 'string' ? payload.content.trim().slice(0, 1200) : '';
+      const sticker = typeof payload?.sticker === 'string' ? payload.sticker.slice(0, 16) : '';
+      if (Array.isArray(payload?.attachments) && payload.attachments.length) return ack({ ok: false, error: 'ИИ-собеседник пока поддерживает текст и стикеры, но не фото и голосовые.' });
+      if (!content && !sticker) return ack({ ok: false, error: 'Напиши сообщение или отправь стикер.' });
+      const now = Date.now();
+      const window = messageWindows.get(userId) || { startedAt: now, count: 0 };
+      if (now - window.startedAt > 10_000) { window.startedAt = now; window.count = 0; }
+      if (window.count >= 12) return ack({ ok: false, error: 'Слишком быстро. Сделай небольшую паузу.' });
+      window.count += 1;
+      messageWindows.set(userId, window);
+      const text = content || `Пользователь отправил стикер ${sticker}`;
+      const userMessage = { id: crypto.randomUUID(), match_id: session.id, sender_id: userId, client_id: `user:${payload?.clientId || crypto.randomUUID()}`, content: text, created_at: nowIso(), message_type: sticker ? 'sticker' : 'text', type: sticker ? 'sticker' : 'text', sticker: sticker || null, attachments: [], reactions: [], replyTo: null };
+      session.messages.push(userMessage);
+      ack({ ok: true });
+      queueAiTurn(userId, session, text);
+    });
+
     socket.on('chat:react', ({ matchId, messageId, emoji } = {}, ack = () => {}) => {
       const match = getActiveMatch(userId);
       if (!match || match.id !== matchId || !['❤️', '😂', '🔥', '👏'].includes(emoji)) return ack({ ok: false, error: 'Реакция недоступна.' });
@@ -2547,6 +3118,13 @@ async function main() {
     });
 
     socket.on('chat:end', ({ matchId } = {}, ack = () => {}) => {
+      const aiSession = aiSessions.get(userId);
+      if (aiSession && aiSession.id === matchId) {
+        aiSessions.delete(userId);
+        socket.emit('chat:ended', { matchId, reason: 'user_ended', actorId: userId });
+        ack({ ok: true });
+        return;
+      }
       const match = getActiveMatch(userId);
       if (!match || match.id !== matchId) return ack({ ok: false, error: 'Диалог уже завершён.' });
       endMatch(matchId, 'user_ended', userId);
@@ -2562,6 +3140,7 @@ async function main() {
         const timer = setTimeout(() => {
           disconnectTimers.delete(userId);
           if (io.sockets.adapter.rooms.get(userRoom(userId))?.size) return;
+          aiSessions.delete(userId);
           const match = getActiveMatch(userId);
           if (match) endMatch(match.id, 'connection_lost', userId);
           emitOnlineCount();

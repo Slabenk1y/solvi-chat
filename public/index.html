@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=26">
+  <link rel="stylesheet" href="/styles.css?v=32">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -35,7 +35,7 @@
       <div class="story-copy">
         <div class="eyebrow"><span class="eyebrow-dot"></span> МИР СТАНОВИТСЯ БЛИЖЕ</div>
         <h1>Иногда лучший разговор — с <em>незнакомцем.</em></h1>
-        <p>Без неловких вступлений. Выбери интересы, найди нового человека и начни с обычного «привет».</p>
+        <p>Без неловких вступлений. Найди нового человека для разговора на русском и начни с обычного «привет».</p>
         <div class="story-foot"><span class="sovli-art">✳</span><span>Один разговор может изменить весь вечер.</span></div>
       </div>
       <div class="auth-bottom">Новая точка встречи в интернете <span>© SOLVI 2026</span></div>
@@ -72,7 +72,7 @@
         <div class="guest-entry">
           <div class="guest-entry-caption"><span></span> ИЛИ ПОПРОБУЙ БЕЗ РЕГИСТРАЦИИ <span></span></div>
           <button id="guestButton" class="button button-secondary button-wide" type="button"><span>Продолжить гостем</span><span>👀</span></button>
-          <p>Гостевой профиль сохраняется в этом браузере до 180 дней. Просто закрой вкладку — аккаунт останется. Для входа с другого устройства сохрани постоянный аккаунт.</p>
+          <p>Гостевой профиль действует 3 дня в этом браузере. Ник и пароль изменить нельзя; для постоянного аккаунта пройди обычную регистрацию.</p>
         </div>
         <div class="auth-divider"><span></span> <small>ТВОЁ ПРОСТРАНСТВО</small> <span></span></div>
         <p class="auth-legal">Продолжая, ты принимаешь <button id="authRulesButton" type="button">правила сообщества</button> и соглашаешься общаться уважительно.</p>
@@ -108,11 +108,10 @@
         <button class="side-link" type="button" data-view="feedback"><span class="side-icon">✉</span> Тикеты</button>
         <button class="side-link" type="button" data-view="growth"><span class="side-icon">✧</span> Задания и бонусы</button>
         <button class="side-link" type="button" data-view="settings"><span class="side-icon">⚙</span> Настройки</button>
-        <button id="adminNavButton" class="side-link owner-nav" type="button" data-view="admin" hidden><span class="side-icon">⌘</span> Управление</button>
         <div class="sidebar-bottom">
           <div class="privacy-card"><span class="privacy-icon">⌁</span><div><strong>Без лишнего следа</strong><p>Переписка удаляется после завершения диалога.</p></div></div>
           <button id="logoutButton" class="logout-button" type="button"><span>↗</span> Выйти</button>
-          <div class="sidebar-version">SOLVI <span>v1.10.2</span></div>
+          <div class="sidebar-version">SOLVI <span>v1.10.3</span></div>
         </div>
       </aside>
 
@@ -126,17 +125,17 @@
             <div class="search-card-top"><div class="search-symbol">◎</div><div><div class="card-kicker">ТРИ РЕЖИМА · 1 НА 1</div><h2>Выбери формат встречи</h2><p>Обычное общение или отдельные режимы для взрослых.</p></div><div class="search-decor">✳</div></div>
             <div class="match-mode-picker" role="group" aria-label="Режим подбора"><button type="button" class="match-mode-button active" data-match-mode="chat" aria-pressed="true">Общение</button><button type="button" class="match-mode-button" data-match-mode="flirt" aria-pressed="false">Флирт 18+</button><button type="button" class="match-mode-button" data-match-mode="roleplay" aria-pressed="false">Ролка 18+</button></div>
             <div class="filter-block gender-filter-block"><div class="filter-heading"><span>ПОЛ СОБЕСЕДНИКА</span><small>Учитывается для обеих сторон подбора</small></div><select id="desiredGender" class="field"><option value="any">Неважно</option><option value="female">Женщина</option><option value="male">Мужчина</option><option value="other">Другой</option></select></div>
-            <div class="filter-block">
+            <div class="filter-block" hidden>
               <div class="filter-heading"><span>ЯЗЫКИ ОБЩЕНИЯ</span><small>До 3 языков</small></div>
               <details class="filter-dropdown" id="languagesDropdown">
                 <summary><span id="languageSummary">Любой язык</span><span id="languageCount" class="filter-count">Не ограничивать</span><span class="filter-chevron">⌄</span></summary>
                 <div id="languageOptions" class="chip-list"></div>
               </details>
             </div>
-            <div class="filter-block" id="standardInterestBlock"><div class="filter-heading"><span>ИНТЕРЕСЫ</span><small>До 5 тем · необязательно</small></div><details class="filter-dropdown" id="interestsDropdown"><summary><span id="interestSummary">Любые интересы</span><span id="interestCount" class="filter-count">Без фильтра</span><span class="filter-chevron">⌄</span></summary><div id="interestOptions" class="chip-list"></div></details></div>
-            <div id="flirtSettings" hidden><div class="filter-block"><div class="filter-heading"><span>ИНТЕРЕСЫ ДЛЯ ФЛИРТА</span><small>До 5 тем · необязательно</small></div><details class="filter-dropdown" id="flirtInterestsDropdown"><summary><span id="flirtInterestSummary">Любые интересы</span><span id="flirtInterestCount" class="filter-count">Без фильтра</span><span class="filter-chevron">⌄</span></summary><div id="flirtInterestOptions" class="chip-list"></div></details></div><label class="adult-consent"><input id="flirtAdultConsent" type="checkbox"><span><strong>Мне уже исполнилось 18 лет.</strong> Я добровольно выбираю режим «Флирт 18+» и подтверждаю, что участвую в нём как совершеннолетний пользователь.</span></label><p class="adult-mode-note">Подтверждение является заявлением пользователя, а не проверкой документа. Не допускаются давление, угрозы и любые попытки вовлечь несовершеннолетних.</p></div>
-            <div id="roleplaySettings" hidden><div class="filter-block"><div class="filter-heading"><span>РОЛЬ В ПОИСКЕ СЮЖЕТА</span><small>Выбери один вариант</small></div><select id="roleplayIntent" class="field"><option value="seeking">Ищу сюжет</option><option value="offering">Предлагаю сюжет</option></select></div><div class="filter-block"><div class="filter-heading"><span>ИНТЕРЕСЫ ДЛЯ РОЛКИ</span><small>До 5 тем · необязательно</small></div><details class="filter-dropdown" id="roleplayInterestsDropdown"><summary><span id="roleplayInterestSummary">Любые интересы</span><span id="roleplayInterestCount" class="filter-count">Без фильтра</span><span class="filter-chevron">⌄</span></summary><div id="roleplayInterestOptions" class="chip-list"></div></details></div><label class="adult-consent"><input id="roleplayAdultConsent" type="checkbox"><span><strong>Мне уже исполнилось 18 лет.</strong> Я добровольно выбираю режим «Ролка 18+» и подтверждаю, что участвую в нём как совершеннолетний пользователь.</span></label><p class="adult-mode-note">Подтверждение является заявлением пользователя, а не проверкой документа. Сюжеты должны соблюдать правила SOLVI и согласие всех участников.</p></div>
-            <div class="search-card-footer"><div class="match-note"><span>✦</span> Больше общих интересов — выше в подборе</div><button id="clearFiltersButton" class="clear-filters-button" type="button">Сбросить фильтры</button><button id="findButton" class="button button-primary find-button" type="button"><span>Найти собеседника</span><span class="button-arrow">↗</span></button></div>
+            <div class="filter-block" id="standardInterestBlock" hidden><div class="filter-heading"><span>ИНТЕРЕСЫ</span><small>До 5 тем · необязательно</small></div><details class="filter-dropdown" id="interestsDropdown"><summary><span id="interestSummary">Любые интересы</span><span id="interestCount" class="filter-count">Без фильтра</span><span class="filter-chevron">⌄</span></summary><div id="interestOptions" class="chip-list"></div></details></div>
+            <div id="flirtSettings" hidden><div class="filter-block" hidden><div class="filter-heading"><span>ИНТЕРЕСЫ ДЛЯ ФЛИРТА</span><small>До 5 тем · необязательно</small></div><details class="filter-dropdown" id="flirtInterestsDropdown"><summary><span id="flirtInterestSummary">Любые интересы</span><span id="flirtInterestCount" class="filter-count">Без фильтра</span><span class="filter-chevron">⌄</span></summary><div id="flirtInterestOptions" class="chip-list"></div></details></div><label class="adult-consent"><input id="flirtAdultConsent" type="checkbox"><span><strong>Мне уже исполнилось 18 лет.</strong> Я добровольно выбираю режим «Флирт 18+» и подтверждаю, что участвую в нём как совершеннолетний пользователь.</span></label><p class="adult-mode-note">Подтверждение является заявлением пользователя, а не проверкой документа. Не допускаются давление, угрозы и любые попытки вовлечь несовершеннолетних.</p></div>
+            <div id="roleplaySettings" hidden><div class="filter-block"><div class="filter-heading"><span>РОЛЬ В ПОИСКЕ СЮЖЕТА</span><small>Выбери один вариант</small></div><select id="roleplayIntent" class="field"><option value="seeking">Ищу сюжет</option><option value="offering">Предлагаю сюжет</option></select></div><div class="filter-block" hidden><div class="filter-heading"><span>ИНТЕРЕСЫ ДЛЯ РОЛКИ</span><small>До 5 тем · необязательно</small></div><details class="filter-dropdown" id="roleplayInterestsDropdown"><summary><span id="roleplayInterestSummary">Любые интересы</span><span id="roleplayInterestCount" class="filter-count">Без фильтра</span><span class="filter-chevron">⌄</span></summary><div id="roleplayInterestOptions" class="chip-list"></div></details></div><label class="adult-consent"><input id="roleplayAdultConsent" type="checkbox"><span><strong>Мне уже исполнилось 18 лет.</strong> Я добровольно выбираю режим «Ролка 18+» и подтверждаю, что участвую в нём как совершеннолетний пользователь.</span></label><p class="adult-mode-note">Подтверждение является заявлением пользователя, а не проверкой документа. Сюжеты должны соблюдать правила SOLVI и согласие всех участников.</p></div>
+            <div class="search-card-footer"><div class="match-note"><span>✦</span> Подбор собеседника на русском языке</div><button id="clearFiltersButton" class="clear-filters-button" type="button">Сбросить фильтры</button><button id="findButton" class="button button-primary find-button" type="button"><span>Найти собеседника</span><span class="button-arrow">↗</span></button></div>
           </div>
           <div class="info-grid"><article class="info-tile"><div class="tile-icon tile-lilac">✳</div><div><strong>Случайность — это интересно</strong><p>Каждый диалог — возможность узнать что-то новое.</p></div></article><article class="info-tile"><div class="tile-icon tile-mint">⌁</div><div><strong>Уважение прежде всего</strong><p>Можно завершить разговор или отправить жалобу в любой момент.</p></div></article></div>
           <div class="alpha-note" id="alphaNotice"><span>i</span><p><strong>Тестовая версия.</strong> Доступны случайный поиск, текст, фото, голосовые, стикеры, профили и магазин. Это закрытая тестовая версия — береги личные данные.</p></div>
@@ -219,15 +218,12 @@
         <section id="profilePanel" class="profile-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">ПЕРСОНАЛЬНЫЕ НАСТРОЙКИ</div><h1>Твой профиль</h1><p>Немного о том, как тебя видят в SOLVI.</p></div><div class="panel-heading-icon">◌</div></div>
           <div class="profile-hero-v1"><div class="profile-cover-v1"><span class="profile-cover-orbit"></span><span class="profile-cover-spark">✦</span><div id="profilePreviewAvatar" class="avatar avatar-profile">◉</div><div class="profile-hero-copy"><div class="profile-hero-kicker">ТВОЯ КАРТОЧКА В SOLVI</div><h2 id="profilePreviewName">Пользователь</h2><p id="profilePreviewId">Технический ID: —</p><div class="profile-badges-v1"><span id="profileAccountType" class="account-type-badge">АККАУНТ</span><span id="profileRoleBadge" class="role-badge-v1">Участник</span></div><small id="profileMembershipLine">Стандартный участник</small></div></div><div class="profile-stats-v1" id="profileStats"><div><strong>0</strong><span>диалогов</span></div><div><strong>0</strong><span>минут общения</span></div><div><strong>0</strong><span>сообщений</span></div></div><div class="profile-meta-v1"><span id="profileCreatedAt">В SOLVI с —</span><strong><span id="profileTokenBalance">0</span> ✦</strong></div></div><div class="profile-edit-card">
-            <label class="field-label" for="profileUsername">Никнейм</label><input id="profileUsername" class="field" maxlength="20" minlength="3">
-            <label class="field-label" for="profileGender">Мой пол (для подбора собеседника)</label><select id="profileGender" class="field"><option value="">Не указывать</option><option value="female">Женщина</option><option value="male">Мужчина</option><option value="other">Другой</option></select><label class="field-label" for="profileDescription">О себе (до 160 символов)</label><textarea id="profileDescription" class="field" maxlength="160" rows="3" placeholder="Пара слов о себе…"></textarea><div class="field-label">Аватар</div><div id="avatarOptions" class="avatar-options"></div><div class="avatar-upload-row"><input id="avatarFileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadButton" class="button button-secondary" type="button">Загрузить своё фото</button><span>JPG, PNG или WebP · до 2 МБ</span></div>
+            <label id="profileUsernameLabel" class="field-label" for="profileUsername">Никнейм</label><input id="profileUsername" class="field" maxlength="20" minlength="3">
+            <label id="profileGenderLabel" class="field-label" for="profileGender">Мой пол (для подбора собеседника)</label><select id="profileGender" class="field"><option value="">Не указывать</option><option value="female">Женщина</option><option value="male">Мужчина</option><option value="other">Другой</option></select><label id="profileDescriptionLabel" class="field-label" for="profileDescription">О себе (до 160 символов)</label><textarea id="profileDescription" class="field" maxlength="160" rows="3" placeholder="Пара слов о себе…"></textarea><div class="field-label">Аватар</div><div id="avatarOptions" class="avatar-options"></div><div class="avatar-upload-row"><input id="avatarFileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadButton" class="button button-secondary" type="button">Загрузить своё фото</button><span>JPG, PNG или WebP · до 2 МБ</span></div>
             <button id="saveProfileButton" class="button button-primary" type="button">Сохранить изменения <span class="button-arrow">↗</span></button>
           </div>
           <div id="guestClaimCard" class="guest-claim-card" hidden>
-            <div class="guest-claim-icon">✦</div><div class="guest-claim-copy"><h2>Сохрани свой профиль</h2><p>Гостевой профиль хранится в этом браузере до 180 дней. Создай пароль, чтобы восстановить его на любом устройстве и не зависеть от данных браузера.</p></div>
-            <label class="field-label" for="claimUsername">Новый ник</label><input id="claimUsername" class="field" minlength="3" maxlength="20" autocomplete="username" placeholder="Твой уникальный ник">
-            <label class="field-label" for="claimPassword">Новый пароль</label><input id="claimPassword" class="field" type="password" minlength="8" maxlength="72" autocomplete="new-password" placeholder="Не менее 8 символов">
-            <p id="claimError" class="form-error"></p><button id="claimGuestButton" class="button button-primary" type="button">Сохранить аккаунт ↗</button>
+            <div class="guest-claim-icon">⌛</div><div class="guest-claim-copy"><h2>Гостевой режим</h2><p id="guestExpiryNote">Гостевой профиль действует 3 дня. Ник и пароль изменить нельзя. Для постоянного аккаунта используй обычную регистрацию.</p></div>
           </div>
           <div class="account-danger"><div><strong>Удаление аккаунта</strong><p>Аккаунт и связанные данные будут удалены. Это действие нельзя отменить.</p></div><button id="deleteAccountButton" class="button button-outline-danger" type="button">Удалить аккаунт</button></div>
         </section>
@@ -239,7 +235,9 @@
           <div class="store-collections-heading"><div><span class="eyebrow">СОБИРАЙ СЕРИЯМИ</span><h2>Коллекции</h2></div><span>Прогресс сохраняется на аккаунте</span></div><div id="storeCollections" class="store-collections-grid"></div>
           <div class="store-toolbar store-toolbar-v1"><div id="storeCategories" class="store-categories"></div><button id="storeInventoryButton" class="button button-secondary" type="button">Только купленное</button></div>
           <div class="store-filter-row"><label><span>Подборка</span><select id="storeCollectionSelect" class="field"><option value="">Все коллекции</option></select></label><label class="store-search-field"><span>Поиск</span><input id="storeSearchInput" class="field" maxlength="60" placeholder="Название или описание"></label></div>
+          <div class="store-billing-email-row"><label for="storeBillingEmail">Email для чека и платёжных уведомлений</label><input id="storeBillingEmail" class="field" type="email" maxlength="254" autocomplete="email" placeholder="name@example.com"><span>Укажи действующий email. Он сохранится в твоём аккаунте.</span></div>
           <div id="storeEquippedSummary" class="store-equipped-summary"></div>
+          <div id="storeSponsoredAd" class="store-sponsored-ad" hidden></div>
           <section class="customization-bundles">
             <div class="store-collections-heading"><div><span class="eyebrow">ЭКСКЛЮЗИВНЫЕ КОЛЛЕКЦИИ</span><h2>Фирменные наборы</h2></div><span>Только для активных VIP и Premium</span></div>
             <div id="customizationBundles" class="bundle-grid"></div>
@@ -264,7 +262,7 @@
               <div class="store-preview-actions"><button id="storePreviewTryOnButton" class="button button-secondary" type="button">Примерить на сайте</button><button class="button button-primary" type="button" data-close-modal>Готово</button></div>
             </section>
           </div>
-          <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">Каждый участник получает 1 ✦ за минуту активного диалога, пока оба собеседника онлайн. 180 ✦ дают 1 час VIP, 360 ✦ — 1 час Premium. Токеновый статус можно получать за активное общение и тратить на расширенные лимиты. Денежная подписка на 30 дней — отдельная покупка, открывающая доступ к фирменному VIP- или Premium-набору. Приоритетного поиска нет — правила подбора одинаковы для всех.</p><div id="membershipOffers" class="membership-grid"></div><div class="paid-membership-heading"><span class="eyebrow">ПОДДЕРЖАТЬ SOLVI</span><h3>Подписка за реальные деньги</h3><p>30 дней статуса и доступ к фирменному набору. Оплата проходит через защищённую страницу Stripe.</p></div><div id="paidMembershipOffers" class="paid-membership-grid"><p class="muted">Загрузка денежных тарифов…</p></div></section>
+          <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">Каждый участник получает 1 ✦ за минуту активного диалога, пока оба собеседника онлайн. 180 ✦ дают 1 час VIP, 360 ✦ — 1 час Premium. Токеновый статус можно получать за активное общение и тратить на расширенные лимиты. Денежная подписка на 30 дней — отдельная покупка, открывающая доступ к фирменному VIP- или Premium-набору. Приоритетного поиска нет — правила подбора одинаковы для всех.</p><div id="membershipOffers" class="membership-grid"></div><div class="paid-membership-heading"><span class="eyebrow">ПОПОЛНИТЬ БАЛАНС</span><h3>Токены за реальные деньги</h3><p>Пополняй баланс через защищённую кассу Paymentwall и покупай за токены товары магазина, наборы и VIP/Premium.</p></div><div id="paidMembershipOffers" class="paid-membership-grid"><p class="muted">Загрузка денежных тарифов…</p></div></section>
           <details class="token-history" id="tokenHistory"><summary>История токенов</summary><div id="tokenHistoryList" class="token-history-list"></div></details>
           <div id="purchaseConfirmModal" class="purchase-confirm-backdrop" hidden>
             <section class="purchase-confirm-card" role="dialog" aria-modal="true" aria-labelledby="purchaseConfirmTitle">
@@ -330,12 +328,6 @@
           <div class="panel-heading"><div><div class="eyebrow">ТВОИ ГРАНИЦЫ</div><h1>Заблокированные</h1><p>Здесь можно посмотреть список и снять блокировку. Разблокировка не начинает новый диалог автоматически.</p></div><div class="panel-heading-icon">⊘</div></div>
           <div id="blockedList" class="favorites-list"></div>
         </section>
-        <section id="adminPanel" class="settings-panel" hidden>
-          <div class="panel-heading"><div><div class="eyebrow">ПАНЕЛЬ ВЛАДЕЛЬЦА</div><h1>Центр управления</h1><p>Статистика, активные диалоги, одноразовые подарки первым участникам и журнал действий. Просмотр переписки доступен только по причине и уведомляет обе стороны.</p></div><div class="panel-heading-icon">⌘</div></div>
-          <a class="button button-primary" href="/owner" style="display:inline-flex;margin:0 0 16px;text-decoration:none">Открыть мобильную панель владельца ↗</a><div id="adminStats" class="admin-stats"></div>
-          <div class="settings-card"><div class="admin-section-title"><h2>Последние аккаунты</h2><span class="muted">Управление статусами</span></div><div id="adminUsers" class="admin-users"></div></div>
-          <div class="settings-card"><div class="admin-section-title"><h2>Жалобы пользователей</h2><button id="refreshReportsButton" class="button button-secondary" type="button">Обновить</button></div><div id="adminReports" class="admin-reports"></div></div>
-        </section>
         <section id="settingsPanel" class="settings-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">ПОДСТРОЙ ПОД СЕБЯ</div><h1>Настройки</h1><p>Твои предпочтения синхронизируются с аккаунтом.</p></div><div class="panel-heading-icon">⚙</div></div>
           <div class="settings-grid">
@@ -349,7 +341,7 @@
         </section>
       </section>
     </main>
-    <footer class="app-footer"><span>SOLVI — разговоры без границ</span><div id="socialLinksFooter" class="footer-social-links" hidden></div><span>SOLVI v1.10.2 · <button id="rulesFooterButton" class="footer-policy-link" type="button">Безопасность и правила</button></span></footer>
+    <footer class="app-footer"><span>SOLVI — разговоры без границ</span><div id="socialLinksFooter" class="footer-social-links" hidden></div><span>SOLVI v1.10.4 · <button id="rulesFooterButton" class="footer-policy-link" type="button">Безопасность и правила</button></span></footer>
   </div>
 
   <div id="rulesModal" class="modal-backdrop" hidden>
@@ -361,6 +353,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=26" defer></script>
+  <script src="/app.js?v=45" defer></script>
 </body>
 </html>

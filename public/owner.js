@@ -1,11 +1,20 @@
 'use strict';
 (() => {
   const $ = s => document.querySelector(s);
-  const state = { token:localStorage.getItem('sovli_admin_token')||localStorage.getItem('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], inspectMatchId:'', matchesTimer:null };
+  const state = { token:localStorage.getItem('sovli_admin_token')||localStorage.getItem('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null };
   const esc = v => String(v==null?'':v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num = v => Number(v||0).toLocaleString('ru-RU');
   const date = v => v ? new Date(v).toLocaleString('ru-RU',{dateStyle:'medium',timeStyle:'short'}) : '—';
   const dateInput = v => { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); };
+  function applyOwnerTheme(theme){
+    const selected = theme || localStorage.getItem('solvi_owner_theme') || 'dark';
+    document.documentElement.dataset.theme = selected;
+    localStorage.setItem('solvi_owner_theme', selected);
+    const button = $('#themeToggleButton');
+    if (button) { button.textContent = selected === 'dark' ? '☀ Светлая тема' : '☾ Тёмная тема'; button.setAttribute('aria-label', selected === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'); button.title = selected === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'; }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', selected === 'dark' ? '#10131c' : '#f4f5fb');
+  }
   function toast(message){ const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),3200); }
   async function api(url,options){
     const opts=options||{};
@@ -17,10 +26,28 @@
   function clearAuth(){state.token='';localStorage.removeItem('sovli_admin_token');$('#dashboardView').hidden=true;$('#loginView').hidden=false;$('#logoutButton').hidden=true;}
   function setConnection(text,good){const e=$('#connectionBadge');e.textContent=text;e.className='status-pill '+(good===false?'bad':'good');}
   function stat(label,value,small){return '<article class="stat-card"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong>'+(small?'<small>'+esc(small)+'</small>':'')+'</article>';}
-  function openInfo(title,body){$('#infoModalTitle').textContent=title;$('#infoModalBody').innerHTML=body;$('#infoModal').hidden=false;}
-  function closeInfo(){$('#infoModal').hidden=true;}
+  function suspendModalLayers(exceptId){
+    const restore=[];
+    ['ownerActionModal','userDetailModal','infoModal','dialogInspector'].forEach(id=>{
+      if(id===exceptId)return;
+      const modal=$('#'+id);
+      if(modal&&!modal.hidden){restore.push(id);modal.hidden=true;}
+    });
+    return ()=>restore.forEach(id=>{const modal=$('#'+id);if(modal)modal.hidden=false;});
+  }
+  let infoModalRestore=null;
+  function openInfo(title,body){
+    if(infoModalRestore){infoModalRestore();infoModalRestore=null;}
+    infoModalRestore=suspendModalLayers('infoModal');
+    $('#infoModalTitle').textContent=title;$('#infoModalBody').innerHTML=body;$('#infoModal').hidden=false;
+  }
+  function closeInfo(){
+    $('#infoModal').hidden=true;
+    if(infoModalRestore){const restore=infoModalRestore;infoModalRestore=null;restore();}
+  }
   function confirmDialog(opts){
     const o=opts||{};
+    const restoreModals=suspendModalLayers(null);
     return new Promise(resolve=>{
       const back=document.createElement('div');back.className='modal-backdrop';
       const card=document.createElement('section');card.className='modal-card confirm-card';card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');
@@ -31,7 +58,7 @@
       const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.textContent='Отмена';
       const ok=document.createElement('button');ok.type='button';ok.className=o.danger?'danger':'primary';ok.textContent=o.confirmText||'Продолжить';
       actions.append(cancel,ok);card.append(actions);back.append(card);document.body.append(back);
-      const finish=value=>{back.remove();window.removeEventListener('keydown',key);resolve(value);};
+      const finish=value=>{back.remove();window.removeEventListener('keydown',key);restoreModals();resolve(value);};
       const key=e=>{if(e.key==='Escape')finish(null);};
       cancel.onclick=()=>finish(null);ok.onclick=()=>finish(field?field.value.trim():true);
       back.onclick=e=>{if(e.target===back)finish(null);};window.addEventListener('keydown',key);if(field)field.focus();
@@ -40,11 +67,11 @@
   function openActionDialog(action,ctx){
     const c=ctx||{};
     const configs={
-      tokens:['Изменить баланс','Плюс начисляет токены, минус списывает.','Сохранить','<label>Количество токенов<input name="amount" type="number" min="-1000000" max="1000000" value="100" required></label><label>Причина<input name="reason" maxlength="160" value="Бонус от владельца" required></label>'],
+      tokens:['Изменить баланс','Плюс начисляет токены, минус списывает.','Сохранить','<label>Количество токенов<input name="amount" type="number" min="-1000000" max="1000000" value="100" required></label><label>Комментарий (необязательно)<input name="comment" maxlength="160" placeholder="Например: подарок за активность"></label>'], 
       vip:['Привилегия','Продлить статус или вернуть обычный тариф.','Применить','<label>Статус<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option><option value="free">Обычный аккаунт</option></select></label><label>Дней<input name="days" type="number" min="1" max="365" value="7" required></label>'],
       role:['Изменить роль','Роль определяет доступ к инструментам модерации.','Сохранить','<label>Роль<select name="role"><option value="member">Участник</option><option value="moderator">Модератор</option><option value="developer">Разработчик</option></select></label>'],
       suspend:['Ограничить аккаунт','Пользователь не сможет пользоваться аккаунтом до окончания срока.','Ограничить','<label>Срок<select name="minutes"><option value="10">10 минут</option><option value="60" selected>1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option></select></label><label>Причина<input name="reason" maxlength="180" value="Нарушение правил" required></label>'],
-      starterPack:['Стартовый подарок','Разовая награда: 100 токенов и 7 дней VIP.','Выдать подарок','<div class="grant-preview"><strong>🎁 100 ✦ + 7 дней VIP</strong><span>Сервер не позволит выдать подарок повторно.</span></div>'],
+      starterPack:['Стартовый подарок','Разовая награда: 100 токенов и 7 дней VIP.','Выдать подарок','<div class="grant-preview"><strong>🎁 100 ✦ + 7 дней VIP</strong><span>Сервер не позволит выдать подарок повторно.</span></div><label>Комментарий (необязательно)<input name="comment" maxlength="240" placeholder="Например: приветственный подарок"></label>'], 
       paidMembership:['Подтвердить оплату','Только после проверки реального поступления платежа.','Зафиксировать','<label>Тариф<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option></select></label><label>Дней<input name="days" type="number" min="1" max="365" value="30"></label><label>Сумма<input name="amount" type="number" min="0.01" step="0.01" value="4.99" required></label><label>Валюта<input name="currency" value="EUR" minlength="3" maxlength="3" required></label><label>ID платежа<input name="paymentReference" minlength="4" maxlength="120" required></label>'],
       personalPromo:['Персональный промокод','Код привяжется к аккаунту и будет доступен только ему. Одна активация, срок 30 дней по умолчанию.','Создать код','<label>Код (пусто — сгенерировать)<input name="code" maxlength="32" placeholder="SOLVI-XXXXXX"></label><label>Токены<input name="tokens" type="number" min="0" max="1000000" value="100"></label><label>Предмет<select name="itemId" id="personalPromoItem"><option value="">Без предмета</option></select></label><label>Привилегия<select name="membershipTier"><option value="">Без привилегии</option><option value="vip">VIP</option><option value="premium">Premium</option></select></label><label>Дней привилегии<select name="membershipDays"><option value="1">1</option><option value="7">7</option><option value="30">30</option><option value="90">90</option></select></label><label>Действует до<input name="expiresAt" type="date"></label>'],
       logout:['Завершить все сессии','Пользователю придётся войти снова на всех устройствах.','Завершить','<div class="grant-preview"><strong>🔐 Отключить устройства</strong><span>Все активные сессии будут отозваны.</span></div>'],
@@ -53,12 +80,13 @@
       editTask:['Редактировать задание','Измени название, описание, площадку, ссылку, награду и лимит.','Сохранить','<label>Название<input name="title" maxlength="100" value="'+esc(c.title)+'" required></label><label>Описание<textarea name="description" maxlength="500" rows="3" required>'+esc(c.description)+'</textarea></label><label>Платформа<input name="platform" maxlength="40" value="'+esc(c.platform)+'" required></label><label>HTTPS-ссылка<input name="url" type="url" maxlength="500" value="'+esc(c.url)+'" required></label><label>Награда<input name="rewardTokens" type="number" min="1" max="5000" value="'+Number(c.reward_tokens)+'" required></label><label>Рекламодатель<input name="sponsorName" maxlength="80" value="'+esc(c.sponsor_name||'')+'"></label><label>Лимит, 0 = без лимита<input name="maxClaims" type="number" min="0" max="100000" value="'+Number(c.max_claims||0)+'"></label>']
     };
     const cfg=configs[action];if(!cfg)return Promise.resolve(null);
+    const restoreModals=suspendModalLayers('ownerActionModal');
     const modal=$('#ownerActionModal');$('#ownerActionTitle').textContent=cfg[0];$('#ownerActionDescription').textContent=cfg[1];$('#ownerActionSubmit').textContent=cfg[2];$('#ownerActionFields').innerHTML=cfg[3];
     if(action==='personalPromo')$('#personalPromoItem').innerHTML=$('#promoItem').innerHTML;
     modal.hidden=false;
     return new Promise(resolve=>{
       let done=false;
-      const finish=value=>{if(done)return;done=true;modal.hidden=true;$('#ownerActionForm').onsubmit=null;$('#ownerActionCancel').onclick=null;$('#ownerActionClose').onclick=null;modal.onclick=null;window.removeEventListener('keydown',key);resolve(value);};
+      const finish=value=>{if(done)return;done=true;modal.hidden=true;restoreModals();$('#ownerActionForm').onsubmit=null;$('#ownerActionCancel').onclick=null;$('#ownerActionClose').onclick=null;modal.onclick=null;window.removeEventListener('keydown',key);resolve(value);};
       const key=e=>{if(e.key==='Escape')finish(null);};
       $('#ownerActionCancel').onclick=()=>finish(null);$('#ownerActionClose').onclick=()=>finish(null);modal.onclick=e=>{if(e.target===modal)finish(null);};
       $('#ownerActionForm').onsubmit=e=>{
@@ -67,7 +95,7 @@
         if(action==='vip'||action==='paidMembership'){result.days=Number(result.days);if(!Number.isInteger(result.days)||result.days<1||result.days>365)return toast('Срок должен быть от 1 до 365 дней.');}
         if(action==='paidMembership'){const currency=String(result.currency||'EUR').trim().toUpperCase();const zero=['BIF','CLP','DJF','GNF','JPY','KMF','KRW','MGA','PYG','RWF','UGX','VND','VUV','XAF','XOF','XPF'].includes(currency);result.amountMinor=Math.round(Number(result.amount)*(zero?1:100));delete result.amount;result.currency=currency;if(!Number.isInteger(result.amountMinor)||result.amountMinor<1||!/^[A-Z]{3}$/.test(currency)||String(result.paymentReference||'').trim().length<4)return toast('Проверь сумму, валюту и ID оплаты.');}
         if(action==='suspend')result.minutes=Number(result.minutes);
-        if(action==='starterPack')Object.assign(result,{tokens:100,tier:'vip',days:7});
+        if(action==='starterPack'){result.tokens=100;result.tier='vip';result.days=7;result.comment=String(result.comment||'').trim();}
         if(action==='personalPromo'){result.tokens=Number(result.tokens||0);result.membershipDays=result.membershipTier?Number(result.membershipDays):undefined;if(result.expiresAt)result.expiresAt=new Date(result.expiresAt+'T23:59:59').toISOString();else result.expiresAt=undefined;}
         if(action==='editPromo'){result.maxUses=Number(result.maxUses);result.startsAt=result.startsAt?new Date(result.startsAt).toISOString():null;result.expiresAt=result.expiresAt?new Date(result.expiresAt).toISOString():null;}
         if(action==='editSocial')result.sortOrder=Number(result.sortOrder||0);
@@ -102,6 +130,8 @@
     $('#loadMoreUsers').hidden=!state.userHasMore;
   }
   async function openUserDetail(id){
+    infoModalRestore=null;
+    suspendModalLayers('userDetailModal');
     state.selectedUserId=id;$('#userDetailModal').hidden=false;$('#userDetailTitle').textContent='Загружаем…';$('#userDetailMeta').textContent='';$('#userDetailContent').innerHTML='<p class="empty-state">Загружаем профиль…</p>';
     try{
       const d=await api('/api/admin/users/'+encodeURIComponent(id));if(state.selectedUserId!==id)return;
@@ -167,6 +197,7 @@
   }
   async function loadMatches(){const r=await api('/api/admin/matches');state.matches=r.matches||[];renderMatches();}
   function openInspector(id){
+    suspendModalLayers('dialogInspector');
     const m=state.matches.find(x=>x.id===id);if(!m)return;state.inspectMatchId=id;
     $('#inspectorTitle').textContent='Проверка активного диалога';$('#inspectorParticipants').textContent=m.user1+' ↔ '+m.user2+' · '+m.id;
     $('#inspectReason').value='';$('#dialogNoticeText').value='';$('#dialogMessages').innerHTML='<p class="empty-state">Укажи причину проверки. Участники будут уведомлены.</p>';$('#dialogInspector').hidden=false;
@@ -269,6 +300,64 @@
     const note=await confirmDialog({title:b.dataset.decision==='approve'?'Одобрить заявку?':'Отклонить заявку?',message:'Добавь комментарий для журнала и пользователя (необязательно).',input:true,defaultValue:'Проверено'});if(note===null)return;
     try{await api('/api/admin/task-submissions/'+encodeURIComponent(b.dataset.reviewSubmission)+'/review',{method:'POST',body:JSON.stringify({decision:b.dataset.decision,note})});await loadGrowth();toast(b.dataset.decision==='approve'?'Награда выдана.':'Заявка отклонена.');}catch(err){toast(err.message);}
   });
+  async function loadMonetization(){
+    const r=await api('/api/admin/monetization');state.monetization=r;
+    const s=r.stats||{};
+    const pw=r.paymentwall||{};
+    $('#monetizationStats').innerHTML=stat('Токенов в обороте',num(s.tokenSupply))+stat('Заработано сегодня',num(s.earnedToday)+' ✦')+stat('Всего заработано',num(s.tokensEarned)+' ✦')+stat('Всего потрачено',num(s.tokensSpent)+' ✦')+stat('Покупок в магазине',num(s.storeSales))+stat('Активные VIP / Premium',num(s.activeVip)+' / '+num(s.activePremium))+stat('Денежные VIP / Premium',num(s.paidVip)+' / '+num(s.paidPremium))+stat('Оплат токенов',num(pw.topups))+stat('Токенов за деньги',num(pw.tokens_credited))+stat('Токенов возвращено',num(pw.tokens_reversed))+stat('Касса токенов',r.paymentwallConfigured?'Ключи есть':'Не подключена','Virtual Currency')+stat('Касса магазина',r.paymentwallGoodsConfigured?'Ключи есть':'Не подключена','Digital Goods');
+    const names=new Map((r.products||[]).map(p=>[p.id,p.name]));
+    $('#monetizationSales').innerHTML=(r.salesByItem||[]).map(x=>'<div class="detail-row"><span>'+esc(names.get(x.item_id)||x.item_id)+'</span><strong>'+num(x.sales)+' покупок · '+num(x.tokens)+' ✦</strong></div>').join('')||'<p class="hint">Покупок пока нет.</p>';
+    const recent=(r.paymentwallRecent||[]).map(x=>'<div class="detail-row"><span>Paymentwall · '+esc(x.username)+' · '+num(x.token_amount)+' ✦</span><strong>'+esc(x.status==='reversed'?'Возврат':'Зачислено')+' · '+date(x.created_at)+'</strong></div>');
+    const legacy=(r.payments||[]).map(x=>'<div class="detail-row"><span>'+esc(x.provider)+' · '+esc(x.currency)+'</span><strong>'+num(x.count)+' · '+(Number(x.amount_minor)/100).toFixed(2)+' '+esc(x.currency)+'</strong></div>');
+    const direct=(r.cashStoreRecent||[]).map(x=>'<div class="detail-row"><span>Digital Goods · '+esc(x.username)+' · '+esc(names.get(x.item_id)||x.item_id)+'</span><strong>'+(Number(x.amount_minor)/100).toFixed(2)+' '+esc(x.currency)+' · '+esc(x.status==='reversed'?'Возврат':x.status==='paid'?'Оплачено':'Ожидает')+'</strong></div>');
+    $('#monetizationPayments').innerHTML=recent.concat(direct,legacy).join('')||'<p class="hint">Подтверждённых платежей пока нет. Настрой две кассы Paymentwall, чтобы включить продажи.</p>';
+    $('#monetizationProducts').innerHTML=(r.products||[]).map(p=>'<article class="growth-row" data-product-row="'+esc(p.id)+'"><div><strong>'+esc(p.name)+'</strong><small>'+esc(p.category)+' · базовая цена '+num(p.basePrice)+' ✦'+(p.bundleOnly?' · предмет фирменного набора':'')+'</small><small>'+(p.enabled?'Доступно в магазине':'Токеновая покупка выключена')+(p.cashSellable?' · Цена за реальные деньги: '+(p.cashEnabled?(Number(p.cashPriceMinor)/100).toFixed(2)+' '+esc(p.cashCurrency):'не задана'):'')+'</small></div><div class="inline-actions"><label class="hint">Цена ✦ <input class="search-input" type="number" min="0" max="10000000" step="1" data-product-price value="'+num(p.price).replace(/\s/g,'')+'" style="width:90px"></label><label class="hint"><input type="checkbox" data-product-enabled '+(p.enabled?'checked':'')+'> В продаже</label><button class="secondary mini" type="button" data-save-product="'+esc(p.id)+'">Сохранить</button>'+(p.cashSellable?'<label class="hint">Денежная цена <input class="search-input" type="number" min="0.30" max="1000000" step="0.01" data-cash-price value="'+(p.cashPriceMinor?(Number(p.cashPriceMinor)/100).toFixed(2):'')+'" placeholder="1.99" style="width:82px"></label><label class="hint">Валюта<select class="search-input" data-cash-currency><option value="RUB" '+(p.cashCurrency==='RUB'?'selected':'')+'>RUB ₽</option><option value="EUR" '+(p.cashCurrency==='EUR'?'selected':'')+'>EUR €</option><option value="USD" '+(p.cashCurrency==='USD'?'selected':'')+'>USD $</option></select></label><label class="hint"><input type="checkbox" data-cash-enabled '+(p.cashEnabled?'checked':'')+'> За деньги</label><button class="secondary mini" type="button" data-save-cash-price="'+esc(p.id)+'">Цена / валюта</button>':'')+'</div></article>').join('')||'<p class="empty-state">Каталог пуст.</p>';
+    $('#monetizationAdStats').innerHTML=(r.adStats||[]).map(x=>stat('Рекламные кампании · '+x.currency,num(x.campaigns),num(x.impressions)+' показов · '+num(x.clicks)+' переходов · оплачено '+(Number(x.booked_minor)/100).toFixed(2)+' '+x.currency)).join('')||stat('Рекламные кампании','0','Пока нет размещений');
+    $('#adCampaignList').innerHTML=(r.adCampaigns||[]).map(x=>'<article class="growth-row" data-ad-row="'+esc(x.id)+'"><div><strong>'+esc(x.title)+' · '+esc(x.sponsor_name)+'</strong><small>'+esc(x.payment_status==='paid'?'Оплачено':x.payment_status==='comped'?'Без оплаты':'Ожидает оплаты')+' · '+esc(x.status==='active'?'Показывается':x.status==='ended'?'Завершена':'На паузе')+' · '+(Number(x.price_minor)/100).toFixed(2)+' '+esc(x.currency)+'</small><small>'+num(x.impressions)+' показов · '+num(x.clicks)+' переходов · '+esc(x.target_url)+'</small></div><div class="inline-actions">'+(x.payment_status==='unpaid'?'<button class="secondary mini" type="button" data-ad-pay="'+esc(x.id)+'">Отметить оплату</button>':'<button class="secondary mini" type="button" data-ad-unpay="'+esc(x.id)+'">Снять оплату</button>')+(x.status==='active'?'<button class="secondary mini" type="button" data-ad-toggle="'+esc(x.id)+'" data-active="1">Пауза</button>':'<button class="secondary mini" type="button" data-ad-toggle="'+esc(x.id)+'" data-active="0" '+(x.payment_status==='unpaid'?'disabled':'')+'>Запустить</button>')+'<button class="danger mini" type="button" data-ad-delete="'+esc(x.id)+'">Удалить</button></div></article>').join('')||'<p class="empty-state">Рекламных кампаний пока нет.</p>';
+  }
+  $('#adCampaignForm').addEventListener('submit',async e=>{
+    e.preventDefault();const button=e.currentTarget.querySelector('button[type="submit"]');button.disabled=true;$('#adCampaignMessage').textContent='';
+    try{
+      const price=Math.round(Number($('#adPrice').value)*100);
+      if(!Number.isSafeInteger(price)||price<0)return toast('Проверь цену размещения.');
+      const payload={title:$('#adTitle').value.trim(),sponsorName:$('#adSponsor').value.trim(),body:$('#adBody').value.trim(),targetUrl:$('#adTargetUrl').value.trim(),priceMinor:price,currency:$('#adCurrency').value,startsAt:$('#adStartsAt').value?new Date($('#adStartsAt').value).toISOString():undefined,endsAt:$('#adEndsAt').value?new Date($('#adEndsAt').value).toISOString():undefined};
+      await api('/api/admin/ad-campaigns',{method:'POST',body:JSON.stringify(payload)});
+      e.currentTarget.reset();$('#adPrice').value='25.00';await loadMonetization();toast('Рекламная кампания создана. После подтверждения оплаты её можно запустить.');
+    }catch(err){$('#adCampaignMessage').textContent=err.message;}finally{button.disabled=false;}
+  });
+  $('#adCampaignList').addEventListener('click',async e=>{
+    const pay=e.target.closest('[data-ad-pay]'),unpay=e.target.closest('[data-ad-unpay]'),toggle=e.target.closest('[data-ad-toggle]'),del=e.target.closest('[data-ad-delete]');
+    const id=pay?.dataset.adPay||unpay?.dataset.adUnpay||toggle?.dataset.adToggle||del?.dataset.adDelete;if(!id)return;
+    try{
+      if(del){if(!await confirmDialog({title:'Удалить рекламу?',message:'Кампания и её статистика будут удалены.',confirmText:'Удалить',danger:true}))return;await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'DELETE'});}
+      else if(pay)await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({paymentStatus:'paid'})});
+      else if(unpay)await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({paymentStatus:'unpaid'})});
+      else if(toggle)await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status:toggle.dataset.active==='1'?'paused':'active'})});
+      await loadMonetization();toast(del?'Кампания удалена.':'Статус рекламной кампании обновлён.');
+    }catch(err){toast(err.message);}
+  });
+  $('#monetizationProducts').addEventListener('click',async e=>{
+    const cash=e.target.closest('[data-save-cash-price]');
+    const button=e.target.closest('[data-save-product]');
+    const target=cash||button;if(!target)return;
+    const row=target.closest('[data-product-row]');target.disabled=true;
+    try{
+      if(cash){
+        const value=Number(row.querySelector('[data-cash-price]').value);
+        const priceMinor=Math.round(value*100);
+        const currency=row.querySelector('[data-cash-currency]').value;
+        const enabled=row.querySelector('[data-cash-enabled]').checked;
+        if(!Number.isSafeInteger(priceMinor)||priceMinor<30||priceMinor>100000000)return toast('Денежная цена должна быть от 0,30 до 1 000 000.');
+        await api('/api/admin/store/'+encodeURIComponent(cash.dataset.saveCashPrice)+'/cash-price',{method:'PATCH',body:JSON.stringify({priceMinor,currency,enabled})});
+        await loadMonetization();toast('Денежная цена товара сохранена.');
+      }else{
+        const price=Number(row.querySelector('[data-product-price]').value);const enabled=row.querySelector('[data-product-enabled]').checked;
+        if(!Number.isSafeInteger(price)||price<0||price>10000000)return toast('Цена должна быть целым числом от 0 до 10 000 000.');
+        await api('/api/admin/store/'+encodeURIComponent(button.dataset.saveProduct)+'/price',{method:'PATCH',body:JSON.stringify({price,enabled})});
+        await loadMonetization();toast('Цена за токены обновлена.');
+      }
+    }catch(err){toast(err.message);}finally{target.disabled=false;}
+  });
   async function loadAudit(){const r=await api('/api/admin/audit');$('#auditList').textContent=(r.entries||[]).map(x=>date(x.created_at)+'  '+x.action+'  '+(x.target_id||'')+'\n'+JSON.stringify(x.details||{})).join('\n\n')||'Журнал пока пуст.';}
   function showTab(name,load){
     if(!document.querySelector('[data-page="'+name+'"]'))name='overview';
@@ -276,11 +365,13 @@
     document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
     if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
     if(load===false)return;
-    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),promos:loadPromos,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
+    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),promos:loadPromos,monetization:loadMonetization,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
     Promise.resolve(loaders[name]()).catch(err=>toast(err.message));
     if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(err=>toast(err.message)),15000);
   }
 
+  applyOwnerTheme();
+  $('#themeToggleButton').addEventListener('click',()=>applyOwnerTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
   $('#loginForm').addEventListener('submit',async e=>{
     e.preventDefault();$('#loginError').textContent='';setConnection('Входим…');const b=e.currentTarget.querySelector('button[type="submit"]');b.disabled=true;
     try{const r=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:$('#loginName').value.trim(),password:$('#loginPassword').value,accessCode:$('#loginInvite').value.trim()})});state.token=r.token;localStorage.setItem('sovli_admin_token',state.token);if(!await verifyOwner())throw new Error('Этот аккаунт не назначен владельцем. Проверь OWNER_PUBLIC_ID.');await loadStoreItems();toast('Добро пожаловать в панель владельца.');}
@@ -307,6 +398,7 @@
   $('#ticketAdminSearch').addEventListener('input',()=>{state.ticketQuery=$('#ticketAdminSearch').value.trim().toLowerCase();renderTickets();});
   $('#ticketAdminFilters').addEventListener('click',e=>{const b=e.target.closest('[data-ticket-filter]');if(!b)return;state.ticketFilter=b.dataset.ticketFilter;$('#ticketAdminFilters').querySelectorAll('[data-ticket-filter]').forEach(x=>x.classList.toggle('active',x===b));renderTickets();});
   $('#refreshGrowthButton').addEventListener('click',()=>loadGrowth().catch(err=>toast(err.message)));
+  $('#refreshMonetizationButton').addEventListener('click',()=>loadMonetization().catch(err=>toast(err.message)));
   $('#refreshAuditButton').addEventListener('click',()=>loadAudit().catch(err=>toast(err.message)));
   $('#inspectDialogButton').addEventListener('click',inspectDialog);
   $('#closeDialogInspector').addEventListener('click',()=>{$('#dialogInspector').hidden=true;state.inspectMatchId='';});
@@ -322,7 +414,12 @@
   $('#closeInfoModal').addEventListener('click',closeInfo);
   $('#infoModal').addEventListener('click',e=>{if(e.target===$('#infoModal'))closeInfo();});
   $('#infoModalBody').addEventListener('click',e=>{const b=e.target.closest('[data-open-user]');if(b)openUserDetail(b.dataset.openUser);});
-  window.addEventListener('keydown',e=>{if(e.key==='Escape'){['ownerActionModal','userDetailModal','infoModal','dialogInspector'].forEach(id=>{const m=$('#'+id);if(m)m.hidden=true;});}});
+  window.addEventListener('keydown',e=>{
+    if(e.key!=='Escape'||document.querySelector('.confirm-card')||!$('#ownerActionModal').hidden)return;
+    if(!$('#infoModal').hidden){closeInfo();return;}
+    if(!$('#dialogInspector').hidden){$('#dialogInspector').hidden=true;state.inspectMatchId='';return;}
+    if(!$('#userDetailModal').hidden){$('#userDetailModal').hidden=true;state.selectedUserId='';}
+  });
   async function boot(){if(await verifyOwner())await loadStoreItems();else{setConnection('Нужен вход',false);if(state.token&&!$('#loginError').textContent)$('#loginError').textContent='Сессия не имеет прав владельца. Войди аккаунтом владельца.';}}
   boot();
 })();
