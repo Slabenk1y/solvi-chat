@@ -169,7 +169,8 @@ function createThemeStorePreview(item) {
     dark: ['#181827','#232337','#8d86ff','#f0efff','#a2a2ba'],
     light: ['#f5f6fb','#ffffff','#756ee8','#29263e','#88859e']
   };
-  const colors = palettes[item.value] || palettes.default;
+  const paletteAliases = { royal: 'violet', mint: 'clouds', berry: 'candy', lilac: 'violet', gold: 'cream', orbit: 'space', comet: 'space', soft: 'clouds', night: 'midnight', ocean: 'ice', flower: 'sakura', rain: 'clouds', rose: 'sakura', mountain: 'sunset', cyber: 'neon', sea: 'ice', citrus: 'sunset', graphite: 'midnight', glass: 'ice', bubble: 'candy', synth: 'arcade', 'deep-sea': 'ice', 'first-contact': 'aurora', 'sakura-keeper': 'sakura', 'night-circuit': 'neon' };
+  const colors = palettes[item.value] || palettes[paletteAliases[item.value]] || palettes.default;
   const root = document.createElement('div');
   root.className = 'store-detail-preview theme-context-preview';
   root.style.setProperty('--mock-bg', colors[0]);
@@ -215,7 +216,11 @@ function createMembershipPreview(item) {
   const footer=document.createElement('div');footer.className='membership-mock-footer';
   const token=document.createElement('span');token.textContent='✦ '+(premium?'PREMIUM':'VIP')+' активен';
   const detail=document.createElement('small');detail.textContent='Отображается в профиле и рядом с ником';
-  footer.append(token,detail);card.append(cover,sample,footer);root.append(card);
+  footer.append(token,detail);
+  const perks=document.createElement('div');perks.className='membership-mock-perks';
+  const labels=premium?['5 000 символов','6 вложений','10 языков','12 интересов']:['3 000 символов','4 вложения','5 языков','8 интересов'];
+  labels.forEach(label=>{const chip=document.createElement('span');chip.textContent=label;perks.append(chip);});
+  card.append(cover,sample,perks,footer);root.append(card);
   return root;
 }
 function openStorePreview(item) {
@@ -731,6 +736,8 @@ function renderFilters() {
   const tier = state.user?.subscriptionTier || 'free';
   const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
   const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+  state.selectedLanguages = state.selectedLanguages.slice(0, languageLimit);
+  state.selectedInterests = state.selectedInterests.slice(0, interestLimit);
   renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, languageLimit));
   renderChoices($('#interestOptions'), state.config.interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), state.config.interests, interestLimit));
   const languageSummary = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
