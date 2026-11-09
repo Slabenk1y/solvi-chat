@@ -81,8 +81,8 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const user2 = await postJson(baseUrl, '/api/auth/register', { username: 'tester-two', password: 'test-password-222' });
     assert.match(user1.user.publicId, /^[A-F0-9]{10}$/);
     assert.match(user2.user.publicId, /^[A-F0-9]{10}$/);
-    assert.equal(user1.user.tokens, 0, 'new accounts start with zero tokens');
-    assert.equal(user2.user.tokens, 0, 'new accounts start with zero tokens');
+    assert.equal(user1.user.tokens, 50, 'new accounts receive the 50-token registration bonus');
+    assert.equal(user2.user.tokens, 50, 'new accounts receive the 50-token registration bonus');
     testDb = new DatabaseSync(path.join(dataDir, 'orbit.sqlite'));
     testDb.prepare('UPDATE users SET tokens = 1000 WHERE id IN (?, ?)').run(user1.user.id, user2.user.id);
     testDb.prepare("INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, 'wallpaper-deep-space', ?, 'purchase')").run(user1.user.id, new Date().toISOString());
