@@ -434,10 +434,13 @@ function isOwner(user) {
   return Boolean(user && process.env.OWNER_PUBLIC_ID && String(user.public_id) === String(process.env.OWNER_PUBLIC_ID));
 }
 function effectiveSubscription(user) {
-  const tier = ['vip', 'premium'].includes(user?.subscription_tier) ? user.subscription_tier : 'free';
-  if (tier === 'free') return 'free';
-  if (user.subscription_expires_at && user.subscription_expires_at <= nowIso()) return 'free';
-  return tier;
+  const now = nowIso();
+  const activeTiers = [
+    { tier: user?.subscription_tier, expiresAt: user?.subscription_expires_at },
+    { tier: user?.paid_subscription_tier, expiresAt: user?.paid_subscription_expires_at }
+  ].filter(entry => ['vip', 'premium'].includes(entry.tier) && (!entry.expiresAt || entry.expiresAt > now));
+  if (activeTiers.some(entry => entry.tier === 'premium')) return 'premium';
+  return activeTiers.some(entry => entry.tier === 'vip') ? 'vip' : 'free';
 }
 function effectivePaidSubscription(user) {
   const tier = ['vip', 'premium'].includes(user?.paid_subscription_tier) ? user.paid_subscription_tier : 'free';
