@@ -154,9 +154,22 @@ function openStorePreview(item) {
   const visual = $('#storePreviewCanvas');
   visual.replaceChildren();
   if (item.slot === 'membership') {
-    const mark = document.createElement('div'); mark.className = 'store-membership-preview-mark';
-    mark.textContent = item.tier === 'premium' ? 'PREMIUM' : 'VIP';
-    visual.append(mark);
+    const tier = item.tier === 'premium' ? 'premium' : 'vip';
+    const showcase = document.createElement('div'); showcase.className = `membership-showcase membership-showcase-${tier}`;
+    const top = document.createElement('div'); top.className = 'membership-showcase-top';
+    const avatar = document.createElement('div'); avatar.className = 'membership-showcase-avatar'; avatar.textContent = '✦';
+    const identity = document.createElement('div'); identity.className = 'membership-showcase-identity';
+    const username = document.createElement('strong'); username.textContent = 'Твой ник';
+    const badge = document.createElement('span'); badge.className = 'membership-showcase-badge'; badge.textContent = tier === 'premium' ? '✦ PREMIUM' : '✧ VIP';
+    identity.append(username, badge); top.append(avatar, identity);
+    const chat = document.createElement('div'); chat.className = 'membership-showcase-chat';
+    const incoming = document.createElement('span'); incoming.className = 'membership-demo-message incoming'; incoming.textContent = 'Привет! Как настроение?';
+    const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
+    chat.append(incoming, outgoing);
+    const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
+    const perkNames = tier === 'premium' ? ['Всё из VIP', 'Усиленный ореол профиля', 'Эксклюзивная Premium-подсветка'] : ['VIP-значок рядом с ником', 'Сияющая рамка профиля', 'Акцент твоих сообщений'];
+    perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
+    showcase.append(top, chat, perks); visual.append(showcase);
   } else {
     const preview = createStorePreview(item);
     preview.classList.add('store-detail-preview');
@@ -172,10 +185,17 @@ function openStorePreview(item) {
     sound: 'Меняет короткий звуковой сигнал интерфейса.',
     stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
-    membership: 'Даёт временный статус с косметическими возможностями. Срок добавляется к уже активной привилегии.'
+    membership: item.tier === 'premium'
+      ? 'Premium включает VIP: значок, усиленную сияющую рамку профиля, более заметный ореол и отдельную Premium-подсветку. Привилегии визуальные и не дают преимущества в поиске.'
+      : 'VIP добавляет заметный значок рядом с ником, сияющую рамку профиля и акцент исходящих сообщений. Не влияет на очередь поиска и правила безопасности.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
+  if (item.slot === 'membership') {
+    const duration = document.createElement('p'); duration.className = 'store-preview-duration';
+    duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360' : '180'} токенов за час привилегии. При повторной покупке время прибавляется к остатку.`;
+    $('#storePreviewBenefit').append(duration);
+  }
   modal.hidden = false;
 }
 function renderStore(data) {
@@ -553,6 +573,7 @@ function setUser(user) {
   const isNewAccount = state.user?.id !== user.id;
   state.user = user;
   document.documentElement.dataset.role = user.role === 'owner' ? 'owner' : (user.role || 'member');
+  document.documentElement.dataset.memberTier = ['vip', 'premium'].includes(user.subscriptionTier) ? user.subscriptionTier : 'free';
   if (isNewAccount) state.selectedAvatar = user.avatarUrl ? null : user.avatar;
   setAvatarContent($('#sideAvatar'), user);
   setAvatarContent($('#topAvatar'), user);
@@ -565,7 +586,7 @@ function setUser(user) {
   const stats = user.stats || { chats: 0, activeMinutes: 0, messages: 0 };
   $('#profileStats').innerHTML = `<div><strong>${Number(stats.chats || 0).toLocaleString('ru-RU')}</strong><span>диалогов</span></div><div><strong>${Number(stats.activeMinutes || 0).toLocaleString('ru-RU')}</strong><span>минут общения</span></div><div><strong>${Number(stats.messages || 0).toLocaleString('ru-RU')}</strong><span>сообщений</span></div>`;
   $('#profileRoleBadge').textContent = user.badge || 'Участник';
-  $('#profileMembershipLine').textContent = user.subscriptionTier === 'free' ? 'Стандартный участник' : `${user.subscriptionTier.toUpperCase()} до ${user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleDateString('ru-RU') : '—'}`;
+  $('#profileMembershipLine').textContent = user.subscriptionTier === 'free' ? 'Стандартный участник' : `${user.subscriptionTier.toUpperCase()} до ${user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}`;
   $('#profileTokenBalance').textContent = Number(user.tokens || 0).toLocaleString('ru-RU');
   $('#profileCreatedAt').textContent = `В SOVLI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
   $('#profileUsername').value = user.username;

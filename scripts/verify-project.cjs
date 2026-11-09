@@ -52,8 +52,8 @@ try {
   if (catalogSection.includes('category: "Обои"') || catalogSection.includes('slot: "wallpaper"')) fail('Каталог всё ещё содержит отдельную категорию обоев');
   else pass('Все бывшие обои переведены в темы интерфейса');
   const membershipSection = server.slice(server.indexOf('const MEMBERSHIP_PACKAGES'), server.indexOf('const LANGUAGES'));
-  if (!membershipSection.includes("id: 'vip-1d', tier: 'vip', days: 1, price: 270") || !membershipSection.includes("id: 'premium-1d', tier: 'premium', days: 1, price: 480")) fail('Цены привилегий не соответствуют экономике v1.5.1');
-  else pass('Новые цены VIP и Premium проверены');
+  if (!membershipSection.includes("id: 'vip-1h', tier: 'vip', hours: 1, price: 180") || !membershipSection.includes("id: 'premium-1h', tier: 'premium', hours: 1, price: 360") || !membershipSection.includes("id: 'vip-24h', tier: 'vip', hours: 24, price: 4320") || !membershipSection.includes("id: 'premium-24h', tier: 'premium', hours: 24, price: 8640")) fail('Цены VIP/Premium не соответствуют почасовой экономике v1.7.0');
+  else pass('Почасовые цены VIP и Premium проверены');
   if (collectionNames.length < 10) fail(`Слишком мало коллекций: ${collectionNames.length}`);
   else pass(`Коллекции: ${collectionNames.length}`);
 
@@ -85,7 +85,7 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v17/.test(sw)) fail('Service Worker cache version не соответствует v1.6.0');
+  if (!/sovli-shell-v18/.test(sw)) fail('Service Worker cache version не соответствует v1.7.0');
   else pass('Service Worker cache version обновлён');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
