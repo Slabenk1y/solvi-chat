@@ -682,9 +682,42 @@ async function loadGrowthTasks(){
     });
   }catch(error){showToast(error.message);}
 }
+const SOCIAL_ICON_MARKUP = {
+  telegram: '<path d="M21.6 4.1 18.4 19c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.6.6-1.2.6l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.2L5.6 12.7.7 11.2c-1.1-.4-1.1-1.2.2-1.7L20 2.1c.9-.3 1.8.2 1.6 2Z"/>',
+  youtube: '<path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8ZM9.7 15.4V8.6l5.9 3.4-5.9 3.4Z"/>',
+  instagram: '<rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.6" cy="6.6" r="1.2"/>',
+  tiktok: '<path d="M15.5 3h3.1c.2 2 1.3 3.6 3.4 4.3v3.2a9.4 9.4 0 0 1-3.4-1.1v6.7a6.4 6.4 0 1 1-6.4-6.4c.4 0 .8 0 1.2.1v3.3a3.2 3.2 0 1 0 2.1 3V3Z"/>',
+  discord: '<path d="M19.7 5.3a18 18 0 0 0-4.4-1.4l-.5 1a16 16 0 0 0-5.6 0l-.5-1a18 18 0 0 0-4.4 1.4C1.5 9.4.8 13.4 1.2 17.4a18 18 0 0 0 5.4 2.7l1.2-2a11 11 0 0 1-1.9-.9l.5-.4a13 13 0 0 0 11.2 0l.5.4a11 11 0 0 1-1.9.9l1.2 2a18 18 0 0 0 5.4-2.7c.5-4.7-.8-8.7-3.1-12.1ZM8.7 14.8c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>',
+  vk: '<path d="M3.2 7.2h3.4c.2 4.1 1.9 5.8 3.2 6.2V7.2h3.2v3.5c1.3-.1 2.7-1.7 3.2-3.5h3.2a8.6 8.6 0 0 1-2.9 5.1 8.8 8.8 0 0 1 3.6 5.5h-3.5c-.6-1.8-2.1-3.2-3.6-3.3v3.3h-.4c-5.2 0-8.2-3.6-8.4-10.6Z"/>',
+  twitch: '<path d="M4 3h18v12l-5 5h-4l-3 3v-3H5V6l-1  -3Zm3 3v11h5v2l2-2h3l3-3V6H7Zm4 2h2v5h-2V8Zm5 0h2v5h-2V8Z"/>',
+  x: '<path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3l-4.9-7.2L5.7 22H2.5l7.3-8.4L2 2h6.5l4.4 6.6L18.9 2Zm-1.1 18h1.7L7.4 3.9H5.6L17.8 20Z"/>',
+  facebook: '<path d="M13.5 22v-8h2.7l.4-3.1h-3.1v-2c0-.9.3-1.5 1.6-1.5h1.7V4.6c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.1H7.3V14h2.8v8h3.4Z"/>',
+  default: '<path d="M7 17 17 7M8 7h9v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+};
+function socialPlatformKey(link){
+  const value=[link.platform,link.label,link.url].filter(Boolean).join(' ').toLowerCase();
+  if(/telegram|t\.me/.test(value))return 'telegram';
+  if(/youtube|youtu\.be/.test(value))return 'youtube';
+  if(/instagram|instagr\.am/.test(value))return 'instagram';
+  if(/tiktok/.test(value))return 'tiktok';
+  if(/discord|discord\.gg/.test(value))return 'discord';
+  if(/(^|[^a-z])vk([^a-z]|$)|vkontakte/.test(value))return 'vk';
+  if(/twitch/.test(value))return 'twitch';
+  if(/(^|[^a-z])x([^a-z]|$)|twitter/.test(value))return 'x';
+  if(/facebook|fb\.com/.test(value))return 'facebook';
+  return 'default';
+}
 function renderSocialLinks(){
   const root=$('#socialLinksFooter');if(!root)return;root.replaceChildren();
-  (state.config?.socialLinks||[]).forEach(link=>{const a=document.createElement('a');a.className='footer-social-link';a.href=link.url;a.target='_blank';a.rel='noopener noreferrer';a.title=link.label;a.setAttribute('aria-label',link.label);const icon=document.createElement('span');icon.textContent=link.icon||'↗';const label=document.createElement('span');label.textContent=link.label;a.append(icon,label);root.append(a);});
+  (state.config?.socialLinks||[]).forEach(link=>{
+    const platform=socialPlatformKey(link);
+    const a=document.createElement('a');a.className='footer-social-link';a.dataset.platform=platform;
+    a.href=link.url;a.target='_blank';a.rel='noopener noreferrer';a.title=link.label;a.setAttribute('aria-label',link.label);
+    const icon=document.createElement('span');icon.className='footer-social-icon';
+    icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(SOCIAL_ICON_MARKUP[platform]||SOCIAL_ICON_MARKUP.default)+'</svg>';
+    const label=document.createElement('span');label.className='footer-social-label';label.textContent=link.label;
+    a.append(icon,label);root.append(a);
+  });
   root.hidden=!root.children.length;
 }
 async function loadTickets() {
