@@ -2,6 +2,7 @@
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
+const DEFAULT_AVATARS = ['🪐','🌙','🦊','🐼','🐸','🦉','🐳','🦋','🐙','🌵','🍀','🧩'];
 const STICKER_PACKS = {
   'stickers-night-owl': ['✨','🌙','🚀','🫶','👀','🫡','🤝','💫'],
   'stickers-sausage': ['🌭','🐭','🧀','😵‍💫','🥨','💨'],
@@ -148,7 +149,7 @@ function createStorePreview(item) {
   preview.append(scene);
   return preview;
 }
-function openStoreItemPreview(item) {
+function openStorePreview(item) {
   const modal = $('#storePreviewModal');
   const visual = $('#storePreviewCanvas');
   visual.replaceChildren();
@@ -230,7 +231,7 @@ function renderStore(data) {
     const footer = document.createElement('div'); footer.className = 'store-item-footer';
     const price = document.createElement('strong'); price.className = 'store-item-price'; price.textContent = item.owned ? (item.equipped ? 'Уже используется' : 'В коллекции') : `${Number(item.price).toLocaleString('ru-RU')} ✦`;
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Предпросмотр';
-    previewButton.addEventListener('click', () => openStoreItemPreview(item));
+    previewButton.addEventListener('click', () => openStorePreview(item));
     const action = document.createElement('button'); action.type = 'button'; action.className = 'button button-secondary store-action';
     if (item.equipped) action.textContent = 'Снять';
     else if (item.owned) action.textContent = 'Применить';
@@ -266,7 +267,7 @@ function renderStore(data) {
     const copy = document.createElement('p'); copy.textContent = pack.description;
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
-    previewButton.addEventListener('click', () => openStoreItemPreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
+    previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
@@ -660,7 +661,7 @@ function renderAvatarOptions() {
   if (!state.selectedAvatar && !state.user.avatarUrl) state.selectedAvatar = state.user.avatar;
   const container = $('#avatarOptions');
   container.replaceChildren();
-  const avatarChoices = Array.isArray(state.config.avatars) && state.config.avatars.length ? state.config.avatars : ['🪐','🌙','🦊','🐼','🐸','🦉','🐳','🦋','🐙','🌵','🍀','🧩'];
+  const avatarChoices = Array.isArray(state.config.avatars) && state.config.avatars.length ? state.config.avatars : DEFAULT_AVATARS;
   avatarChoices.forEach(avatar => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -1528,7 +1529,11 @@ async function boot() {
       showAuth();
       setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
     }
-  } finally { state.authRestoring = false; bootScreen.hidden = true; }
+  } finally {
+    state.authRestoring = false;
+    bootScreen.hidden = true;
+    document.documentElement.classList.remove('session-checking');
+  }
 }
 
 $('#authForm').addEventListener('submit', async event => {
