@@ -25,7 +25,7 @@ try {
   else pass(`JS: ${selectors.length} прямых id-селекторов найдены в HTML`);
 
   const server = read('server.js');
-  const schemaMatch = server.match(/db\\.exec\\(`([\\s\\S]*?)`\\);\\s*\\n\\s*(?:await initializePersistentStorage\\(\\);\\s*\\n\\s*)?\\/\\/ Backward-compatible migration/);\s*\n\s*\/\/ Backward-compatible migration/);
+  const schemaMatch = server.match(/db\.exec\(`([\s\S]*?)`\);\s*\n\s*(?:await initializePersistentStorage\(\);\s*\n\s*)?\/\/ Backward-compatible migration/);
   if (!schemaMatch) fail('Не удалось найти основную SQLite-схему в server.js');
   else {
     try {
