@@ -723,7 +723,7 @@ async function startAiFallback(userId) {
   const commonInterests = interests.slice(0, 3);
   io.to(userRoom(userId)).emit('match:found', {
     matchId: sessionId, isAi: true, mode: 'chat', startedAt: nowIso(),
-    partner: { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается по твоим интересам.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests },
+    partner: { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается на русском языке.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests },
     commonInterests
   });
   queueAiTurn(userId, session, null);
