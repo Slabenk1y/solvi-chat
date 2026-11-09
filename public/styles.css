@@ -520,3 +520,14 @@ html.session-checking #sessionBootScreen{display:grid!important}
 /* VIP and Premium accents on the sender's real chat bubbles */
 :root[data-member-tier="vip"] .message-row.mine .message-bubble:not(.sticker-bubble){border:1px solid rgba(226,180,79,.62);box-shadow:0 5px 18px rgba(185,135,40,.14)}
 :root[data-member-tier="premium"] .message-row.mine .message-bubble:not(.sticker-bubble){border:1px solid rgba(185,143,255,.72);box-shadow:0 5px 20px rgba(151,103,225,.22)}
+
+
+/* SOVLI v1.7.2 — local store try-on, never persisted to the account */
+.store-preview-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.store-preview-actions .button{width:100%;min-width:0}
+.store-preview-disclaimer{margin:8px 0 0;color:var(--muted);font-size:10px;line-height:1.5}
+.store-preview-restore{position:fixed;z-index:2200;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100vw - 28px);min-height:42px;padding:0 16px;border:1px solid color-mix(in srgb,var(--primary) 35%,var(--line));border-radius:999px;background:var(--surface);color:var(--ink);box-shadow:0 10px 30px rgba(25,20,55,.2);font:700 12px Manrope,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.store-preview-restore[hidden]{display:none}
+.store-preview-restore:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+@media(max-width:480px){.store-preview-actions{grid-template-columns:1fr}.store-preview-restore{width:calc(100vw - 28px);white-space:normal}}
+@media(prefers-reduced-motion:reduce){.store-preview-restore{transition:none!important}}
