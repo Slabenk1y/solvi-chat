@@ -586,7 +586,7 @@ async function redeemPromo() {
 async function loadPaidMemberships(){
   const root=$('#paidMembershipOffers');if(!root)return;
   try{
-    const data=await api('/api/billing/token-topup');root.replaceChildren();
+    const data=await api('/api/billing/token-topup');root.replaceChildren();const billingEmail=$('#storeBillingEmail');if(billingEmail&&!billingEmail.value&&data.billingEmail)billingEmail.value=data.billingEmail;
     const card=document.createElement('article');card.className='paid-membership-card';
     const kicker=document.createElement('span');kicker.className='membership-kicker';kicker.textContent='ПОПОЛНЕНИЕ БАЛАНСА';
     const title=document.createElement('h3');title.textContent='Токены SOLVI';
