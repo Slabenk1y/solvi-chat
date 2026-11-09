@@ -982,6 +982,7 @@ async function main() {
     if (hasAvatarChoice && !AVATARS.includes(avatar)) return res.status(400).json({ error: 'Выберите аватар из каталога.' });
 
     if (req.user.account_type === 'guest') {
+      // Guests may personalize their avatar without changing account identity.
       if (!hasAvatarChoice) return res.status(403).json({ error: 'Гостевой профиль может менять только аватар.' });
       const oldAvatarFile = req.user.avatar_file;
       transaction(() => dbRun('UPDATE users SET avatar = ?, avatar_file = NULL, avatar_mime = NULL WHERE id = ?', [avatar, req.user.id]));
