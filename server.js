@@ -663,14 +663,7 @@ function addToQueue(socket, preferences) {
   if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
   tryMatch(userId);
-  if (queue.has(userId)) {
-    const fallbackTimer = setTimeout(() => {
-      queueFallbackTimers.delete(userId);
-      startAiFallback(userId).catch(error => console.error('[SOLVI] AI fallback error:', error.message));
-    }, 25_000);
-    fallbackTimer.unref?.();
-    queueFallbackTimers.set(userId, fallbackTimer);
-  }
+  // AI fallback is intentionally disabled: matching waits for a real person only.
   return { ok: true };
 }
 const AI_PERSONA_PROFILES = [
