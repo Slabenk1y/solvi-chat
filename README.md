@@ -48,3 +48,16 @@ yarn check
 yarn test
 yarn verify
 ```
+
+
+## Matching modes and age assurance (v1.10.0)
+
+SOLVI has three separate queues: standard Chat, Flirt 18+, and Roleplay 18+. Standard Chat keeps the existing language and interest filters and adds reciprocal desired-gender matching. Roleplay uses the two intentions “Ищу сюжет” and “Предлагаю сюжет”; only opposite intentions are paired. Flirt and Roleplay have separate topic lists.
+
+Both adult queues require a fresh explicit 18+ self-attestation for each queue entry; guest accounts are excluded. This is a self-declaration timestamp, not document or identity-based age verification. Before public promotion of an adult area, add an age-verification provider and jurisdiction-specific legal review.
+
+### Store currency
+
+Stripe store currency and prices are configurable through `BILLING_CURRENCY`, `VIP_PRICE_MINOR`, and `PREMIUM_PRICE_MINOR`. Keep `BILLING_CURRENCY=eur` for the current €4.99/€8.99 defaults. For RUB, configure RUB and prices in kopeks (for example RUB 499.00 is 49900). Stripe charge currency and payout currency are not necessarily the same; configure a supported settlement bank account in Stripe Dashboard before switching. Do not assume RUB proceeds can be paid out to a Russian bank account.
+
+Default public links are Telegram https://t.me/ChatSolvi and TikTok https://www.tiktok.com/@slabenk1y_armagedon. Owner edits remain available in the panel.

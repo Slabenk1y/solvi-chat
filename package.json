@@ -1,8 +1,8 @@
 {
   "name": "solvi-chat",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "private": true,
-  "description": "SOLVI v1.9.1 — Stripe Checkout, paid memberships, creator tasks and owner tools",
+  "description": "SOLVI v1.10.0 — three matching modes, age consent and configurable currency billing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

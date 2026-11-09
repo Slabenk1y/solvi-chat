@@ -9,8 +9,21 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.9.1') fail(`Ожидалась версия 1.9.1, получена ${pkg.version}`);
+  if (pkg.version !== '1.10.0') fail(`Ожидалась версия 1.10.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
+
+  const matchingHtml = read('public/index.html');
+  const matchingServer = read('server.js');
+  const matchingApp = read('public/app.js');
+  for (const mode of ['chat', 'flirt', 'roleplay']) {
+    if (!matchingHtml.includes(`data-match-mode="${mode}"`) || !matchingServer.includes(`'${mode}'`) || !matchingApp.includes(`'${mode}'`)) fail(`Режим подбора ${mode} не подключён во всех слоях`);
+  }
+  if (!matchingServer.includes('eligibleByGender(current, candidate)') || !matchingServer.includes('eligibleByMode(current, candidate)')) fail('Серверная фильтрация пола/режима отсутствует');
+  else pass('Три режима и серверная фильтрация пола/формата подключены');
+  if (!matchingServer.includes("preferences?.adultConfirmed !== true") || !matchingServer.includes("UPDATE users SET adult_asserted_at = ?")) fail('Серверное подтверждение 18+ отсутствует');
+  else pass('Согласие 18+ проверяется сервером и сохраняется');
+  if (!matchingHtml.includes('id="flirtAdultConsent"') || !matchingHtml.includes('id="roleplayAdultConsent"') || !matchingHtml.includes('id="profileGender"')) fail('Не найдены элементы подтверждения возраста или пола');
+  else pass('Формы взрослых режимов и пола в профиле присутствуют');
 
   const html = read('public/index.html');
   const ids = [...html.matchAll(/\bid\s*=\s*["']([^"']+)["']/g)].map(match => match[1]);

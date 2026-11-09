@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.10.0 — three matching modes and configurable billing (2026-11-09)
+
+- Added separate random matching queues for standard chat, Flirt 18+ and Roleplay 18+.
+- Added reciprocal desired-gender matching and roleplay intent pairing (seeking/offering).
+- Added separate interest lists for flirt and roleplay while retaining standard chat interests.
+- Added server-checked 18+ self-attestation on every adult queue entry; guest accounts are excluded, and the assertion timestamp is preserved across restarts.
+- Seeded supplied Telegram and TikTok links, changed visible login branding to SOLVI, and added configurable Stripe currency/prices.
+- Note: 18+ self-attestation is not document or identity verification.
+
 ## v1.9.1 — SOLVI payments and growth hardening (2026-11-09)
 
 - Added Stripe Checkout for 30-day VIP (€4.99) and Premium (€8.99) subscriptions.

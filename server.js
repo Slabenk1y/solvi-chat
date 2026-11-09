@@ -213,9 +213,16 @@ const STORE_BUNDLES = Object.freeze([
   { id: 'vip-signature-pack', name: 'VIP · Звёздный след', tier: 'vip', price: 2400, description: '5 эксклюзивных предметов: туманность, метеоритные сообщения, полярная рамка, кометные стикеры и титул «Пыльца комет». Нужен активный VIP или Premium.', itemIds: ['theme-vip-nebula','bubble-vip-meteor','frame-vip-aurora','stickers-vip-comet','title-vip-stardust'] },
   { id: 'premium-quantum-pack', name: 'Premium · Квантовый портал', tier: 'premium', price: 4800, description: '5 мифических предметов: горизонт событий, призматические сообщения, портал измерений, квантовые стикеры и титул «Сингулярность». Нужен активный Premium.', itemIds: ['theme-premium-event-horizon','bubble-premium-prism','frame-premium-portal','stickers-premium-quantum','title-premium-singularity'] }
 ]);
+const BILLING_CURRENCY_RAW = String(process.env.BILLING_CURRENCY || 'eur').trim().toLowerCase();
+const BILLING_CURRENCY = /^[a-z]{3}$/.test(BILLING_CURRENCY_RAW) ? BILLING_CURRENCY_RAW : 'eur';
+function billingMinorPrice(envName, eurDefault) {
+  const raw = process.env[envName];
+  const value = raw === undefined || String(raw).trim() === '' ? (BILLING_CURRENCY === 'eur' ? eurDefault : 0) : Number(raw);
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
 const BILLING_PRODUCTS = Object.freeze([
-  { id: 'vip-30d', tier: 'vip', days: 30, amountMinor: 499, currency: 'eur', name: 'VIP · 30 дней', description: '30 дней VIP: расширенные лимиты, голосовые до 45 секунд и 5 фото за сообщение.' },
-  { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: 899, currency: 'eur', name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
+  { id: 'vip-30d', tier: 'vip', days: 30, amountMinor: billingMinorPrice('VIP_PRICE_MINOR', 499), currency: BILLING_CURRENCY, name: 'VIP · 30 дней', description: '30 дней VIP: расширенные лимиты, голосовые до 45 секунд и 5 фото за сообщение.' },
+  { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: billingMinorPrice('PREMIUM_PRICE_MINOR', 899), currency: BILLING_CURRENCY, name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
   { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов.' },
@@ -227,6 +234,8 @@ const MEMBERSHIP_PACKAGES = Object.freeze([
 ]);
 const LANGUAGES = ['Русский', 'English', 'Español', 'Deutsch', 'Français', 'Türkçe', 'Português', 'العربية', '中文', '日本語'];
 const INTERESTS = ['Музыка', 'Игры', 'Кино и сериалы', 'Технологии', 'Путешествия', 'Спорт', 'Книги', 'Юмор', 'Наука', 'Искусство', 'Языки', 'Общение'];
+const FLIRT_INTERESTS = ['Флирт', 'Романтика', 'Свидания', 'Симпатия', 'Комплименты', 'Лёгкие намёки', 'Нежность', 'Отношения', 'Искра и химия', 'Общение без обязательств'];
+const ROLEPLAY_INTERESTS = ['Романтический сюжет', 'Фэнтези', 'Приключения', 'Детектив', 'Мистика', 'Драма', 'Комедия', 'Научная фантастика', 'Исторический сюжет', 'Повседневная история', 'Медленное развитие', 'Альтернативный мир'];
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -361,6 +370,7 @@ function publicUser(row) {
     id: row.id,
     publicId: row.public_id,
     username: row.username,
+    gender: row.gender || '',
     description: row.description || '',
     tokens: Number(row.tokens || 0),
     avatarUrl: row.avatar_file ? `/api/avatar/${encodeURIComponent(row.id)}?v=${encodeURIComponent(row.avatar_file)}` : null,
@@ -499,6 +509,7 @@ function matchPayload(match, forUserId) {
   const theirInterests = safeJsonArray(other?.interests);
   return {
     matchId: match.id,
+    mode: match.mode || 'chat',
     startedAt: match.created_at,
     partner: publicUser(other),
     commonInterests: interests.filter(item => theirInterests.includes(item)).slice(0, 3)
@@ -585,6 +596,13 @@ function eligibleByLanguage(a, b) {
   if (!a.languages.length || !b.languages.length) return true;
   return a.languages.some(language => b.languages.includes(language));
 }
+function eligibleByGender(a, b) {
+  return (a.desiredGender === 'any' || a.desiredGender === b.gender)
+    && (b.desiredGender === 'any' || b.desiredGender === a.gender);
+}
+function eligibleByMode(a, b) {
+  return a.mode === b.mode && (a.mode !== 'roleplay' || a.roleplayIntent !== b.roleplayIntent);
+}
 function overlapScore(a, b) {
   return a.interests.filter(item => b.interests.includes(item)).length;
 }
@@ -595,6 +613,8 @@ function tryMatch(userId) {
     .filter(([id, candidate]) => id !== userId && candidate.userId !== userId)
     .filter(([id]) => !getActiveMatch(id) && !isBlocked(userId, id))
     .filter(([, candidate]) => eligibleByLanguage(current, candidate))
+    .filter(([, candidate]) => eligibleByGender(current, candidate))
+    .filter(([, candidate]) => eligibleByMode(current, candidate))
     .sort((a, b) => overlapScore(current, b[1]) - overlapScore(current, a[1]) || a[1].joinedAt - b[1].joinedAt);
   if (!candidates.length) return;
   const [partnerId] = candidates[0];
@@ -605,7 +625,7 @@ function tryMatch(userId) {
   const matchId = crypto.randomUUID();
   const createdAt = nowIso();
   transaction(() => {
-    dbRun('INSERT INTO matches (id, user1_id, user2_id, status, created_at, last_tick_at) VALUES (?, ?, ?, ?, ?, ?)', [matchId, userId, partnerId, 'active', createdAt, createdAt]);
+    dbRun('INSERT INTO matches (id, user1_id, user2_id, status, created_at, last_tick_at, mode) VALUES (?, ?, ?, ?, ?, ?, ?)', [matchId, userId, partnerId, 'active', createdAt, createdAt, current.mode || 'chat']);
   });
   const match = dbGet('SELECT * FROM matches WHERE id = ?', [matchId]);
   for (const socket of io.sockets.sockets.values()) if (socket.data.userId === userId || socket.data.userId === partnerId) socket.data.activeMatchId = matchId;
@@ -616,10 +636,24 @@ function addToQueue(socket, preferences) {
   const userId = socket.data.userId;
   if (PUBLIC_MODE && !PUBLIC_MATCHING) return { ok: false, error: 'Публичный подбор временно отключён в настройках сервера.' };
   if (getActiveMatch(userId)) return { ok: false, error: 'У вас уже есть активный диалог.' };
-  const limits = membershipLimits(getUserById(userId));
+  const user = getUserById(userId);
+  if (!user) return { ok: false, error: 'Аккаунт не найден. Войдите снова.' };
+  const mode = ['chat', 'flirt', 'roleplay'].includes(preferences?.mode) ? preferences.mode : 'chat';
+  const desiredGender = ['any', 'male', 'female', 'other'].includes(preferences?.desiredGender) ? preferences.desiredGender : 'any';
+  const ownGender = ['male', 'female', 'other'].includes(user.gender) ? user.gender : '';
+  if (desiredGender !== 'any' && !ownGender) return { ok: false, error: 'Сначала укажи свой пол в профиле, чтобы фильтр пола работал для обеих сторон.' };
+  if (mode !== 'chat') {
+    if (user.account_type === 'guest') return { ok: false, error: 'Режимы 18+ доступны только постоянным аккаунтам.' };
+    if (preferences?.adultConfirmed !== true) return { ok: false, error: 'Для режима 18+ подтверди, что тебе уже исполнилось 18 лет.' };
+    dbRun('UPDATE users SET adult_asserted_at = ? WHERE id = ?', [nowIso(), userId]);
+  }
+  const roleplayIntent = preferences?.roleplayIntent === 'offering' ? 'offering' : 'seeking';
+  if (mode === 'roleplay' && !['seeking', 'offering'].includes(preferences?.roleplayIntent)) return { ok: false, error: 'Выбери: ищешь сюжет или предлагаешь сюжет.' };
+  const limits = membershipLimits(user);
   const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(x => LANGUAGES.includes(x)))].slice(0, limits.languageLimit) : [];
-  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => INTERESTS.includes(x)))].slice(0, limits.interestLimit) : [];
-  const entry = { userId, languages, interests, joinedAt: Date.now() };
+  const allowedInterests = mode === 'flirt' ? FLIRT_INTERESTS : (mode === 'roleplay' ? ROLEPLAY_INTERESTS : INTERESTS);
+  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => allowedInterests.includes(x)))].slice(0, limits.interestLimit) : [];
+  const entry = { userId, mode, gender: ownGender, desiredGender, roleplayIntent, languages, interests, joinedAt: Date.now() };
   queue.set(userId, entry);
   tryMatch(userId);
   return { ok: true };
@@ -873,15 +907,27 @@ async function main() {
   if (!userColumns.includes('last_daily_claim_at')) db.exec('ALTER TABLE users ADD COLUMN last_daily_claim_at TEXT');
   if (!userColumns.includes('paid_subscription_tier')) db.exec("ALTER TABLE users ADD COLUMN paid_subscription_tier TEXT NOT NULL DEFAULT 'free'");
   if (!userColumns.includes('paid_subscription_expires_at')) db.exec('ALTER TABLE users ADD COLUMN paid_subscription_expires_at TEXT');
+  if (!userColumns.includes('gender')) db.exec("ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT ''");
   const matchColumns = dbAll('PRAGMA table_info(matches)').map(column => column.name);
   if (!matchColumns.includes('active_seconds')) db.exec('ALTER TABLE matches ADD COLUMN active_seconds INTEGER NOT NULL DEFAULT 0');
   if (!matchColumns.includes('credited_minutes')) db.exec('ALTER TABLE matches ADD COLUMN credited_minutes INTEGER NOT NULL DEFAULT 0');
   if (!matchColumns.includes('last_tick_at')) db.exec('ALTER TABLE matches ADD COLUMN last_tick_at TEXT');
+  if (!matchColumns.includes('mode')) db.exec("ALTER TABLE matches ADD COLUMN mode TEXT NOT NULL DEFAULT 'chat'");
   const messageColumns = dbAll('PRAGMA table_info(messages)').map(column => column.name);
   if (!messageColumns.includes('message_type')) db.exec("ALTER TABLE messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'text'");
   if (!messageColumns.includes('sticker_code')) db.exec('ALTER TABLE messages ADD COLUMN sticker_code TEXT');
   if (!messageColumns.includes('reply_to_id')) db.exec('ALTER TABLE messages ADD COLUMN reply_to_id TEXT REFERENCES messages(id) ON DELETE SET NULL');
   if (!messageColumns.includes('attachments_json')) db.exec("ALTER TABLE messages ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]'");
+  const defaultSocialLinks = [
+    { id: 'solvi-social-telegram', platform: 'Telegram', label: 'Telegram SOLVI', url: 'https://t.me/ChatSolvi', icon: '✈', sortOrder: 10 },
+    { id: 'solvi-social-tiktok', platform: 'TikTok', label: 'TikTok SOLVI', url: 'https://www.tiktok.com/@slabenk1y_armagedon', icon: '♪', sortOrder: 20 }
+  ];
+  for (const link of defaultSocialLinks) {
+    if (!dbGet('SELECT id FROM site_social_links WHERE id = ?', [link.id])) {
+      const at = nowIso();
+      dbRun('INSERT INTO site_social_links (id, platform, label, url, icon, enabled, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)', [link.id, link.platform, link.label, link.url, link.icon, link.sortOrder, at, at]);
+    }
+  }
   const usedNames = new Set();
   for (const row of dbAll('SELECT id, public_id, username, username_key FROM users ORDER BY created_at ASC, id ASC')) {
     let candidate = cleanUsername(row.username) || `user_${String(row.public_id).slice(-5)}`;
@@ -966,8 +1012,7 @@ async function main() {
   }
   dbRun('DELETE FROM favorite_chat_drafts WHERE expires_at <= ?', [nowIso()]);
 
-  // Remove legacy timestamp-based age assertions; current registration collects no age data.
-  db.exec("UPDATE users SET adult_asserted_at = 'NOT_COLLECTED' WHERE adult_asserted_at IS NULL OR adult_asserted_at != 'NOT_COLLECTED'");
+  // Preserve explicit 18+ self-attestation timestamps across restarts; they are not identity verification.
 
   // A process restart ends old in-memory conversations; session messages are intentionally ephemeral.
   dbRun("UPDATE matches SET status = 'ended', ended_at = ?, end_reason = 'server_restart' WHERE status = 'active'", [nowIso()]);
@@ -1072,8 +1117,8 @@ async function main() {
     res.json({ ok: true, service: 'solvi-chat', brand: 'SOLVI', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral', persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE, ownerConfigured, ownerAccountPresent, resetCompleted, users: Number(dbGet('SELECT COUNT(*) AS n FROM users').n) });
   });
   app.get('/api/billing/catalog', authMiddleware, (_req, res) => {
-    const configured = Boolean(String(process.env.STRIPE_SECRET_KEY || '').trim() && String(process.env.STRIPE_WEBHOOK_SECRET || '').trim() && String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim());
-    res.json({ configured, currency: 'EUR', products: BILLING_PRODUCTS });
+    const configured = Boolean(String(process.env.STRIPE_SECRET_KEY || '').trim() && String(process.env.STRIPE_WEBHOOK_SECRET || '').trim() && String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim() && BILLING_PRODUCTS.every(product => product.amountMinor > 0));
+    res.json({ configured, currency: BILLING_CURRENCY.toUpperCase(), products: BILLING_PRODUCTS });
   });
   app.post('/api/billing/checkout', authMiddleware, async (req, res) => {
     const secret = String(process.env.STRIPE_SECRET_KEY || '').trim();
@@ -1081,6 +1126,7 @@ async function main() {
     if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Покупка доступна постоянным пользовательским аккаунтам.' });
     const product = BILLING_PRODUCTS.find(item => item.id === req.body?.productId);
     if (!product) return res.status(404).json({ error: 'Тариф оплаты не найден.' });
+    if (!Number.isSafeInteger(product.amountMinor) || product.amountMinor < 1) return res.status(503).json({ error: `Владелец должен настроить цены VIP и Premium в ${BILLING_CURRENCY.toUpperCase()} через VIP_PRICE_MINOR и PREMIUM_PRICE_MINOR.` });
     const baseUrl = String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
     if (!/^https:\/\//i.test(baseUrl)) return res.status(503).json({ error: 'Владелец должен указать APP_PUBLIC_URL для возврата после оплаты.' });
     const form = new URLSearchParams({
@@ -1106,7 +1152,7 @@ async function main() {
       res.json({ url: result.url });
     } catch { res.status(502).json({ error: 'Платёжный сервис временно недоступен.' }); }
   });
-  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
+  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, flirtInterests: FLIRT_INTERESTS, roleplayInterests: ROLEPLAY_INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
   function checkPublicInvite(req, res) {
     if (!PUBLIC_MODE) return true;
@@ -1245,14 +1291,16 @@ async function main() {
 
     const username = cleanUsername(req.body?.username);
     const description = typeof req.body?.description === 'string' ? req.body.description.trim().slice(0, 160) : (req.user.description || '');
+    const gender = req.body?.gender === undefined ? (req.user.gender || '') : String(req.body.gender).trim();
+    if (!['', 'male', 'female', 'other'].includes(gender)) return res.status(400).json({ error: 'Выбери допустимое значение пола.' });
     if (!username) return res.status(400).json({ error: 'Ник должен содержать от 3 до 20 символов.' });
     const key = usernameKey(username);
     const taken = dbGet('SELECT id FROM users WHERE username_key = ? AND id != ? LIMIT 1', [key, req.user.id]);
     if (taken) return res.status(409).json({ error: 'Этот ник уже занят. Выбери другой.' });
     const oldAvatarFile = hasAvatarChoice ? req.user.avatar_file : null;
     transaction(() => {
-      if (hasAvatarChoice) dbRun('UPDATE users SET username = ?, username_key = ?, avatar = ?, avatar_file = NULL, avatar_mime = NULL, description = ? WHERE id = ?', [username, key, avatar, description, req.user.id]);
-      else dbRun('UPDATE users SET username = ?, username_key = ?, description = ? WHERE id = ?', [username, key, description, req.user.id]);
+      if (hasAvatarChoice) dbRun('UPDATE users SET username = ?, username_key = ?, avatar = ?, avatar_file = NULL, avatar_mime = NULL, description = ?, gender = ? WHERE id = ?', [username, key, avatar, description, gender, req.user.id]);
+      else dbRun('UPDATE users SET username = ?, username_key = ?, description = ?, gender = ? WHERE id = ?', [username, key, description, gender, req.user.id]);
     });
     if (oldAvatarFile) { try { fs.unlinkSync(path.join(AVATAR_DIR, path.basename(oldAvatarFile))); } catch { /* best-effort cleanup */ } }
     res.json({ user: publicUser(getUserById(req.user.id)) });
