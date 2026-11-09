@@ -259,6 +259,8 @@ let persistentFlushTimer = null;
 let persistentFlushPromise = null;
 let shuttingDown = false;
 const queue = new Map();
+const queueFallbackTimers = new Map();
+const aiSessions = new Map();
 const disconnectTimers = new Map();
 const guestExpiryTimers = new Map();
 const messageWindows = new Map();
@@ -591,7 +593,12 @@ function endMatch(matchId, reason = 'ended', actorId = null) {
   emitToPair(match, 'chat:ended', { matchId, reason, actorId, canFavorite: canArchive });
   return true;
 }
-function removeFromQueue(userId) { queue.delete(userId); }
+function removeFromQueue(userId) {
+  queue.delete(userId);
+  const timer = queueFallbackTimers.get(userId);
+  if (timer) clearTimeout(timer);
+  queueFallbackTimers.delete(userId);
+}
 function eligibleByLanguage(a, b) {
   if (!a.languages.length || !b.languages.length) return true;
   return a.languages.some(language => b.languages.includes(language));
@@ -654,9 +661,119 @@ function addToQueue(socket, preferences) {
   const allowedInterests = mode === 'flirt' ? FLIRT_INTERESTS : (mode === 'roleplay' ? ROLEPLAY_INTERESTS : INTERESTS);
   const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => allowedInterests.includes(x)))].slice(0, limits.interestLimit) : [];
   const entry = { userId, mode, gender: ownGender, desiredGender, roleplayIntent, languages, interests, joinedAt: Date.now() };
+  if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
   tryMatch(userId);
+  if (queue.has(userId)) {
+    const fallbackTimer = setTimeout(() => {
+      queueFallbackTimers.delete(userId);
+      startAiFallback(userId).catch(error => console.error('[SOLVI] AI fallback error:', error.message));
+    }, 25_000);
+    fallbackTimer.unref?.();
+    queueFallbackTimers.set(userId, fallbackTimer);
+  }
   return { ok: true };
+}
+const AI_PERSONAS = [
+  { name: 'Мира', avatar: '🌙', gender: 'female', style: 'спокойная, внимательная, любит задавать хорошие вопросы' },
+  { name: 'Варя', avatar: '🦊', gender: 'female', style: 'ироничная, энергичная, с лёгким чувством юмора' },
+  { name: 'Лёша', avatar: '🎧', gender: 'male', style: 'дружелюбный меломан, общается просто и без пафоса' },
+  { name: 'Марк', avatar: '🪐', gender: 'male', style: 'любознательный, немного задумчивый, любит необычные темы' },
+  { name: 'Сэм', avatar: '🐸', gender: 'other', style: 'неформальный, доброжелательный, любит мемы и неожиданные идеи' }
+];
+function chooseAiPersona(entry) {
+  const candidates = AI_PERSONAS.filter(persona => entry.desiredGender === 'any' || persona.gender === entry.desiredGender);
+  const pool = candidates.length ? candidates : AI_PERSONAS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+async function startAiFallback(userId) {
+  const entry = queue.get(userId);
+  if (!entry) return;
+  const socket = [...io.sockets.sockets.values()].find(item => item.data.userId === userId);
+  if (!socket) { removeFromQueue(userId); return; }
+  if (entry.mode !== 'chat') {
+    socket.emit('queue:aiUnavailable', { reason: 'adult_mode' });
+    return;
+  }
+  if (!String(process.env.GEMINI_API_KEY || '').trim()) {
+    socket.emit('queue:aiUnavailable', { reason: 'api_key' });
+    return;
+  }
+  const persona = chooseAiPersona(entry);
+  const sessionId = `ai:${crypto.randomUUID()}`;
+  const partnerId = `ai-user:${crypto.randomUUID()}`;
+  const interests = entry.interests.slice(0, 5);
+  const languages = entry.languages.length ? entry.languages.join(', ') : 'русский';
+  const systemPrompt = [
+    `Ты ИИ-собеседник SOLVI по имени ${persona.name}. Пользователь видит явную отметку «ИИ-собеседник» — никогда не утверждай и не намекай, что ты человек.`,
+    `Твой характер: ${persona.style}. Общайся естественно, короткими сообщениями, преимущественно строчными буквами, без официоза и без точки в конце обычной короткой реплики.`,
+    `Интересы пользователя: ${interests.length ? interests.join(', ') : 'пока не указаны'}. Языки: ${languages}. Подхватывай эти темы, но не перечисляй их механически.`,
+    'Задавай по одному живому вопросу, не превращай диалог в интервью. Не проси личные данные, контакты, пароли или адреса. Не выдумывай собственные реальные соцсети, встречи или биографию. Если спрашивают, кто ты, честно отвечай, что ты ИИ-персонаж.',
+    'Для обычного режима общайся дружелюбно и безопасно. Не переходи к сексуальному или откровенному контенту. Не выдавай медицинские, юридические или финансовые советы как специалист.',
+    'Отвечай на последнем языке пользователя. Максимум 2 коротких предложения.'
+  ].join(' ');
+  const session = { id: sessionId, partnerId, persona, interests, systemPrompt, history: [], pending: [], processing: false, createdAt: Date.now() };
+  aiSessions.set(userId, session);
+  removeFromQueue(userId);
+  const commonInterests = interests.slice(0, 3);
+  io.to(userRoom(userId)).emit('match:found', {
+    matchId: sessionId, isAi: true, mode: 'chat', startedAt: nowIso(),
+    partner: { id: partnerId, username: persona.name, gender: persona.gender, description: 'ИИ-персонаж SOLVI. Общается по твоим интересам.', avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests },
+    commonInterests
+  });
+  queueAiTurn(userId, session, null);
+}
+function fallbackAiReply(session, isGreeting = false) {
+  const options = isGreeting
+    ? [`привет! я ${session.persona.name} ✨ вижу, тебе интересны ${session.interests.slice(0, 2).join(' и ') || 'разные темы'} — с чего начнём?`, `хей! я ${session.persona.name} 🙂 давай найдём тему, от которой не захочется закрыть чат`]
+    : ['о, интересно 👀 расскажи чуть подробнее', 'понимаю тебя) а что тебе в этом больше всего нравится?', 'ахах, неожиданно 😄 и что было дальше?', 'кстати, а как ты вообще к этому пришёл?'];
+  return options[Math.floor(Math.random() * options.length)];
+}
+async function generateAiReply(session, isGreeting = false) {
+  const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+  if (!apiKey) return fallbackAiReply(session, isGreeting);
+  const model = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
+  const contents = isGreeting
+    ? [{ role: 'user', parts: [{ text: 'Начни разговор первым: поздоровайся, коротко представься как ИИ-персонаж и предложи естественную тему по интересам пользователя.' }] }]
+    : session.history.slice(-12);
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: session.systemPrompt }] }, contents, generationConfig: { temperature: 0.9, maxOutputTokens: 120 } }),
+    signal: AbortSignal.timeout(12_000)
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.error?.message || `Gemini HTTP ${response.status}`);
+  const text = payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  return text ? text.slice(0, 500) : fallbackAiReply(session, isGreeting);
+}
+function queueAiTurn(userId, session, text) {
+  session.pending.push(text);
+  if (session.processing) return;
+  session.processing = true;
+  (async () => {
+    while (session.pending.length && aiSessions.get(userId) === session) {
+      const input = session.pending.shift();
+      if (input !== null) session.history.push({ role: 'user', parts: [{ text: input }] });
+      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
+      let reply;
+      try { reply = await generateAiReply(session, input === null); }
+      catch (error) {
+        console.error('[SOLVI] Gemini response failed:', error.message);
+        reply = fallbackAiReply(session, input === null);
+      }
+      if (aiSessions.get(userId) !== session) break;
+      session.history.push({ role: 'model', parts: [{ text: reply }] });
+      session.history = session.history.slice(-12);
+      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false });
+      io.to(userRoom(userId)).emit('ai:message', {
+        id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
+        client_id: `ai:${crypto.randomUUID()}`, content: reply, created_at: nowIso(),
+        delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
+        sticker: null, attachments: [], reactions: [], replyTo: null
+      });
+    }
+  })().finally(() => { session.processing = false; });
 }
 function issueToken(user) {
   const sessionId = crypto.randomUUID();
@@ -2433,6 +2550,14 @@ async function main() {
     });
 
     socket.on('chat:next', (payload, ack = () => {}) => {
+      const aiSession = aiSessions.get(userId);
+      if (aiSession && aiSession.id === payload?.matchId) {
+        aiSessions.delete(userId);
+        const result = addToQueue(socket, payload?.preferences || {});
+        ack(result);
+        if (result.ok && queue.has(userId)) socket.emit('queue:waiting', { joinedAt: queue.get(userId).joinedAt });
+        return;
+      }
       const match = getActiveMatch(userId);
       if (!match || match.id !== payload?.matchId) return ack({ ok: false, error: 'Диалог уже завершён.' });
       endMatch(match.id, 'user_next', userId);
@@ -2495,6 +2620,24 @@ async function main() {
       if (recipientOnline) io.to(userRoom(userId)).emit('chat:status', { messageId: message.id, status: 'delivered', at: message.delivered_at });
     });
 
+    socket.on('ai:send', (payload, ack = () => {}) => {
+      const session = aiSessions.get(userId);
+      if (!session || session.id !== payload?.sessionId) return ack({ ok: false, error: 'ИИ-диалог уже завершён.' });
+      const content = typeof payload?.content === 'string' ? payload.content.trim().slice(0, 1200) : '';
+      const sticker = typeof payload?.sticker === 'string' ? payload.sticker.slice(0, 16) : '';
+      if (Array.isArray(payload?.attachments) && payload.attachments.length) return ack({ ok: false, error: 'ИИ-собеседник пока поддерживает текст и стикеры, но не фото и голосовые.' });
+      if (!content && !sticker) return ack({ ok: false, error: 'Напиши сообщение или отправь стикер.' });
+      const now = Date.now();
+      const window = messageWindows.get(userId) || { startedAt: now, count: 0 };
+      if (now - window.startedAt > 10_000) { window.startedAt = now; window.count = 0; }
+      if (window.count >= 12) return ack({ ok: false, error: 'Слишком быстро. Сделай небольшую паузу.' });
+      window.count += 1;
+      messageWindows.set(userId, window);
+      const text = content || `Пользователь отправил стикер ${sticker}`;
+      ack({ ok: true });
+      queueAiTurn(userId, session, text);
+    });
+
     socket.on('chat:react', ({ matchId, messageId, emoji } = {}, ack = () => {}) => {
       const match = getActiveMatch(userId);
       if (!match || match.id !== matchId || !['❤️', '😂', '🔥', '👏'].includes(emoji)) return ack({ ok: false, error: 'Реакция недоступна.' });
@@ -2541,6 +2684,13 @@ async function main() {
     });
 
     socket.on('chat:end', ({ matchId } = {}, ack = () => {}) => {
+      const aiSession = aiSessions.get(userId);
+      if (aiSession && aiSession.id === matchId) {
+        aiSessions.delete(userId);
+        socket.emit('chat:ended', { matchId, reason: 'user_ended', actorId: userId });
+        ack({ ok: true });
+        return;
+      }
       const match = getActiveMatch(userId);
       if (!match || match.id !== matchId) return ack({ ok: false, error: 'Диалог уже завершён.' });
       endMatch(matchId, 'user_ended', userId);
@@ -2552,6 +2702,7 @@ async function main() {
       if (guestExpiryTimer) { clearTimeout(guestExpiryTimer); guestExpiryTimers.delete(socket.id); }
       if (!io.sockets.adapter.rooms.get(userRoom(userId))?.size) {
         removeFromQueue(userId);
+        aiSessions.delete(userId);
         messageWindows.delete(userId);
         const timer = setTimeout(() => {
           disconnectTimers.delete(userId);
