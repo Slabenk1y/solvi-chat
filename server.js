@@ -674,17 +674,23 @@ function addToQueue(socket, preferences) {
   }
   return { ok: true };
 }
-const AI_PERSONAS = [
-  { name: 'Мира', avatar: '🌙', gender: 'female', style: 'спокойная, внимательная, любит задавать хорошие вопросы' },
-  { name: 'Варя', avatar: '🦊', gender: 'female', style: 'ироничная, энергичная, с лёгким чувством юмора' },
-  { name: 'Лёша', avatar: '🎧', gender: 'male', style: 'дружелюбный меломан, общается просто и без пафоса' },
-  { name: 'Марк', avatar: '🪐', gender: 'male', style: 'любознательный, немного задумчивый, любит необычные темы' },
-  { name: 'Сэм', avatar: '🐸', gender: 'other', style: 'неформальный, доброжелательный, любит мемы и неожиданные идеи' }
+const AI_PERSONA_PROFILES = [
+  { names: ['Мира', 'Алиса', 'Ника', 'Лея', 'Соня', 'Варя', 'Эмма'], avatar: '🌙', gender: 'female', style: 'дружелюбная, внимательная, с живым чувством юмора' },
+  { names: ['Лёша', 'Марк', 'Илья', 'Даня', 'Тим', 'Макс', 'Егор'], avatar: '🎧', gender: 'male', style: 'общительный, любознательный, говорит просто и без пафоса' },
+  { names: ['Сэм', 'Рэй', 'Саша', 'Крис', 'Мика'], avatar: '🐸', gender: 'other', style: 'неформальный, доброжелательный, любит необычные идеи и мемы' }
 ];
 function chooseAiPersona(entry) {
-  const candidates = AI_PERSONAS.filter(persona => entry.desiredGender === 'any' || persona.gender === entry.desiredGender);
-  const pool = candidates.length ? candidates : AI_PERSONAS;
-  return pool[Math.floor(Math.random() * pool.length)];
+  const candidates = AI_PERSONA_PROFILES.filter(persona => entry.desiredGender === 'any' || persona.gender === entry.desiredGender);
+  const pool = candidates.length ? candidates : AI_PERSONA_PROFILES;
+  const profile = pool[Math.floor(Math.random() * pool.length)];
+  const names = profile.names;
+  return {
+    name: names[Math.floor(Math.random() * names.length)],
+    age: 18 + Math.floor(Math.random() * 18),
+    avatar: profile.avatar,
+    gender: profile.gender,
+    style: profile.style
+  };
 }
 async function startAiFallback(userId) {
   const entry = queue.get(userId);
@@ -705,7 +711,7 @@ async function startAiFallback(userId) {
   const interests = entry.interests.slice(0, 5);
   const languages = entry.languages.length ? entry.languages.join(', ') : 'русский';
   const systemPrompt = [
-    `Ты ИИ-собеседник SOLVI по имени ${persona.name}. Пользователь видит явную отметку «ИИ-собеседник» — никогда не утверждай и не намекай, что ты человек.`,
+    `Ты ИИ-собеседник SOLVI по имени ${persona.name}, твой вымышленный возраст в этой беседе — ${persona.age} лет. Для каждого нового собеседника тебе случайно назначаются новое имя и возраст; не используй образ из прошлых бесед. Пользователь видит явную отметку «ИИ-собеседник» — никогда не утверждай и не намекай, что ты человек. Если спрашивают о возрасте, называй назначенный возраст как часть образа ИИ-персонажа.`,
     `Твой характер: ${persona.style}. Общайся естественно, короткими сообщениями, преимущественно строчными буквами, без официоза и без точки в конце обычной короткой реплики.`,
     `Интересы пользователя: ${interests.length ? interests.join(', ') : 'пока не указаны'}. Языки: ${languages}. Подхватывай эти темы, но не перечисляй их механически.`,
     'Задавай по одному живому вопросу, не превращай диалог в интервью. Не проси личные данные, контакты, пароли или адреса. Не выдумывай собственные реальные соцсети, встречи или биографию. Если спрашивают, кто ты, честно отвечай, что ты ИИ-персонаж.',
@@ -718,7 +724,7 @@ async function startAiFallback(userId) {
   const commonInterests = interests.slice(0, 3);
   io.to(userRoom(userId)).emit('match:found', {
     matchId: sessionId, isAi: true, mode: 'chat', startedAt: nowIso(),
-    partner: { id: partnerId, username: persona.name, gender: persona.gender, description: 'ИИ-персонаж SOLVI. Общается по твоим интересам.', avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests },
+    partner: { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается по твоим интересам.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests },
     commonInterests
   });
   queueAiTurn(userId, session, null);
