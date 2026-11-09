@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.5.0') fail(`Ожидалась версия 1.5.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.5.1') fail(`Ожидалась версия 1.5.1, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -52,7 +52,7 @@ try {
   if (catalogSection.includes('category: "Обои"') || catalogSection.includes('slot: "wallpaper"')) fail('Каталог всё ещё содержит отдельную категорию обоев');
   else pass('Все бывшие обои переведены в темы интерфейса');
   const membershipSection = server.slice(server.indexOf('const MEMBERSHIP_PACKAGES'), server.indexOf('const LANGUAGES'));
-  if (!membershipSection.includes("id: 'vip-1d', tier: 'vip', days: 1, price: 180") || !membershipSection.includes("id: 'premium-1d', tier: 'premium', days: 1, price: 320")) fail('Цены привилегий не соответствуют экономике v1.5');
+  if (!membershipSection.includes("id: 'vip-1d', tier: 'vip', days: 1, price: 270") || !membershipSection.includes("id: 'premium-1d', tier: 'premium', days: 1, price: 480")) fail('Цены привилегий не соответствуют экономике v1.5.1');
   else pass('Новые цены VIP и Premium проверены');
   if (collectionNames.length < 10) fail(`Слишком мало коллекций: ${collectionNames.length}`);
   else pass(`Коллекции: ${collectionNames.length}`);
@@ -85,7 +85,7 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v15/.test(sw)) fail('Service Worker cache version не соответствует v1.5');
+  if (!/sovli-shell-v16/.test(sw)) fail('Service Worker cache version не соответствует v1.5.1');
   else pass('Service Worker cache version обновлён');
 
   for (const file of ['start.bat', 'start-public.bat', 'owner-console.bat', 'owner-panel.bat', 'stop-server.bat', '.env.example', 'README.md', 'PROJECT_PROGRESS.md', 'lib/postgres-snapshot.cjs', 'public/owner.html', 'public/owner.css', 'public/owner.js']) {
