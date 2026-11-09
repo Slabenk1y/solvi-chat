@@ -27,7 +27,7 @@ The current hostname already matches SOLVI. Keep it for launch; attach a custom 
 
 ## Payments and advertising
 
-The first real-money gateway is Paymentwall Virtual Currency. Users pay in the provider's hosted checkout and SOLVI credits tokens only after a valid signed server pingback. Duplicate pingbacks are idempotent and a chargeback reverses the matching token credit. The app stays in fail-closed mode until Paymentwall merchant credentials and the public HTTPS URL are configured.
+Paymentwall is integrated through two separate Widget API projects: Virtual Currency for token top-ups and Digital Goods for direct store-item and 30-day VIP/Premium purchases. SOLVI grants tokens or items only after valid signed server pingbacks; repeated references cannot double-deliver, and type=2 refund/chargeback notifications revoke the purchased goods. Both checkouts stay fail-closed until the matching merchant credentials are configured.
 
 Setup instructions: [docs/real-money-monetization.md](docs/real-money-monetization.md). Create the Paymentwall project as Widget API – Virtual Currency, configure token packs of 500 / 1,500 / 5,000, set the pingback URL, add PAYMENTWALL_PUBLIC_KEY, PAYMENTWALL_PRIVATE_KEY, PAYMENTWALL_WIDGET_CODE, PAYMENTWALL_DISPLAY_CURRENCY and APP_PUBLIC_URL to Render, test callbacks, and complete Paymentwall's business/technical review.
 
