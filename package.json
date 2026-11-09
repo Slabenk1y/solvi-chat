@@ -1,8 +1,8 @@
 {
   "name": "sovli-random-chat",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "private": true,
-  "description": "SOVLI v1.7.1 — visual store previews and expanded hourly memberships",
+  "description": "SOVLI v1.7.2 — real interface try-on for store items",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
