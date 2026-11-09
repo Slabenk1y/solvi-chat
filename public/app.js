@@ -49,6 +49,9 @@ const state = {
   storeCollectionFilter: '',
   storeSearch: '',
   storeData: null,
+  storePreviewSnapshot: null,
+  storePreviewItem: null,
+  applyingStorePreview: false,
   favorites: [],
   blockedUsers: [],
   tokenHistoryLoaded: false
@@ -101,6 +104,7 @@ function confirmStorePurchase({ title, description, price, balance, confirmLabel
 }
 
 function applyEquipped(equipped = {}) {
+  if (state.storePreviewSnapshot && !state.applyingStorePreview) restoreStorePreview(false);
   const root = document.documentElement;
   root.dataset.storeTheme = equipped.theme || equipped.wallpaper || 'theme-light';
   delete root.dataset.storeWallpaper;
@@ -200,6 +204,8 @@ function createThemeStorePreview(item) {
   return root;
 }
 function openStorePreview(item) {
+  if (state.storePreviewSnapshot) restoreStorePreview(false);
+  state.storePreviewItem = item;
   const modal = $('#storePreviewModal');
   const visual = $('#storePreviewCanvas');
   visual.replaceChildren();
@@ -243,12 +249,54 @@ function openStorePreview(item) {
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
+  const tryOnButton = $('#storePreviewTryOnButton');
+  if (tryOnButton) {
+    const canTryOn = ['theme', 'wallpaper', 'bubble', 'frame', 'membership'].includes(item.slot);
+    tryOnButton.hidden = !canTryOn;
+    tryOnButton.textContent = item.slot === 'membership' ? 'Примерить статус' : 'Примерить на сайте';
+  }
   if (item.slot === 'membership') {
     const duration = document.createElement('p'); duration.className = 'store-preview-duration';
     duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360' : '180'} токенов за час привилегии. При повторной покупке время прибавляется к остатку.`;
     $('#storePreviewBenefit').append(duration);
   }
   modal.hidden = false;
+}
+function startStorePreview() {
+  const item = state.storePreviewItem;
+  if (!item || !['theme', 'wallpaper', 'bubble', 'frame', 'membership'].includes(item.slot)) return;
+  if (state.storePreviewSnapshot) restoreStorePreview(false);
+  const root = document.documentElement;
+  state.storePreviewSnapshot = {
+    equipped: { ...(state.user?.equipped || {}) },
+    memberTier: root.getAttribute('data-member-tier')
+  };
+  if (item.slot === 'membership') {
+    root.dataset.memberTier = item.tier === 'premium' ? 'premium' : 'vip';
+  } else {
+    state.applyingStorePreview = true;
+    applyEquipped({ ...state.storePreviewSnapshot.equipped, [item.slot]: item.id });
+    state.applyingStorePreview = false;
+  }
+  $('#storePreviewModal').hidden = true;
+  const restoreButton = $('#storePreviewRestoreButton');
+  if (restoreButton) restoreButton.hidden = false;
+  showToast('Примерка включена только у тебя. Токены не списаны, покупка не выполнена.', 4200);
+}
+function restoreStorePreview(showMessage = false) {
+  const snapshot = state.storePreviewSnapshot;
+  if (!snapshot) return;
+  state.storePreviewSnapshot = null;
+  state.applyingStorePreview = true;
+  applyEquipped(snapshot.equipped || {});
+  state.applyingStorePreview = false;
+  if (snapshot.memberTier === null || snapshot.memberTier === undefined) delete document.documentElement.dataset.memberTier;
+  else document.documentElement.setAttribute('data-member-tier', snapshot.memberTier);
+  const restoreButton = $('#storePreviewRestoreButton');
+  if (restoreButton) restoreButton.hidden = true;
+  state.storePreviewItem = null;
+  renderStickerPanel();
+  if (showMessage) showToast('Твоё оформление восстановлено.');
 }
 function renderStore(data) {
   state.storeData = data;
@@ -1482,6 +1530,7 @@ async function blockPartner() {
 }
 function closeModals() { $$('.modal-backdrop').forEach(modal => { modal.hidden = true; }); }
 function logout(showMessage = true, revokeServer = true) {
+  restoreStorePreview(false);
   const oldToken = state.token;
   if (revokeServer && oldToken) fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${oldToken}` } }).catch(() => {});
   clearSearchTimer();
@@ -1728,6 +1777,8 @@ window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',
 $('#rulesFooterButton').addEventListener('click', () => { $('#rulesModal').hidden = false; });
 $('#authRulesButton').addEventListener('click', () => { $('#rulesModal').hidden = false; });
 $$('[data-close-modal]').forEach(button => button.addEventListener('click', closeModals));
+$('#storePreviewTryOnButton')?.addEventListener('click', startStorePreview);
+$('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePreview(true));
 $$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; }));
 $('#endChatButton').addEventListener('click', () => {
   if (!state.activeMatch) return;
