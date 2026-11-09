@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
-const { captureSnapshot, restoreSnapshot } = require('../lib/postgres-snapshot.cjs');
+const { captureSnapshot, restoreAvatarFiles, restoreSnapshot } = require('../lib/postgres-snapshot.cjs');
 
 function createDatabase(sql) {
   const db = new DatabaseSync(':memory:');
@@ -59,9 +59,12 @@ test('snapshot includes and restores avatar files', t => {
   `);
   const target = createDatabase('CREATE TABLE users (id TEXT PRIMARY KEY, avatar_file TEXT, avatar_mime TEXT);');
 
-  const snapshot = captureSnapshot(source, { avatarDir: sourceDir });
-  restoreSnapshot(target, snapshot, { avatarDir: targetDir });
+  const snapshot = captureSnapshot(source);
+  const avatarBuffer = fs.readFileSync(path.join(sourceDir, 'avatar-u1.png'));
+  const avatarNames = restoreAvatarFiles([{ name: 'avatar-u1.png', data: avatarBuffer, size: avatarBuffer.length }], targetDir);
+  restoreSnapshot(target, snapshot, { avatarNames });
 
+  assert.equal(snapshot.avatars, undefined, 'avatar bytes must not be copied into every database snapshot');
   assert.deepEqual(fs.readFileSync(path.join(targetDir, 'avatar-u1.png')), Buffer.from([0, 1, 2, 3, 255]));
   assert.equal(fs.existsSync(path.join(targetDir, 'old-file.png')), false);
   assert.equal(target.prepare('SELECT avatar_file FROM users WHERE id = ?').get('u1').avatar_file, 'avatar-u1.png');
@@ -81,7 +84,7 @@ test('missing avatar assets are detached from restored accounts instead of retur
     avatars: []
   };
 
-  restoreSnapshot(db, snapshot);
+  restoreSnapshot(db, snapshot, { avatarNames: new Set() });
   assert.deepEqual({ ...db.prepare('SELECT avatar_file, avatar_mime FROM users').get() }, {
     avatar_file: null,
     avatar_mime: null
