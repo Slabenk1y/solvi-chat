@@ -1332,9 +1332,11 @@ async function uploadMedia(blob, kind) {
 function setUploadStatus(text) { $('#uploadStatus').textContent = text; }
 async function sendSelectedPhotos(files) {
   if (!state.activeMatch) return showToast('Сначала найди собеседника.');
-  const selected = [...files].slice(0, 3);
+  const tier = state.user?.subscriptionTier || 'free';
+  const attachmentLimit = tier === 'premium' ? 6 : (tier === 'vip' ? 4 : 3);
+  const selected = [...files].slice(0, attachmentLimit);
   if (!selected.length) return;
-  if (files.length > 3) showToast('За один раз можно отправить не больше трёх фотографий.');
+  if (files.length > attachmentLimit) showToast(`За один раз можно отправить не больше ${attachmentLimit} фотографий.`);
   const uploaded = [];
   $('#photoButton').disabled = true;
   try {
@@ -1594,8 +1596,11 @@ async function boot() {
   bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
   try { state.config = await api('/api/config'); }
   catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false }; }
-  state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, 3);
-  state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, 5);
+  const tier = state.user?.subscriptionTier || 'free';
+  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
+  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+  state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, languageLimit);
+  state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, interestLimit);
   renderFilters();
   renderStickerPanel();
   $('#inviteCodeField').hidden = !state.config.inviteRequired;
