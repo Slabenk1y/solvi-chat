@@ -1178,7 +1178,7 @@ function activateMatch(match) {
   renderChatHeader();
   renderMessages();
   setView('chat');
-  showToast(match.isAi ? 'Подключён ИИ-собеседник SOLVI. Это бот-персонаж.' : 'Собеседник найден. Хорошего разговора!');
+  showToast(match.isAi ? 'Это ИИ-персонаж SOLVI. Сообщения обрабатывает Gemini — не отправляй личные данные.' : 'Собеседник найден. Хорошего разговора!', match.isAi ? 6500 : 2800);
 }
 function renderChatHeader() {
   const partner = state.activeMatch?.partner;
