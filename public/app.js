@@ -192,8 +192,8 @@ function createThemeStorePreview(item) {
   ['◉','⌕','♡','⚙'].forEach((symbol,index)=>{const icon=document.createElement('i');icon.textContent=symbol;if(index===0)icon.className='active';rail.append(icon);});
   const chat = document.createElement('div'); chat.className = 'theme-mock-chat';
   const heading = document.createElement('div'); heading.className = 'theme-mock-heading';
-  const avatar = document.createElement('span'); avatar.className='theme-mock-avatar';avatar.textContent='🌙';
-  const headingCopy = document.createElement('div'); const name=document.createElement('strong');name.textContent='northstar';const online=document.createElement('small');online.textContent='● В сети';headingCopy.append(name,online);heading.append(avatar,headingCopy);
+  const avatar = document.createElement('span'); avatar.className='theme-mock-avatar';avatar.textContent=state.user?.avatar || '🌙';
+  const headingCopy = document.createElement('div'); const name=document.createElement('strong');name.textContent=state.user?.username || 'Твой ник';const online=document.createElement('small');online.textContent='● В сети';headingCopy.append(name,online);heading.append(avatar,headingCopy);
   const messages=document.createElement('div');messages.className='theme-mock-messages';
   const incoming=document.createElement('span');incoming.className='theme-mock-bubble incoming';incoming.textContent='Привет! Как настроение?';
   const outgoing=document.createElement('span');outgoing.className='theme-mock-bubble outgoing';outgoing.textContent='Отличное ✨ А у тебя?';
@@ -223,7 +223,7 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '6 фото за раз', '10 языков · 12 интересов', 'Эксклюзивная Premium-подсветка'] : ['VIP-значок рядом с ником', '3 000 символов', '4 фото за раз', '5 языков · 8 интересов', 'Сияющая рамка профиля'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '8 фото до 12 МБ', 'Голосовые до 4 минут', 'Аватар до 8 МБ', '10 языков · 12 интересов', 'Premium-ореол профиля'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 2:30', 'Аватар до 4 МБ', '5 языков · 8 интересов'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
@@ -244,8 +244,8 @@ function openStorePreview(item) {
     stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
     membership: item.tier === 'premium'
-      ? 'Premium включает VIP: значок, усиленную сияющую рамку профиля, более заметный ореол и отдельную Premium-подсветку. Привилегии визуальные и не дают преимущества в поиске.'
-      : 'VIP добавляет заметный значок рядом с ником, сияющую рамку профиля и акцент исходящих сообщений. Не влияет на очередь поиска и правила безопасности.'
+      ? 'Premium включает VIP, усиливает оформление профиля и расширяет лимиты: 5 000 символов, 8 фото до 12 МБ, голосовые до 4 минут, аватар до 8 МБ, 10 языков и 12 интересов. Поиск и правила безопасности одинаковы для всех.'
+      : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 2:30, аватар до 4 МБ, 5 языков и 8 интересов. Без преимущества в очереди поиска.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
@@ -257,7 +257,7 @@ function openStorePreview(item) {
   }
   if (item.slot === 'membership') {
     const duration = document.createElement('p'); duration.className = 'store-preview-duration';
-    duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360' : '180'} токенов за час привилегии. При повторной покупке время прибавляется к остатку.`;
+    duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360 ✦ = 6 часов' : '180 ✦ = 3 часа'} активного диалога за каждый час статуса. При повторной покупке время прибавляется к остатку.`;
     $('#storePreviewBenefit').append(duration);
   }
   modal.hidden = false;
@@ -1378,7 +1378,7 @@ function setUploadStatus(text) { $('#uploadStatus').textContent = text; }
 async function sendSelectedPhotos(files) {
   if (!state.activeMatch) return showToast('Сначала найди собеседника.');
   const tier = state.user?.subscriptionTier || 'free';
-  const attachmentLimit = tier === 'premium' ? 6 : (tier === 'vip' ? 4 : 3);
+  const attachmentLimit = tier === 'premium' ? 8 : (tier === 'vip' ? 5 : 3);
   const selected = [...files].slice(0, attachmentLimit);
   if (!selected.length) return;
   if (files.length > attachmentLimit) showToast(`За один раз можно отправить не больше ${attachmentLimit} фотографий.`);
@@ -1388,7 +1388,9 @@ async function sendSelectedPhotos(files) {
     for (let index = 0; index < selected.length; index += 1) {
       const file = selected[index];
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Поддерживаются только JPG, PNG и WebP.');
-      if (file.size > 6 * 1024 * 1024) throw new Error('Каждая фотография должна быть не больше 6 МБ.');
+      const tier = state.user?.subscriptionTier || 'free';
+       const imageLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 6);
+       if (file.size > imageLimit * 1024 * 1024) throw new Error(`Каждая фотография должна быть не больше ${imageLimit} МБ для твоего статуса.`);
       setUploadStatus(`Загружаем ${index + 1}/${selected.length}…`);
       uploaded.push(await uploadMedia(file, 'image'));
     }
@@ -1475,7 +1477,9 @@ async function startVoiceRecording() {
     state.voiceTimer = setInterval(() => {
       const seconds = Math.floor((Date.now() - state.voiceStartedAt) / 1000);
       $('#recordingTimer').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-      if (seconds >= 90) { stopVoiceRecording(false); showToast('Достигнут лимит голосового — 90 секунд.'); }
+      const tier = state.user?.subscriptionTier || 'free';
+      const voiceLimit = tier === 'premium' ? 240 : (tier === 'vip' ? 150 : 90);
+      if (seconds >= voiceLimit) { stopVoiceRecording(false); showToast(`Достигнут лимит голосового — ${Math.floor(voiceLimit / 60)}:${String(voiceLimit % 60).padStart(2, '0')}.`); }
     }, 250);
   } catch (error) {
     clearVoiceRecording();
@@ -1869,7 +1873,9 @@ $('#avatarFileInput').addEventListener('change', async () => {
   const file = $('#avatarFileInput').files?.[0]; if (!file) return;
   const button = $('#avatarUploadButton');
   if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { showToast('Поддерживаются JPG, PNG и WebP.'); $('#avatarFileInput').value = ''; return; }
-  if (file.size > 2 * 1024 * 1024) { showToast('Аватар должен быть не больше 2 МБ.'); $('#avatarFileInput').value = ''; return; }
+  const tier = state.user?.subscriptionTier || 'free';
+  const avatarLimit = tier === 'premium' ? 8 : (tier === 'vip' ? 4 : 2);
+  if (file.size > avatarLimit * 1024 * 1024) { showToast(`Аватар должен быть не больше ${avatarLimit} МБ для твоего статуса.`); $('#avatarFileInput').value = ''; return; }
   button.disabled = true; button.textContent = 'Загружаем…';
   try {
     const response = await fetch('/api/avatar/upload', { method: 'POST', headers: { Authorization: `Bearer ${state.token}`, 'Content-Type': file.type }, body: file });
