@@ -515,3 +515,8 @@ html.session-checking #sessionBootScreen{display:grid!important}
 .theme-mock-bubble.incoming{align-self:flex-start;background:color-mix(in srgb,var(--mock-muted) 15%,var(--mock-surface));color:var(--mock-ink);border-bottom-left-radius:3px}
 .theme-mock-bubble.outgoing{align-self:flex-end;background:var(--mock-accent);color:#fff;border-bottom-right-radius:3px}
 .theme-mock-composer{height:21px;display:flex;align-items:center;padding:0 8px;border:1px solid color-mix(in srgb,var(--mock-muted) 25%,transparent);border-radius:8px;color:var(--mock-muted);font-size:7px}
+
+
+/* VIP and Premium accents on the sender's real chat bubbles */
+:root[data-member-tier="vip"] .message-row.mine .message-bubble:not(.sticker-bubble){border:1px solid rgba(226,180,79,.62);box-shadow:0 5px 18px rgba(185,135,40,.14)}
+:root[data-member-tier="premium"] .message-row.mine .message-bubble:not(.sticker-bubble){border:1px solid rgba(185,143,255,.72);box-shadow:0 5px 20px rgba(151,103,225,.22)}
