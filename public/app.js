@@ -14,6 +14,7 @@ function readStoredList(key) { try { const value = JSON.parse(localStorage.getIt
 const state = {
   token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
   user: null,
+  authRestoring: false,
   config: { languages: [], interests: [], avatars: [], matchingEnabled: true, publicMode: false },
   settings: { theme: 'system', sounds: true, soundVolume: 35, messageScale: 'normal', reducedMotion: false, enterToSend: true, compactChat: false, browserNotifications: false },
   soundContext: null,
@@ -396,8 +397,8 @@ function renderFavorites() {
     const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; setAvatarContent(avatar, person);
     const details = document.createElement('div'); details.className = 'favorite-card-details';
     const name = document.createElement('strong'); name.textContent = person.username;
-    const description = document.createElement('p'); description.textContent = person.description || 'Пользователь SOVLI';
-    details.append(name, description);
+    const note = document.createElement('p'); note.className = 'favorite-card-note'; note.textContent = 'Сохранённый контакт · чат пока недоступен';
+    details.append(name, note);
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button button-secondary'; remove.textContent = 'Убрать';
     remove.addEventListener('click', async () => { remove.disabled = true; try { await api(`/api/favorites/${encodeURIComponent(person.id)}`, { method: 'DELETE' }); state.favorites = state.favorites.filter(row => row.id !== person.id); renderFavorites(); if (state.activeMatch) renderChatHeader(); } catch (error) { remove.disabled = false; showToast(error.message); } });
     card.append(avatar, details, remove); root.append(card);
@@ -532,8 +533,8 @@ function setUser(user) {
   if ($('#profileDescription')) $('#profileDescription').value = user.description || '';
   $('#profileUsername').disabled = user.accountType === 'guest';
   $('#saveProfileButton').hidden = user.accountType === 'guest';
-  $('#avatarOptions').hidden = user.accountType === 'guest';
-  $('#avatarUploadButton').hidden = user.accountType === 'guest';
+  $('#avatarOptions').hidden = false;
+  $('#avatarUploadButton').hidden = false;
   state.settings = { ...state.settings, ...(user.settings || {}) };
   applyEquipped(user.equipped || {});
   $('#adminNavButton').hidden = user.role !== 'owner';
@@ -549,6 +550,7 @@ function setUser(user) {
   applySettings();
   renderAvatarOptions();
   renderStickerPanel();
+  try { if (state.token) localStorage.setItem('sovli_user_cache', JSON.stringify(user)); } catch { /* cached profile is optional */ }
 }
 async function api(url, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -557,8 +559,10 @@ async function api(url, options = {}) {
   let payload = {};
   try { payload = await response.json(); } catch { /* non-JSON response */ }
   if (!response.ok) {
-    if (response.status === 401 && state.token) logout(false, false);
-    throw new Error(payload.error || `Ошибка запроса (${response.status})`);
+    const error = new Error(payload.error || `Ошибка запроса (${response.status})`);
+    error.status = response.status;
+    if (response.status === 401 && state.token && !state.authRestoring) logout(false, false);
+    throw error;
   }
   return payload;
 }
@@ -625,17 +629,24 @@ function renderAvatarOptions() {
   if (!state.selectedAvatar && !state.user.avatarUrl) state.selectedAvatar = state.user.avatar;
   const container = $('#avatarOptions');
   container.replaceChildren();
-  state.config.avatars.forEach(avatar => {
+  const avatarChoices = Array.isArray(state.config.avatars) && state.config.avatars.length ? state.config.avatars : ['🪐','🌙','🦊','🐼','🐸','🦉','🐳','🦋','🐙','🌵','🍀','🧩'];
+  avatarChoices.forEach(avatar => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `avatar-option${state.selectedAvatar === avatar ? ' selected' : ''}`;
     button.textContent = avatar;
     button.setAttribute('aria-label', `Выбрать аватар ${avatar}`);
     button.setAttribute('aria-pressed', String(state.selectedAvatar === avatar));
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       state.selectedAvatar = avatar;
       renderAvatarOptions();
       setAvatarContent($('#profilePreviewAvatar'), { ...state.user, avatar, avatarUrl: null });
+      if (state.user.accountType === 'guest') {
+        button.disabled = true;
+        try { const result = await api('/api/profile', { method: 'PATCH', body: JSON.stringify({ username: state.user.username, avatar }) }); setUser(result.user); showToast('Аватар обновлён.'); }
+        catch (error) { showToast(error.message); }
+        finally { button.disabled = false; }
+      }
     });
     container.append(button);
   });
@@ -980,7 +991,7 @@ function renderMessages() {
         reactions.append(button);
       });
     }
-    if (!String(message.id).startsWith('pending:')) {
+    if (!String(message.id).startsWith('pending:') && !mine) {
       const reply = document.createElement('button'); reply.type = 'button'; reply.className = 'message-reply-button'; reply.textContent = '↩ Ответить';
       reply.addEventListener('click', () => {
         state.replyTarget = message;
@@ -1346,6 +1357,7 @@ function logout(showMessage = true, revokeServer = true) {
   stopVoiceRecording(true);
   localStorage.removeItem('sovli_token');
   localStorage.removeItem('orbit_token');
+  localStorage.removeItem('sovli_user_cache');
   state.token = '';
   state.user = null;
   state.activeMatch = null;
@@ -1438,6 +1450,11 @@ function playUiSound(frequency = 520) {
 async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   applyTheme();
+  let cachedUser = null;
+  if (state.token) {
+    try { cachedUser = JSON.parse(localStorage.getItem('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
+    if (cachedUser?.id) { setUser(cachedUser); showApp(); }
+  }
   try { state.config = await api('/api/config'); }
   catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false }; }
   state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, 3);
@@ -1454,6 +1471,7 @@ async function boot() {
     $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
   }
   if (!state.token) { showAuth(); return; }
+  state.authRestoring = true;
   try {
     const response = await api('/api/me');
     setUser(response.user);
@@ -1461,7 +1479,20 @@ async function boot() {
     showApp();
     loadFavorites();
     connectSocket();
-  } catch (error) { logout(false); if (error.message?.includes('гостевого')) setAuthError(error.message); }
+  } catch (error) {
+    if (error.status === 401) {
+      localStorage.removeItem('sovli_user_cache');
+      logout(false);
+      if (error.message?.includes('гостевого')) setAuthError(error.message);
+    } else if (cachedUser?.id) {
+      showApp();
+      connectSocket();
+      showToast('Восстанавливаем связь с сервером. Аккаунт сохранён.');
+    } else {
+      showAuth();
+      setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
+    }
+  } finally { state.authRestoring = false; }
 }
 
 $('#authForm').addEventListener('submit', async event => {
