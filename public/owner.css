@@ -30,3 +30,21 @@
 .inspector-panel .button-row>*{flex:1;min-width:170px}
 .inspector-panel>.hint{line-height:1.55}
 @media(max-width:760px){.tabs{top:60px}.match-card{grid-template-columns:1fr}.match-card .user-actions{justify-content:flex-start}.inspector-backdrop{padding:0;align-items:end}.inspector-panel{max-height:94vh;border-radius:22px 22px 0 0;padding:18px 14px}.inspector-panel .button-row{display:grid;grid-template-columns:1fr}.inspector-panel .button-row>*{width:100%}}
+
+
+/* v1.5 — branded owner issue and moderation dialogs */
+.owner-action-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;background:rgba(7,5,15,.78);backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px)}
+.owner-action-backdrop[hidden]{display:none!important}
+.owner-action-card{width:min(100%,460px);padding:26px;border:1px solid #ffffff25;border-radius:24px;background:linear-gradient(145deg,#2b2144,#171222);color:#f6f0ff;box-shadow:0 30px 100px #0009}
+.owner-action-icon{display:grid;place-items:center;width:48px;height:48px;margin-bottom:16px;border-radius:15px;background:#8b6be52b;color:#c4a8ff;font-size:25px}
+.owner-action-card h2{margin:7px 0 8px;font-size:22px;letter-spacing:-.4px}
+.owner-action-description{margin:0 0 18px;color:#bcb0d1;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.owner-action-fields{display:grid;gap:13px}
+.grant-field{display:grid;gap:7px;color:#ded3f1;font-size:12px;font-weight:700}
+.grant-field input,.grant-field select{width:100%;min-height:44px;padding:10px 12px;border:1px solid #ffffff24;border-radius:12px;background:#100c1c;color:#fff;font:inherit}
+.grant-reward-preview{display:grid;gap:6px;padding:15px;border:1px solid #b18cff42;border-radius:15px;background:linear-gradient(110deg,#8b6be522,#e5b86e12)}
+.grant-reward-preview strong{color:#f4e9ff;font-size:15px}.grant-reward-preview span{color:#bcb0d1;font-size:11px;line-height:1.45}
+.owner-action-buttons{display:grid;grid-template-columns:1fr 1.3fr;gap:9px;margin:20px 0 12px}
+.owner-action-buttons button{min-height:44px;border-radius:12px}
+.owner-action-card>small{display:block;color:#9387a9;text-align:center;font-size:10px}
+@media(max-width:520px){.owner-action-backdrop{padding:10px;align-items:end}.owner-action-card{padding:22px 18px;border-radius:22px 22px 16px 16px}.owner-action-card h2{font-size:20px}}

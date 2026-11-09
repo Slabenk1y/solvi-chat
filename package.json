@@ -1,8 +1,8 @@
 {
   "name": "sovli-random-chat",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
-  "description": "SOVLI v1.4 — owner moderation, inventory themes and persistent guest identities",
+  "description": "SOVLI v1.5 — full-interface themes, in-app purchase confirmation and balanced store prices",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
