@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.10.6') fail(`Ожидалась версия 1.10.6, получена ${pkg.version}`);
+  if (pkg.version !== '1.11.0') fail(`Ожидалась версия 1.11.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const matchingHtml = read('public/index.html');
@@ -134,10 +134,12 @@ try {
   else pass('VIP/Premium наборы закрыты для подписок, купленных только за токены');
   if (/\b(confirm|prompt|alert)\(/.test(app) || /\b(confirm|prompt|alert)\(/.test(ownerPanel)) fail('В интерфейсе остались нативные диалоги браузера');
   else pass('Подтверждения и текстовые запросы используют фирменные диалоги');
-  if (!server.includes("app.post('/api/billing/checkout'") || !server.includes("app.post('/api/billing/stripe/webhook'") || !server.includes('STRIPE_WEBHOOK_SECRET') || !server.includes('payment_records')) fail('Stripe Checkout и журнал подтверждённых платежей не подключены');
-  else pass('Stripe Checkout, подпись webhook и защита от повторного зачисления подключены');
-  if (!html.includes('id="paidMembershipOffers"') || !app.includes('loadPaidMemberships')) fail('Денежные тарифы не отображаются в магазине');
-  else pass('Денежные подписки VIP/Premium отображаются отдельно от токеновых тарифов');
+  if (!server.includes("app.post('/api/billing/token-topup/checkout'") || !server.includes("app.get('/api/billing/paymentwall/pingback'") || !server.includes('verifyPingback') || !server.includes('paymentwall_token_purchases')) fail('Paymentwall checkout, проверка подписи и ledger пополнений не подключены');
+  else pass('Paymentwall: подписанный checkout/pingback, защита от повторного зачисления и возвраты подключены');
+  if (!html.includes('id="paidMembershipOffers"') || !app.includes('loadPaidMemberships') || !app.includes('/api/billing/token-topup')) fail('Покупка токенов за реальные деньги не отображается в магазине');
+  else pass('Реальные пополнения токенов отображаются в магазине отдельно от внутренних цен');
+  if (!server.includes("app.get('/api/ads/slot'") || !server.includes("app.post('/api/admin/ad-campaigns'") || !server.includes('payment_status IN (\'paid\',\'comped\')') || !html.includes('id="storeSponsoredAd"')) fail('Платные рекламные размещения не связаны между сервером и магазином');
+  else pass('Прямые рекламные кампании требуют оплаты, показываются в магазине и учитывают статистику');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
   else pass('Новый зарегистрированный аккаунт получает 50 ✦');
   if (!server.includes('favorite_chat_drafts') || !server.includes("app.get('/api/favorite-chats/:id'") || !app.includes('function openFavoriteChat')) fail('Архив избранных переписок не подключён');
