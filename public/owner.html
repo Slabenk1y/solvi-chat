@@ -75,6 +75,22 @@
                 <article class="card"><div class="card-head"><div><h3>Платёжная история</h3><p class="hint">Подтверждённые денежные оплаты и пополнения токенов</p></div></div><div id="monetizationPayments" class="detail-list"></div></article>
               </div>
               <article class="card"><div class="card-head"><div><h3>Каталог и цены</h3><p class="hint">Меняй цену в ✦ или временно выключай предложение. Изменения сразу действуют в магазине.</p></div><button id="refreshMonetizationButton" class="text-button" type="button">↻ Обновить</button></div><div id="monetizationProducts" class="growth-list"></div></article>
+              <article class="card">
+                <div class="card-head"><div><h3>Реклама и спонсорские размещения</h3><p class="hint">Прямые рекламные кампании в магазине SOLVI. Сначала получи оплату от рекламодателя, затем отметь её и включи показ.</p></div></div>
+                <div id="monetizationAdStats" class="stats-grid compact-stats"></div>
+                <form id="adCampaignForm" class="form-grid">
+                  <label>Название кампании<input id="adTitle" maxlength="100" required placeholder="Например, партнёр недели"></label>
+                  <label>Рекламодатель<input id="adSponsor" maxlength="80" required placeholder="Название компании"></label>
+                  <label class="full">Текст объявления<textarea id="adBody" maxlength="500" rows="2" placeholder="Краткое описание предложения"></textarea></label>
+                  <label class="full">HTTPS-ссылка<input id="adTargetUrl" type="url" maxlength="600" required placeholder="https://example.com"></label>
+                  <label>Цена размещения<input id="adPrice" type="number" min="0" max="1000000" step="0.01" value="25.00" required></label>
+                  <label>Валюта<select id="adCurrency"><option value="EUR">EUR</option><option value="USD">USD</option></select></label>
+                  <label>Начало показа<input id="adStartsAt" type="datetime-local"></label>
+                  <label>Окончание показа<input id="adEndsAt" type="datetime-local"></label>
+                  <div class="full inline-actions"><button class="primary" type="submit">Создать кампанию</button><span id="adCampaignMessage" class="hint">Сначала создаётся неоплаченное объявление. Показ включается после подтверждения оплаты.</span></div>
+                </form>
+                <div id="adCampaignList" class="growth-list"></div>
+              </article>
             </section>
 
             <section class="tab-page" data-page="users" hidden>
