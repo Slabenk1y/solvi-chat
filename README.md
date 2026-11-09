@@ -27,13 +27,16 @@ The current hostname already matches SOLVI. Keep it for launch; attach a custom 
 
 ## Payments and advertising
 
-Paymentwall is integrated through two separate Widget API projects: Virtual Currency for token top-ups and Digital Goods for direct store-item and 30-day VIP/Premium purchases. SOLVI grants tokens or items only after valid signed server pingbacks; repeated references cannot double-deliver, and type=2 refund/chargeback notifications revoke the purchased goods. Both checkouts stay fail-closed until the matching merchant credentials are configured.
+Paymentwall is integrated through two separate Widget API projects because each project has one API type:
 
-Setup instructions: [docs/real-money-monetization.md](docs/real-money-monetization.md). Create the Paymentwall project as Widget API – Virtual Currency, configure token packs of 500 / 1,500 / 5,000, set the pingback URL, add PAYMENTWALL_PUBLIC_KEY, PAYMENTWALL_PRIVATE_KEY, PAYMENTWALL_WIDGET_CODE, PAYMENTWALL_DISPLAY_CURRENCY and APP_PUBLIC_URL to Render, test callbacks, and complete Paymentwall's business/technical review.
+- **Virtual Currency:** users buy SOLVI tokens on Paymentwall's hosted page. SOLVI credits tokens only after a valid signed type=1 pingback; type=2 reversals subtract the original credit.
+- **Digital Goods:** users buy selected catalogue items and 30-day VIP/Premium for money. The server fixes the amount and currency, creates a unique order, and grants the product only after a valid signed type=0 pingback; type=2 reversals revoke the purchase.
 
-Store catalog items and VIP/Premium benefits remain priced in SOLVI tokens. The new top-up flow lets users buy those tokens with real money; per-item card checkout is not enabled separately yet. Paymentwall's Virtual Currency callback returns the token amount rather than the fiat amount, so the owner panel reports credit volumes while gross sales, fees, reserves, and net settlement are reconciled in Paymentwall Merchant Dashboard.
+Direct cash prices for catalogue items are set in the owner panel under Monetization. They are separate from token prices. VIP/Premium money prices use VIP_PRICE_MINOR and PREMIUM_PRICE_MINOR (defaults EUR 4.99 / EUR 8.99 when BILLING_CURRENCY=eur). The store asks for a billing email for receipts.
 
-Direct sponsor ads can be created in the owner panel and served in the store. Campaigns stay paused until the advertiser's payment is manually verified and marked paid. This is a direct-sold placement system, not a programmatic ad network. AdSense or another network requires a separate approved publisher account and its own IDs/consent/policy review.
+Setup instructions: [docs/real-money-monetization.md](docs/real-money-monetization.md). Configure one Paymentwall project as Widget API – Virtual Currency and another as Widget API – Digital Goods; add PAYMENTWALL_VC_* and PAYMENTWALL_GOODS_* project keys plus APP_PUBLIC_URL to Render; configure each pingback URL; test successful callbacks, duplicate references, invalid signatures, and refunds; then complete Paymentwall's merchant and technical review. Checkouts stay disabled until the matching keys exist.
+
+The owner panel reports delivered/reversed token amounts, direct store order values, and sponsor campaign performance. The Virtual Currency callback reports the number of tokens credited, not the fiat amount charged, so exact fiat gross, local currencies, fees, reserves, and net settlement must be reconciled in Paymentwall Merchant Dashboard. Direct ads are sold by the owner and manually activated after payment; no automatic ad network is connected yet.
 
 
 ## Tasks and rewards
