@@ -1072,8 +1072,10 @@ async function main() {
         if (!current || Number(current.tokens) < pack.price) throw new Error('Недостаточно токенов для покупки привилегии.');
         const now = Date.now();
         const oldExpires = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? Date.parse(current.subscription_expires_at) : now;
+        const activeTier = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? current.subscription_tier : 'free';
+        const tier = activeTier === 'premium' || pack.tier === 'premium' ? 'premium' : 'vip';
         const expires = new Date(oldExpires + pack.hours * 3600000).toISOString();
-        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [pack.price, pack.tier, expires, req.user.id]);
+        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [pack.price, tier, expires, req.user.id]);
         dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -pack.price, `${pack.name} · ${pack.hours} ч.`, nowIso()]);
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
