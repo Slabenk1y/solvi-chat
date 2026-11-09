@@ -59,7 +59,7 @@ test('Paymentwall Digital Goods creates a one-time checkout for one server-price
   const supplied = params.sign;
   delete params.sign;
   assert.equal(supplied, signature(params, 'private', 3));
-  assert.equal(params.ag_external_id, 'solvi_order_123');
+  assert.equal(params.ag_external_id, 'solviorder123');
   assert.equal(params.ag_type, 'fixed');
   assert.equal(params.amount, '4.99');
   assert.equal(params.currencyCode, 'EUR');
