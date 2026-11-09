@@ -2004,14 +2004,14 @@ async function main() {
     const target = getUserById(req.params.id);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден.' });
     const amount = Math.trunc(Number(req.body?.amount));
-    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 160) : '';
+    const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim().slice(0, 160) : (typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 160) : '');
     if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1000000) return res.status(400).json({ error: 'Укажи сумму от 1 до 1 000 000 или от -1 до -1 000 000.' });
     const current = Number(target.tokens || 0);
     if (current + amount < 0) return res.status(400).json({ error: 'Нельзя списать больше текущего баланса.' });
     transaction(() => {
       dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [amount, target.id]);
-      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'admin_adjustment', amount, reason || 'Корректировка владельцем', nowIso()]);
-      auditAdmin(req.user.id, 'token_adjustment', target.id, { amount, reason });
+      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'admin_adjustment', amount, comment || 'Корректировка владельцем', nowIso()]);
+      auditAdmin(req.user.id, 'token_adjustment', target.id, { amount, comment });
     });
     res.json({ ok: true, balance: Number(getUserById(target.id).tokens) });
   });
@@ -2022,6 +2022,7 @@ async function main() {
     const tokens = Math.trunc(Number(req.body?.tokens ?? 100));
     const days = Math.trunc(Number(req.body?.days ?? 7));
     const requestedTier = req.body?.tier === 'premium' ? 'premium' : 'vip';
+    const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim().slice(0, 240) : '';
     if (!Number.isInteger(tokens) || tokens < 1 || tokens > 10000 || ![1, 7, 30, 90].includes(days)) return res.status(400).json({ error: 'Проверь сумму токенов и срок награды.' });
     if (dbGet("SELECT id FROM admin_audit_log WHERE action = 'starter_pack' AND target_id = ? LIMIT 1", [target.id])) return res.status(409).json({ error: 'Стартовый подарок этому пользователю уже выдавался.' });
     const currentTier = effectiveSubscription(target);
@@ -2030,8 +2031,8 @@ async function main() {
     const expiresAt = new Date(currentExpiry + days * 86400000).toISOString();
     transaction(() => {
       dbRun('UPDATE users SET tokens = tokens + ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [tokens, tier, expiresAt, target.id]);
-      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'owner_gift', tokens, 'Стартовый подарок от владельца SOLVI', nowIso()]);
-      auditAdmin(req.user.id, 'starter_pack', target.id, { tokens, tier, days, expiresAt });
+      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'owner_gift', tokens, 'Стартовый подарок от владельца SOLVI' + (comment ? ' · ' + comment : ''), nowIso()]);
+      auditAdmin(req.user.id, 'starter_pack', target.id, { tokens, tier, days, expiresAt, comment });
     });
     res.json({ ok: true, balance: Number(getUserById(target.id).tokens || 0), tier, expiresAt });
   });
