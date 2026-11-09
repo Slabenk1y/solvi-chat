@@ -89,10 +89,10 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const billingCheckout = await fetch(`${baseUrl}/api/billing/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: 'vip-30d' }) });
     assert.equal(billingCheckout.status, 503, 'checkout must remain disabled without Stripe secrets');
     const publicConfig = await fetch(`${baseUrl}/api/config`).then(response => response.json());
-    assert.deepEqual(publicConfig.socialLinks, [], 'social links are owner-configured and empty by default');
+    assert.deepEqual(publicConfig.socialLinks.map(link => [link.platform, link.url]), [['Telegram', 'https://t.me/ChatSolvi'], ['TikTok', 'https://www.tiktok.com/@slabenk1y_armagedon']], 'the supplied SOLVI social links are seeded by default');
     const growth = await fetch(`${baseUrl}/api/growth`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
     assert.deepEqual(growth.tasks, [], 'reward tasks are empty until configured by the owner');
-    assert.deepEqual(growth.socialLinks, []);
+    assert.deepEqual(growth.socialLinks.map(link => link.url), ['https://t.me/ChatSolvi', 'https://www.tiktok.com/@slabenk1y_armagedon']);
     const initialTicket = await postJson(baseUrl, '/api/tickets', { category: 'idea', title: 'Интеграционный тикет', body: 'Проверка приватного тикета и корректного закрытия обращения.' }, user1.token);
     const privateTicket = await fetch(`${baseUrl}/api/tickets/${initialTicket.id}`, { headers: { Authorization: `Bearer ${user2.token}` } });
     assert.equal(privateTicket.status, 404, 'users cannot read another account ticket');
