@@ -376,6 +376,7 @@ function restoreStorePreview(showMessage = false) {
 }
 function renderStore(data) {
   state.storeData = data;
+  if($('#storeBillingEmail') && !$('#storeBillingEmail').value) $('#storeBillingEmail').value = String(data.billingEmail || '');
   $('#storeBalance').textContent = Number(data.balance || 0).toLocaleString('ru-RU');
   const categories = $('#storeCategories');
   categories.replaceChildren();
@@ -460,7 +461,20 @@ function renderStore(data) {
         await loadStore();
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
-    footer.append(previewButton, price, action); card.append(preview, meta, footer); root.append(card);
+    footer.append(previewButton, price, action);
+    if(!item.owned && item.cashEnabled && Number(item.cashPriceMinor)>=30){
+      const cashButton=document.createElement('button');cashButton.type='button';cashButton.className='button button-primary store-cash-buy';
+      cashButton.textContent='Купить за '+(Number(item.cashPriceMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(item.cashCurrency||'EUR')});
+      cashButton.addEventListener('click',async()=>{
+        const email=$('#storeBillingEmail')?.value.trim()||'';
+        if(!email)return showToast('Сначала укажи email для платёжного чека.');
+        cashButton.disabled=true;
+        try{const checkout=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:item.id,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}
+        catch(error){showToast(error.message);cashButton.disabled=false;}
+      });
+      footer.append(cashButton);
+    }
+    card.append(preview, meta, footer); root.append(card);
   });
   const bundleRoot = $('#customizationBundles');
   bundleRoot.replaceChildren();
@@ -483,7 +497,14 @@ function renderStore(data) {
       try { const result = await api('/api/store/bundle', { method: 'POST', body: JSON.stringify({ bundleId: bundle.id }) }); if (state.user) state.user.tokens = result.balance; showToast(`${bundle.name}: 5 предметов добавлено в инвентарь.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    footer.append(price, button); card.append(label, title, copy, contents, footer); bundleRoot.append(card);
+    footer.append(price, button);
+    if(!bundle.owned && bundle.available && bundle.cashEnabled && Number(bundle.cashPriceMinor)>=30){
+      const cash=document.createElement('button');cash.type='button';cash.className='button button-primary store-cash-buy';
+      cash.textContent='Купить за '+(Number(bundle.cashPriceMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(bundle.cashCurrency||'EUR')});
+      cash.addEventListener('click',async()=>{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)return showToast('Сначала укажи email для платёжного чека.');cash.disabled=true;try{const checkout=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:bundle.id,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);cash.disabled=false;}});
+      footer.append(cash);
+    }
+    card.append(label, title, copy, contents, footer); bundleRoot.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
   (data.memberships || []).forEach(pack => {
@@ -568,7 +589,20 @@ async function loadPaidMemberships(){
     const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Открыть оплату':'Онлайн-платежи пока не подключены';button.disabled=!data.configured;
     button.addEventListener('click',async()=>{button.disabled=true;try{const checkout=await api('/api/billing/token-topup/checkout',{method:'POST',body:JSON.stringify({packageId:'solvi-1500'})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
     card.append(kicker,title,description,packages,button);root.append(card);
-    if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Для запуска нужны ключи PAYMENTWALL_PUBLIC_KEY и PAYMENTWALL_PRIVATE_KEY в Render, а также виртуальные пакеты 500 / 1 500 / 5 000 токенов в кабинете Paymentwall. Зачисление происходит только по подписанному серверному уведомлению.';root.append(note);}
+    if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Для запуска пополнений нужны ключи PAYMENTWALL_VC_PUBLIC_KEY и PAYMENTWALL_VC_PRIVATE_KEY (или общие PAYMENTWALL_PUBLIC_KEY / PAYMENTWALL_PRIVATE_KEY) и Price Points в VC-проекте Paymentwall.';root.append(note);}
+    const membershipRoot=document.createElement('div');membershipRoot.className='paid-membership-grid';
+    (data.membershipProducts||[]).forEach(product=>{
+      const offer=document.createElement('article');offer.className='paid-membership-card paid-'+product.tier;
+      const tag=document.createElement('span');tag.className='membership-kicker';tag.textContent=product.tier==='premium'?'PREMIUM · 30 ДНЕЙ':'VIP · 30 ДНЕЙ';
+      const name=document.createElement('h3');name.textContent=product.name;
+      const copy=document.createElement('p');copy.textContent=product.description;
+      const amount=document.createElement('strong');amount.textContent=(Number(product.amountMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(product.currency).toUpperCase()});
+      const buy=document.createElement('button');buy.type='button';buy.className='button button-primary';buy.textContent=data.goodsConfigured?'Купить за реальные деньги':'Денежная касса не подключена';buy.disabled=!data.goodsConfigured;
+      buy.addEventListener('click',async()=>{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)return showToast('Сначала укажи email для платёжного чека.');buy.disabled=true;try{const checkout=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:product.id,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);buy.disabled=false;}});
+      offer.append(tag,name,copy,amount,buy);membershipRoot.append(offer);
+    });
+    root.append(membershipRoot);
+    if(!data.goodsConfigured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Прямые покупки товаров и VIP/Premium используют отдельный Paymentwall-проект типа Widget API — Digital Goods, с отдельными GOODS-ключами и серверным pingback.';root.append(note);}
     const params=new URLSearchParams(location.search);
     const billing=params.get('billing');
     if(billing==='success'){showToast('Платёж отправлен на подтверждение. Баланс пополнится после серверного уведомления.');params.delete('billing');history.replaceState({},'',location.pathname+(params.toString()?'?'+params.toString():'')+location.hash);}
