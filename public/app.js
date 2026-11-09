@@ -1360,10 +1360,11 @@ function logout(showMessage = true, revokeServer = true) {
 }
 function applyTheme() {
   const themeId = document.documentElement.dataset.storeTheme || state.user?.equipped?.theme || 'theme-light';
-  const resolved = ['theme-dark', 'theme-midnight'].includes(themeId) ? 'dark' : 'light';
+  const darkThemes = new Set(['theme-dark','theme-midnight','theme-aurora','theme-arcade','theme-violet-royal','wallpaper-deep-space','wallpaper-neon-city','wallpaper-cyber','wallpaper-pixel','wallpaper-arcade']);
+  const resolved = darkThemes.has(themeId) ? 'dark' : 'light';
   document.documentElement.dataset.theme = resolved;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = resolved === 'dark' ? '#181827' : '#f5f6fb';
+  if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || (resolved === 'dark' ? '#181827' : '#f5f6fb');
 }
 function renderSettingsControls() {
   const settings = state.settings;
