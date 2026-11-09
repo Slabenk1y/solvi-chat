@@ -887,6 +887,7 @@ async function main() {
       console.error('Registration failed:', error.message);
       return res.status(500).json({ error: 'Не удалось создать аккаунт. Попробуйте ещё раз.' });
     }
+    ensureStarterInventory(id);
     const user = getUserById(id);
     res.status(201).json({ token: issueToken(user), user: publicUser(user) });
   });
@@ -910,6 +911,7 @@ async function main() {
     transaction(() => {
       dbRun('INSERT INTO users (id, public_id, username, username_key, password_hash, avatar, adult_asserted_at, settings_json, account_type, guest_expires_at, tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)', [id, publicId, username, key, passwordHash, AVATARS[crypto.randomInt(AVATARS.length)], 'NOT_COLLECTED', JSON.stringify(DEFAULT_SETTINGS), 'guest', guestExpiresAt, createdAt]);
     });
+    ensureStarterInventory(id);
     const user = getUserById(id);
     res.status(201).json({ token: issueToken(user), user: publicUser(user) });
   });
@@ -936,7 +938,8 @@ async function main() {
     const user = dbGet('SELECT * FROM users WHERE username_key = ? LIMIT 1', [usernameKey(username)]);
     if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Неверный ник или пароль.' });
     if (user.suspended_until && user.suspended_until > nowIso()) return res.status(403).json({ error: `Доступ временно ограничен. Причина: ${user.suspension_reason || 'нарушение правил'}.` });
-    res.json({ token: issueToken(user), user: publicUser(user) });
+    ensureStarterInventory(user.id);
+    res.json({ token: issueToken(user), user: publicUser(getUserById(user.id)) });
   });
 
   app.post('/api/auth/logout', authMiddleware, (req, res) => {
@@ -948,8 +951,9 @@ async function main() {
   });
 
   app.get('/api/me', authMiddleware, (req, res) => {
+    ensureStarterInventory(req.user.id);
     const activeMatch = getActiveMatch(req.user.id);
-    res.json({ user: publicUser(req.user), activeMatch: activeMatch ? matchPayload(activeMatch, req.user.id) : null });
+    res.json({ user: publicUser(getUserById(req.user.id)), activeMatch: activeMatch ? matchPayload(activeMatch, req.user.id) : null });
   });
   app.get('/api/sessions', authMiddleware, (req, res) => {
     const sessions = dbAll('SELECT id, created_at, expires_at FROM sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 30', [req.user.id, nowIso()]);
