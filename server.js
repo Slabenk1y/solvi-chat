@@ -731,7 +731,7 @@ async function startAiFallback(userId) {
 function fallbackAiReply(session, isGreeting = false) {
   const options = isGreeting
     ? [`привет! я ${session.persona.name} ✨ вижу, тебе интересны ${session.interests.slice(0, 2).join(' и ') || 'разные темы'} — с чего начнём?`, `хей! я ${session.persona.name} 🙂 давай найдём тему, от которой не захочется закрыть чат`]
-    : ['о, интересно 👀 расскажи чуть подробнее', 'понимаю тебя) а что тебе в этом больше всего нравится?', 'ахах, неожиданно 😄 и что было дальше?', 'кстати, а как ты вообще к этому пришёл?'];
+    : ['ахах, понимаю 😄', 'о, вот это поворот', 'звучит интересно, мне нравится как ты это описываешь', 'да, понимаю о чём ты', 'прикольно, продолжай, я слушаю', 'неожиданно, но в этом есть своя логика'];
   return options[Math.floor(Math.random() * options.length)];
 }
 async function generateAiReply(session, isGreeting = false) {
@@ -777,7 +777,7 @@ function queueAiTurn(userId, session, text) {
         generated = fallbackAiReply(session, input === null);
       }
       if (aiSessions.get(userId) !== session) break;
-      let replies = String(generated || '').split(/\s*<MSG>\s*/i).map(value => value.trim()).filter(Boolean).slice(0, input === null ? 3 : 1);
+      let replies = String(generated || '').split(/\s*<MSG>\s*/i).map(value => value.trim()).filter(Boolean).slice(0, 1);
       if (!replies.length) replies = [fallbackAiReply(session, input === null)];
       for (let index = 0; index < replies.length; index += 1) {
         if (aiSessions.get(userId) !== session) break;
