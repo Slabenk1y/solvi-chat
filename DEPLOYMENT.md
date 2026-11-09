@@ -29,7 +29,7 @@ On the first start with an empty Neon snapshot, SOVLI seeds Neon from the local 
 
 - Every database write marks the local SQLite state as changed. A debounced snapshot is sent to Neon shortly afterward.
 - On a normal SIGINT/SIGTERM shutdown, the app tries to save one final snapshot.
-- User avatar files are included in the snapshot (up to 2 MB per file and 48 MB total).
+- User avatar files are stored separately in `sovli_avatar_files` (up to 2 MB per file); they are uploaded only when changed, not with every database snapshot.
 - Active messages and chat media are intentionally cleared at server restart by the existing retention policy. Accounts, profile settings, token balances, store inventory, sessions, reports and admin audit data are retained.
 - A brief abrupt termination during the short save delay or while Neon is unreachable can leave the very latest change unsaved. Monitor Render logs and Neon Usage.
 - One running service only. Do not scale the Render service horizontally; each instance would hold its own local SQLite copy.
