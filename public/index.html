@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f6fb">
+  <meta name="description" content="SOVLI — пространство для случайных встреч и разговоров по интересам.">
+  <title>SOVLI — случайные разговоры</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <section id="authView" class="auth-layout">
+    <div class="auth-story">
+      <a class="brand brand-large" href="#" aria-label="SOVLI — главная"><span class="brand-mark">◉</span><span>sovli</span></a>
+      <div class="story-copy">
+        <div class="eyebrow"><span class="eyebrow-dot"></span> МИР СТАНОВИТСЯ БЛИЖЕ</div>
+        <h1>Иногда лучший разговор — с <em>незнакомцем.</em></h1>
+        <p>Без неловких вступлений. Выбери интересы, найди нового человека и начни с обычного «привет».</p>
+        <div class="story-foot"><span class="sovli-art">✳</span><span>Один разговор может изменить весь вечер.</span></div>
+      </div>
+      <div class="auth-bottom">Новая точка встречи в интернете <span>© SOVLI 2026</span></div>
+    </div>
+
+    <div class="auth-side">
+      <div class="auth-top-note"><span class="status-dot"></span> Пространство для живого общения</div>
+      <div class="auth-card">
+        <div class="auth-heading">
+          <div class="mini-sovli">✳</div>
+          <div>
+            <div class="eyebrow">РАДЫ ТЕБЯ ВИДЕТЬ</div>
+            <h2 id="authTitle">С возвращением</h2>
+            <p id="authSubtitle">Войди, чтобы продолжить общение.</p>
+          </div>
+        </div>
+        <div class="auth-tabs" role="tablist" aria-label="Тип входа">
+          <button class="auth-tab active" type="button" data-auth-tab="login">Войти</button>
+          <button class="auth-tab" type="button" data-auth-tab="register">Создать аккаунт</button>
+        </div>
+        <form id="authForm" novalidate>
+          <label id="authUsernameLabel" class="field-label" for="authUsername">Никнейм</label>
+          <input id="authUsername" class="field" name="username" autocomplete="username" minlength="3" maxlength="20" placeholder="Например, northstar" required>
+          <label class="field-label" for="authPassword">Пароль</label>
+          <input id="authPassword" class="field" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" placeholder="Не менее 8 символов" required>
+          <div id="inviteCodeField" class="invite-code-field" hidden>
+            <label class="field-label" for="authInviteCode">Код приглашения</label>
+            <input id="authInviteCode" class="field" name="accessCode" autocomplete="one-time-code" maxlength="80" placeholder="Код от организатора теста">
+          </div>
+
+          <p id="authError" class="form-error" role="alert"></p>
+          <button id="authSubmit" class="button button-primary button-wide" type="submit"><span>Войти в SOVLI</span><span class="button-arrow">↗</span></button>
+        </form>
+        <div class="guest-entry">
+          <div class="guest-entry-caption"><span></span> ИЛИ ПОПРОБУЙ БЕЗ РЕГИСТРАЦИИ <span></span></div>
+          <button id="guestButton" class="button button-secondary button-wide" type="button"><span>Продолжить гостем</span><span>👀</span></button>
+          <p>Гостевой профиль живёт 24 часа. Его можно сохранить в постоянный аккаунт.</p>
+        </div>
+        <div class="auth-divider"><span></span> <small>ТВОЁ ПРОСТРАНСТВО</small> <span></span></div>
+        <p class="auth-legal">Продолжая, ты принимаешь <button id="authRulesButton" type="button">правила сообщества</button> и соглашаешься общаться уважительно.</p>
+      </div>
+      <div class="auth-side-bottom">SOVLI · РЕЛИЗ 1.0.0</div>
+    </div>
+  </section>
+
+  <div id="appView" class="app-view" hidden>
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="SOVLI — главная"><span class="brand-mark">◉</span><span>sovli</span></a>
+      <div class="topbar-center"><span class="live-indicator"></span><span id="onlineCount">0</span> в сети</div>
+      <div class="topbar-actions">
+        <button id="themeButton" class="icon-button" type="button" aria-label="Сменить тему" title="Сменить тему">☾</button>
+        <button id="settingsTopButton" class="icon-button" type="button" aria-label="Настройки" title="Настройки">⚙</button>
+        <button id="profileTopButton" class="user-chip" type="button"><span id="topAvatar" class="avatar avatar-small">◉</span><span id="topUsername">Профиль</span><span class="chevron">⌄</span></button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-label">ТВОЙ SOVLI</div>
+        <div class="profile-mini">
+          <div id="sideAvatar" class="avatar avatar-large">◉</div>
+          <div class="profile-mini-info"><strong id="sideUsername">Пользователь</strong><span id="accountTypeBadge" class="account-type-badge">АККАУНТ</span><button id="sidePublicId" class="public-id-copy" type="button" title="Скопировать технический ID аккаунта">ID: — ⧉</button></div>
+          <span class="profile-online-dot" title="Аккаунт активен"></span>
+        </div>
+        <div class="sidebar-divider"></div>
+        <button class="side-link active" type="button" data-view="home"><span class="side-icon">✳</span> Случайный чат</button>
+        <button class="side-link" type="button" data-view="profile"><span class="side-icon">◌</span> Мой профиль</button>
+        <button class="side-link" type="button" data-view="store"><span class="side-icon">✦</span> Магазин</button>
+        <button class="side-link" type="button" data-view="inventory"><span class="side-icon">▣</span> Инвентарь</button>
+        <button class="side-link" type="button" data-view="favorites"><span class="side-icon">♡</span> Избранное</button>
+        <button class="side-link" type="button" data-view="settings"><span class="side-icon">⚙</span> Настройки</button>
+        <button id="adminNavButton" class="side-link owner-nav" type="button" data-view="admin" hidden><span class="side-icon">⌘</span> Управление</button>
+        <div class="sidebar-bottom">
+          <div class="privacy-card"><span class="privacy-icon">⌁</span><div><strong>Без лишнего следа</strong><p>Переписка удаляется после завершения диалога.</p></div></div>
+          <button id="logoutButton" class="logout-button" type="button"><span>↗</span> Выйти</button>
+          <div class="sidebar-version">SOVLI <span>v1.2.0</span></div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <section id="homePanel" class="home-panel">
+          <div class="welcome-row">
+            <div><div class="eyebrow">ТВОЯ СЛЕДУЮЩАЯ ИСТОРИЯ</div><h1>Кого сегодня <em>встретим?</em></h1><p>Миллионы тем для разговора начинаются с одного человека.</p></div>
+            <div class="welcome-spark">✳</div>
+          </div>
+          <div class="search-card">
+            <div class="search-card-top"><div class="search-symbol">◎</div><div><div class="card-kicker">СЛУЧАЙНОЕ ОБЩЕНИЕ · 1 НА 1</div><h2>Найди своего человека</h2><p>Мы подберём собеседника по языку и общим интересам.</p></div><div class="search-decor">✳</div></div>
+            <div class="filter-block">
+              <div class="filter-heading"><span>ЯЗЫКИ ОБЩЕНИЯ</span><small>До 3 языков</small></div>
+              <details class="filter-dropdown" id="languagesDropdown">
+                <summary><span id="languageSummary">Любой язык</span><span id="languageCount" class="filter-count">Не ограничивать</span><span class="filter-chevron">⌄</span></summary>
+                <div id="languageOptions" class="chip-list"></div>
+              </details>
+            </div>
+            <div class="filter-block">
+              <div class="filter-heading"><span>ИНТЕРЕСЫ</span><small>До 5 тем · необязательно</small></div>
+              <details class="filter-dropdown" id="interestsDropdown">
+                <summary><span id="interestSummary">Любые интересы</span><span id="interestCount" class="filter-count">Без фильтра</span><span class="filter-chevron">⌄</span></summary>
+                <div id="interestOptions" class="chip-list"></div>
+              </details>
+            </div>
+            <div class="search-card-footer"><div class="match-note"><span>✦</span> Больше общих интересов — выше в подборе</div><button id="clearFiltersButton" class="clear-filters-button" type="button">Сбросить фильтры</button><button id="findButton" class="button button-primary find-button" type="button"><span>Найти собеседника</span><span class="button-arrow">↗</span></button></div>
+          </div>
+          <div class="info-grid"><article class="info-tile"><div class="tile-icon tile-lilac">✳</div><div><strong>Случайность — это интересно</strong><p>Каждый диалог — возможность узнать что-то новое.</p></div></article><article class="info-tile"><div class="tile-icon tile-mint">⌁</div><div><strong>Уважение прежде всего</strong><p>Можно завершить разговор или отправить жалобу в любой момент.</p></div></article></div>
+          <div class="alpha-note" id="alphaNotice"><span>i</span><p><strong>Тестовая версия.</strong> Доступны случайный поиск, текст, фото, голосовые, стикеры, профили и магазин. Это закрытая тестовая версия — береги личные данные.</p></div>
+        </section>
+
+        <section id="searchPanel" class="search-panel" hidden>
+          <div class="mascot-stage" id="mascotStage" aria-hidden="true">
+            <span class="mascot-orbit mascot-orbit-one"></span><span class="mascot-orbit mascot-orbit-two"></span>
+            <span class="mascot-speech" id="mascotSpeech">Я НЕ ПОДСМАТРИВАЮ. ПОЧТИ.</span>
+            <span class="mascot-star mascot-star-one">✦</span><span class="mascot-star mascot-star-two">✧</span>
+            <svg class="search-mascot sausage-mouse" viewBox="0 0 360 280" role="img" aria-label="Сосис-Мышь — смешная мышка-сосиска SOVLI">
+              <defs>
+                <linearGradient id="sausageBody" x1="0" y1="0" x2=".2" y2="1"><stop stop-color="#ffb4a3"/><stop offset=".48" stop-color="#ed806f"/><stop offset="1" stop-color="#bb4d50"/></linearGradient>
+                <linearGradient id="sausageBun" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffdf9d"/><stop offset="1" stop-color="#df9a56"/></linearGradient>
+                <linearGradient id="sausageMustard" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff078"/><stop offset="1" stop-color="#e9a72f"/></linearGradient>
+                <filter id="sausageShadow"><feGaussianBlur stdDeviation="7"/></filter>
+              </defs>
+              <ellipse cx="178" cy="248" rx="112" ry="12" fill="#4f3b83" opacity=".24" filter="url(#sausageShadow)"/>
+              <g class="sausage-tail"><path d="M76 188q-52 6-49 45 3 29 34 17 21-8 9-25-7-8-17-2" fill="none" stroke="#f3b1a4" stroke-width="11" stroke-linecap="round"/><path d="M30 232q-12 8-17-4" fill="none" stroke="#9b75d7" stroke-width="5" stroke-linecap="round"/></g>
+              <g class="sausage-legs"><path d="M139 212q-15 19-5 29 12 10 23-8l-1-15m74-3q17 14 8 28-11 11-23-7l2-17" fill="#e67d72" stroke="#9f4f59" stroke-width="5" stroke-linecap="round"/><path d="M128 239q15-7 29 3m49-4q17-8 28 4" fill="none" stroke="#f7c0b2" stroke-width="7" stroke-linecap="round"/></g>
+              <g class="sausage-body-group">
+                <path d="M65 146q-2-52 44-76 15-33 59-28 37-25 70 2 55-3 73 46 27 47-2 90-22 39-71 42-69 18-129-1-48-14-44-75Z" fill="url(#sausageBun)" stroke="#a66b49" stroke-width="6" stroke-linejoin="round"/>
+                <path d="M76 135q-6-49 44-65 24-36 63-18 38-23 65 10 50-4 68 38 18 40-4 75-22 33-65 34-72 17-129-4-44-17-42-70Z" fill="url(#sausageBody)" stroke="#9f4f59" stroke-width="6" stroke-linejoin="round"/>
+                <path d="M89 111q17-16 37-10m132-13q19-5 34 12" fill="none" stroke="#ffd4bd" stroke-width="9" stroke-linecap="round" opacity=".75"/>
+                <path class="sausage-mustard" d="M102 106q27-28 48 0t43 0 40 0 42 0" fill="none" stroke="url(#sausageMustard)" stroke-width="9" stroke-linecap="round"/>
+                <g class="sausage-ears"><circle cx="111" cy="68" r="31" fill="#ec8e83" stroke="#9f4f59" stroke-width="6"/><circle cx="111" cy="68" r="16" fill="#f6c0bd"/><circle cx="258" cy="61" r="29" fill="#ec8e83" stroke="#9f4f59" stroke-width="6"/><circle cx="258" cy="61" r="14" fill="#f6c0bd"/></g>
+                <g class="sausage-eyes"><ellipse cx="151" cy="133" rx="19" ry="25" fill="#fff" stroke="#763d50" stroke-width="3"/><ellipse cx="223" cy="133" rx="13" ry="17" fill="#fff" stroke="#763d50" stroke-width="3"/><ellipse class="sausage-pupil left" cx="159" cy="140" rx="7" ry="10" fill="#32283f"/><ellipse class="sausage-pupil right" cx="217" cy="139" rx="5" ry="8" fill="#32283f"/><circle cx="159" cy="135" r="3" fill="#fff"/><circle cx="219" cy="135" r="3" fill="#fff"/></g>
+                <ellipse cx="187" cy="159" rx="11" ry="8" fill="#743c53"/><ellipse cx="185" cy="157" rx="4" ry="2.5" fill="#fff" opacity=".65"/>
+                <path d="M166 171q20 26 43-2" fill="#5b3043" stroke="#5b3043" stroke-width="4" stroke-linecap="round"/><path d="M181 177v15q7 6 14 0v-15" fill="#fff8e8" stroke="#8b4d58" stroke-width="2"/><path d="M198 178q8-4 13 1" fill="none" stroke="#8b4d58" stroke-width="3" stroke-linecap="round"/>
+                <path d="M145 162q-24 7-36-2m158 0q22 8 32-3" fill="none" stroke="#7c4352" stroke-width="3" stroke-linecap="round"/><circle cx="135" cy="166" r="10" fill="#f78e9b" opacity=".75"/><circle cx="241" cy="166" r="10" fill="#f78e9b" opacity=".75"/>
+                <path d="M171 194q-25 7-37-2m90 1q25 6 36-4" fill="none" stroke="#ffcfb9" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+              </g>
+              <g class="sausage-arms"><path d="M87 157q-39-2-42 28-1 15 13 18 18 1 21-17m197-30q37-5 41 23 2 16-14 20-17 1-21-18" fill="none" stroke="#e98275" stroke-width="13" stroke-linecap="round"/><circle cx="56" cy="201" r="8" fill="#ffc0b5"/><circle cx="318" cy="201" r="8" fill="#ffc0b5"/></g>
+              <g class="sausage-whiskers" fill="none" stroke="#835061" stroke-width="3" stroke-linecap="round"><path d="M123 165 88 156m37 17-35 5m164-13 34-11m-34 20 37 4"/></g>
+              <g class="sausage-dizzy"><path d="M279 42q14-22 30-4-20 4-5 20" fill="none" stroke="#aa77ed" stroke-width="5" stroke-linecap="round"/><text x="284" y="32" font-size="17">💫</text><text x="42" y="84" font-size="25">✦</text><text x="290" y="102" font-size="18">✧</text></g>
+              <text x="180" y="231" text-anchor="middle" font-size="11" font-weight="900" letter-spacing="1" fill="#6c4056">СОСИС-МЫШЬ · НЕ КОРМИТЬ ПОСЛЕ ПОЛУНОЧИ</text>
+            </svg>
+          </div>
+          <div class="eyebrow">SOVLI НАХОДИТСЯ В ДВИЖЕНИИ</div><h2 id="searchStatusTitle">Ищем собеседника</h2><p id="searchStatusText">Подбираем человека с похожими интересами.</p>
+          <div class="search-companion-line"><span class="companion-dot"></span><span id="mascotMessage">Сосис-Мышь уже проверяет, не забыла ли сыр.</span></div>
+          <div class="search-timer"><span>ВРЕМЯ ПОИСКА</span><strong id="searchTimer">00:00</strong></div>
+          <div id="searchWaitingHint" class="search-hint">Обычно достаточно немного подождать. Не закрывай вкладку.</div>
+          <button id="expandSearchButton" class="button button-primary" type="button" hidden>Искать без фильтров</button>
+          <button id="cancelSearchButton" class="button button-secondary" type="button">Отменить поиск</button>
+        </section>
+
+        <section id="chatPanel" class="chat-panel" hidden>
+          <div class="chat-topline"><div class="chat-partner"><div id="partnerAvatar" class="avatar avatar-medium">◉</div><div><strong id="partnerName">Собеседник</strong><div class="partner-state"><span class="profile-online-dot"></span><span id="partnerStateText">На связи</span></div></div></div><div class="chat-actions"><button id="favoritePartnerButton" class="chat-action" type="button" title="Добавить собеседника в избранное">☆ <span>В избранное</span></button><button id="reportButton" class="chat-action" type="button" title="Пожаловаться">⚑ <span>Жалоба</span></button><button id="blockButton" class="chat-action" type="button" title="Заблокировать">⊘ <span>Блок</span></button><button id="nextChatButton" class="button button-secondary next-chat-button" type="button" title="Завершить этот разговор и найти следующего">Следующий ↗</button><button id="endChatButton" class="button button-danger" type="button">Завершить</button></div></div>
+          <div id="commonInterests" class="common-interests" hidden></div>
+          <div id="messages" class="messages" aria-live="polite" aria-label="Сообщения"></div>
+          <details class="quick-replies" id="quickReplies"><summary>Быстрый ответ <span>подсказки</span></summary><div class="quick-reply-list"><button type="button" data-quick-reply="Привет! Как проходит твой день?">Привет! 👋</button><button type="button" data-quick-reply="Что тебе нравится делать в свободное время?">Чем увлекаешься?</button><button type="button" data-quick-reply="Какую музыку сейчас слушаешь?">Что слушаешь?</button><button type="button" data-quick-reply="Посоветуй что-нибудь интересное!">Посоветуй что-нибудь</button></div></details><div id="typingIndicator" class="typing-indicator" hidden><span></span><span></span><span></span> Собеседник печатает</div>
+          <div id="recordingIndicator" class="recording-indicator" hidden><span class="record-dot"></span> Собеседник записывает голосовое…</div>
+          <div id="stickerPanel" class="sticker-panel" hidden aria-label="Стикеры"></div>
+          <div id="voiceRecordPanel" class="voice-record-panel" hidden>
+            <div class="voice-record-status"><span id="voiceRecordDot" class="record-dot"></span><span id="voiceRecordLabel">Идёт запись</span><strong id="recordingTimer">00:00</strong></div>
+            <audio id="voicePreview" controls hidden></audio>
+            <div class="voice-record-actions"><button id="voiceDiscardButton" class="composer-tool" type="button">Отмена</button><button id="voiceSendButton" class="button button-primary" type="button" disabled>Отправить голосовое ↗</button></div>
+          </div>
+          <form id="messageForm" class="message-composer">
+            <div class="composer-tools">
+              <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+              <button id="photoButton" class="composer-tool" type="button" title="Отправить фото">▧ Фото</button>
+              <button id="stickerButton" class="composer-tool" type="button" title="Открыть стикеры">☺ Стикеры</button>
+              <button id="voiceButton" class="composer-tool" type="button" title="Записать голосовое">◉ Голосовое</button>
+              <span id="uploadStatus" class="upload-status" aria-live="polite"></span>
+            </div>
+            <div id="replyPreview" class="reply-preview" hidden><span></span><button id="cancelReplyButton" type="button" aria-label="Отменить ответ">×</button></div>
+            <textarea id="messageInput" rows="1" maxlength="2000" placeholder="Напиши что-нибудь хорошее…" aria-label="Текст сообщения"></textarea>
+            <div class="composer-bottom"><span id="messageHint">Enter — отправить · Shift + Enter — новая строка</span><button id="sendButton" class="send-button" type="submit" aria-label="Отправить сообщение">↗</button></div>
+          </form>
+          <div class="chat-footnote">Не делись паролями, адресом, документами и платёжной информацией.</div>
+        </section>
+
+        <section id="profilePanel" class="profile-panel" hidden>
+          <div class="panel-heading"><div><div class="eyebrow">ПЕРСОНАЛЬНЫЕ НАСТРОЙКИ</div><h1>Твой профиль</h1><p>Немного о том, как тебя видят в SOVLI.</p></div><div class="panel-heading-icon">◌</div></div>
+          <div class="profile-hero-v1"><div class="profile-cover-v1"><span class="profile-cover-orbit"></span><span class="profile-cover-spark">✦</span><div id="profilePreviewAvatar" class="avatar avatar-profile">◉</div><div class="profile-hero-copy"><div class="profile-hero-kicker">ТВОЯ КАРТОЧКА В SOVLI</div><h2 id="profilePreviewName">Пользователь</h2><p id="profilePreviewId">Технический ID: —</p><div class="profile-badges-v1"><span id="profileAccountType" class="account-type-badge">АККАУНТ</span><span id="profileRoleBadge" class="role-badge-v1">Участник</span></div><small id="profileMembershipLine">Стандартный участник</small></div></div><div class="profile-stats-v1" id="profileStats"><div><strong>0</strong><span>диалогов</span></div><div><strong>0</strong><span>минут общения</span></div><div><strong>0</strong><span>сообщений</span></div></div><div class="profile-meta-v1"><span id="profileCreatedAt">В SOVLI с —</span><strong><span id="profileTokenBalance">0</span> ✦</strong></div></div><div class="profile-edit-card">
+            <label class="field-label" for="profileUsername">Никнейм</label><input id="profileUsername" class="field" maxlength="20" minlength="3">
+            <label class="field-label" for="profileDescription">О себе (до 160 символов)</label><textarea id="profileDescription" class="field" maxlength="160" rows="3" placeholder="Пара слов о себе…"></textarea><div class="field-label">Аватар</div><div id="avatarOptions" class="avatar-options"></div><div class="avatar-upload-row"><input id="avatarFileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadButton" class="button button-secondary" type="button">Загрузить своё фото</button><span>JPG, PNG или WebP · до 2 МБ</span></div>
+            <button id="saveProfileButton" class="button button-primary" type="button">Сохранить изменения <span class="button-arrow">↗</span></button>
+          </div>
+          <div id="guestClaimCard" class="guest-claim-card" hidden>
+            <div class="guest-claim-icon">✦</div><div class="guest-claim-copy"><h2>Сохрани свой профиль</h2><p>Придумай постоянный ник и пароль. Так ты сможешь вернуться с другого устройства, а гостевой таймер перестанет действовать.</p></div>
+            <label class="field-label" for="claimUsername">Новый ник</label><input id="claimUsername" class="field" minlength="3" maxlength="20" autocomplete="username" placeholder="Твой уникальный ник">
+            <label class="field-label" for="claimPassword">Новый пароль</label><input id="claimPassword" class="field" type="password" minlength="8" maxlength="72" autocomplete="new-password" placeholder="Не менее 8 символов">
+            <p id="claimError" class="form-error"></p><button id="claimGuestButton" class="button button-primary" type="button">Сохранить аккаунт ↗</button>
+          </div>
+          <div class="account-danger"><div><strong>Удаление аккаунта</strong><p>Аккаунт и связанные данные будут удалены. Это действие нельзя отменить.</p></div><button id="deleteAccountButton" class="button button-outline-danger" type="button">Удалить аккаунт</button></div>
+        </section>
+
+        <section id="storePanel" class="store-panel" hidden>
+          <div class="panel-heading"><div><div class="eyebrow">КОЛЛЕКЦИИ · ОФОРМЛЕНИЕ · ПРИВИЛЕГИИ</div><h1>Магазин SOVLI</h1><p>Собирай собственный стиль. Все покупки остаются в твоём инвентаре.</p></div><div class="panel-heading-icon">✦</div></div>
+          <div class="store-hero store-hero-v1"><div><span class="store-kicker">ТВОЙ БАЛАНС</span><strong><span id="storeBalance">0</span><small> ✦</small></strong><p>1 полная минута активного диалога = 1 токен каждому участнику. Бонусов за вход нет.</p><div class="store-wallet-note">Токены начисляются, пока оба участника подключены к одному активному диалогу.</div></div><div class="store-hero-symbol">✧</div></div>
+          <div class="store-promo-row"><label for="promoCodeInput">Есть промокод?</label><div><input id="promoCodeInput" class="field" maxlength="32" placeholder="ВВЕДИ-ПРОМОКОД"><button id="promoRedeemButton" class="button button-primary" type="button">Активировать</button></div><small id="promoRedeemError" aria-live="polite"></small></div>
+          <div class="store-collections-heading"><div><span class="eyebrow">СОБИРАЙ СЕРИЯМИ</span><h2>Коллекции</h2></div><span>Прогресс сохраняется на аккаунте</span></div><div id="storeCollections" class="store-collections-grid"></div>
+          <div class="store-toolbar store-toolbar-v1"><div id="storeCategories" class="store-categories"></div><button id="storeInventoryButton" class="button button-secondary" type="button">Только купленное</button></div>
+          <div class="store-filter-row"><label><span>Подборка</span><select id="storeCollectionSelect" class="field"><option value="">Все коллекции</option></select></label><label class="store-search-field"><span>Поиск</span><input id="storeSearchInput" class="field" maxlength="60" placeholder="Название или описание"></label></div>
+          <div id="storeEquippedSummary" class="store-equipped-summary"></div><div id="storeItems" class="store-grid"></div>
+          <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">Привилегии не обходят правила безопасности и не дают преимущества в очереди. Срок продлевается при повторной покупке. Цены высокие намеренно: токены зарабатываются временем общения.</p><div id="membershipOffers" class="membership-grid"></div></section>
+          <details class="token-history" id="tokenHistory"><summary>История токенов</summary><div id="tokenHistoryList" class="token-history-list"></div></details>
+        </section>
+        <section id="inventoryPanel" class="settings-panel" hidden><div class="panel-heading"><div><div class="eyebrow">ВСЁ, ЧТО ТЫ СОБРАЛ</div><h1>Мой инвентарь</h1><p>Здесь хранятся все купленные и полученные предметы. Экипируй или снимай их, когда захочешь.</p></div><div class="panel-heading-icon">▣</div></div><div class="inventory-summary-v1"><div><span>ПРЕДМЕТОВ</span><strong id="inventoryCount">0</strong></div><div><span>БАЛАНС</span><strong id="inventoryBalance">0 ✦</strong></div><button class="button button-secondary" type="button" data-view="store">Открыть магазин</button></div><div id="inventoryItems" class="store-grid inventory-grid"></div></section>
+        <section id="favoritesPanel" class="settings-panel" hidden>
+          <div class="panel-heading"><div><div class="eyebrow">ЛЮДИ, С КОТОРЫМИ БЫЛО ПРИЯТНО</div><h1>Избранное</h1><p>Сохраняй собеседников, чтобы не потерять интересные знакомства. Добавление в избранное не открывает личный чат автоматически.</p></div><div class="panel-heading-icon">♡</div></div>
+          <div id="favoritesList" class="favorites-list"></div>
+        </section>
+        <section id="blockedPanel" class="settings-panel" hidden>
+          <div class="panel-heading"><div><div class="eyebrow">ТВОИ ГРАНИЦЫ</div><h1>Заблокированные</h1><p>Здесь можно посмотреть список и снять блокировку. Разблокировка не начинает новый диалог автоматически.</p></div><div class="panel-heading-icon">⊘</div></div>
+          <div id="blockedList" class="favorites-list"></div>
+        </section>
+        <section id="adminPanel" class="settings-panel" hidden>
+          <div class="panel-heading"><div><div class="eyebrow">ПАНЕЛЬ ВЛАДЕЛЬЦА</div><h1>Центр управления</h1><p>Только агрегированная статистика и жалобы, отправленные пользователями. Личного скрытого просмотра чатов нет.</p></div><div class="panel-heading-icon">⌘</div></div>
+          <a class="button button-primary" href="/owner" style="display:inline-flex;margin:0 0 16px;text-decoration:none">Открыть мобильную панель владельца ↗</a><div id="adminStats" class="admin-stats"></div>
+          <div class="settings-card"><div class="admin-section-title"><h2>Последние аккаунты</h2><span class="muted">Управление статусами</span></div><div id="adminUsers" class="admin-users"></div></div>
+          <div class="settings-card"><div class="admin-section-title"><h2>Жалобы пользователей</h2><button id="refreshReportsButton" class="button button-secondary" type="button">Обновить</button></div><div id="adminReports" class="admin-reports"></div></div>
+        </section>
+        <section id="settingsPanel" class="settings-panel" hidden>
+          <div class="panel-heading"><div><div class="eyebrow">ПОДСТРОЙ ПОД СЕБЯ</div><h1>Настройки</h1><p>Твои предпочтения синхронизируются с аккаунтом.</p></div><div class="panel-heading-icon">⚙</div></div>
+          <div class="settings-grid">
+            <article class="settings-card"><div class="settings-card-icon">◐</div><div class="settings-card-copy"><h2>Внешний вид</h2><p>Выбери оформление SOVLI.</p><label class="field-label" for="settingTheme">Тема приложения</label><select id="settingTheme" class="field"><option value="system">Как на устройстве</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></div></article>
+            <article class="settings-card"><div class="settings-card-icon">♫</div><div class="settings-card-copy"><h2>Звуки</h2><p>Небольшие сигналы при новых событиях.</p><label class="setting-toggle"><span><strong>Звуковые сигналы</strong><small>Входящие сообщения и действия</small></span><input id="settingSounds" type="checkbox"><i></i></label><label class="field-label" for="settingSoundVolume">Громкость <span id="soundVolumeLabel">35%</span></label><input id="settingSoundVolume" class="setting-range" type="range" min="0" max="100" step="5" value="35"></div></article>
+            <article class="settings-card"><div class="settings-card-icon">Aa</div><div class="settings-card-copy"><h2>Читаемость</h2><p>Подбери размер текста в сообщениях.</p><label class="field-label" for="settingMessageScale">Размер текста</label><select id="settingMessageScale" class="field"><option value="small">Компактный</option><option value="normal">Обычный</option><option value="large">Крупный</option></select><label class="setting-toggle"><span><strong>Меньше анимаций</strong><small>Учитывать предпочтение reduced motion</small></span><input id="settingReducedMotion" type="checkbox"><i></i></label></div></article>
+            <article class="settings-card"><div class="settings-card-icon">↵</div><div class="settings-card-copy"><h2>Управление чатом</h2><p>Настрой отправку и плотность переписки.</p><label class="setting-toggle"><span><strong>Enter отправляет сообщение</strong><small>Shift + Enter всегда добавляет новую строку</small></span><input id="settingEnterToSend" type="checkbox"><i></i></label><label class="setting-toggle"><span><strong>Компактные сообщения</strong><small>Больше сообщений помещается на экране</small></span><input id="settingCompactChat" type="checkbox"><i></i></label><label class="setting-toggle"><span><strong>Браузерные уведомления</strong><small>Только при разрешении браузера</small></span><input id="settingBrowserNotifications" type="checkbox"><i></i></label></div></article>
+            <article class="settings-card settings-card-note"><div class="settings-card-icon">☁</div><div class="settings-card-copy"><h2>Синхронизация</h2><p>Настройки хранятся в аккаунте и применяются после входа на другом устройстве. Черновики и очередь повторной отправки пока остаются на этом устройстве.</p><span class="settings-saved" id="settingsSaveStatus">Все изменения сохраняются автоматически</span></div></article>
+            <article class="settings-card settings-card-note settings-sessions"><div class="settings-card-icon">⌁</div><div class="settings-card-copy"><h2>Активные устройства</h2><p>Проверь, где открыт твой аккаунт. Неизвестные сессии можно завершить удалённо.</p><button id="loadSessionsButton" class="button button-secondary" type="button">Обновить список</button><div id="sessionsList" class="sessions-list"><p class="muted">Нажми «Обновить список», чтобы посмотреть активные сессии.</p></div></div></article>
+          </div>
+        </section>
+      </section>
+    </main>
+    <footer class="app-footer"><span>SOVLI — разговоры без границ</span><span>SOVLI v1.2.0 · <button id="rulesFooterButton" class="footer-policy-link" type="button">Безопасность и правила</button></span></footer>
+  </div>
+
+  <div id="rulesModal" class="modal-backdrop" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rulesTitle"><button class="modal-close" type="button" data-close-modal>×</button><div class="eyebrow">ВАЖНО ДЛЯ КАЖДОГО</div><h2 id="rulesTitle">Правила сообщества</h2><div class="rules-list"><div><span>01</span><p><strong>Уважай собеседника.</strong> Оскорбления, угрозы и преследование недопустимы.</p></div><div><span>02</span><p><strong>Береги приватность.</strong> Не публикуй чужие данные и не раскрывай свои личные сведения.</p></div><div><span>03</span><p><strong>Никакого мошенничества.</strong> Не выманивай деньги, пароли или коды подтверждения.</p></div><div><span>04</span><p><strong>Не нарушай закон.</strong> Запрещены опасный контент, шантаж и незаконные материалы.</p></div><div><span>05</span><p><strong>Остановить разговор можно всегда.</strong> Заверши чат, заблокируй пользователя или отправь жалобу.</p></div></div><button class="button button-primary button-wide" type="button" data-close-modal>Понятно</button></div>
+  </div>
+
+  <div id="reportModal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-small" role="dialog" aria-modal="true" aria-labelledby="reportTitle"><button class="modal-close" type="button" data-close-modal>×</button><div class="eyebrow">БЕЗОПАСНОСТЬ</div><h2 id="reportTitle">Пожаловаться</h2><p class="modal-description">Жалоба отправит минимальный контекст последних сообщений на проверку и завершит диалог.</p><label class="field-label" for="reportCategory">Причина</label><select id="reportCategory" class="field"><option>Спам</option><option>Оскорбления</option><option>Преследование</option><option>Мошенничество</option><option>Опасный контент</option><option>Другое</option></select><label class="field-label" for="reportDetails">Комментарий (необязательно)</label><textarea id="reportDetails" class="field field-textarea" maxlength="500" rows="3" placeholder="Кратко опиши ситуацию"></textarea><p id="reportError" class="form-error"></p><button id="submitReportButton" class="button button-danger button-wide" type="button">Отправить жалобу</button></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/app.js" defer></script>
+</body>
+</html>

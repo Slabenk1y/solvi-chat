@@ -1,0 +1,29 @@
+{
+  "name": "sovli-random-chat",
+  "version": "1.2.0",
+  "private": true,
+  "description": "SOVLI v1.2 — cloud deploy, mobile owner controls and persistent hosting",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app.js && node --check public/sw.js && node --check public/owner.js && node --check scripts/doctor.cjs && node --check scripts/owner-console.cjs && node --check scripts/verify-project.cjs && node --check scripts/render-control.cjs && node --check test/integration.test.js",
+    "test": "node --test",
+    "doctor": "node scripts/doctor.cjs",
+    "verify": "node scripts/verify-project.cjs && node scripts/render-control.cjs"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "dependencies": {
+    "bcryptjs": "3.0.3",
+    "dotenv": "18.0.9",
+    "express": "5.3.0",
+    "express-rate-limit": "8.7.0",
+    "helmet": "8.3.0",
+    "jsonwebtoken": "9.0.3",
+    "socket.io": "4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "4.8.4"
+  }
+}

@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: sovli-chat
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm install --omit=dev --no-audit --no-fund && npm run check && npm run verify
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    disk:
+      name: sovli-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /var/data
+      - key: PUBLIC_MODE
+        value: "1"
+      - key: PUBLIC_MATCHING
+        value: "1"
+      - key: PUBLIC_TEST_CODE
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OWNER_PUBLIC_ID
+        sync: false
+      - key: RENDER_API_KEY
+        sync: false
+      - key: SOVLI_GITHUB_ACTIONS_URL
+        sync: false

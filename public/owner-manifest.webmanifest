@@ -1,0 +1,14 @@
+{
+  "name": "SOVLI Owner — Панель управления",
+  "short_name": "SOVLI Owner",
+  "description": "Мобильная панель владельца SOVLI",
+  "lang": "ru",
+  "start_url": "/owner",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#100d1c",
+  "theme_color": "#171326",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
