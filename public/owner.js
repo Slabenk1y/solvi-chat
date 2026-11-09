@@ -304,13 +304,14 @@
     const r=await api('/api/admin/monetization');state.monetization=r;
     const s=r.stats||{};
     const pw=r.paymentwall||{};
-    $('#monetizationStats').innerHTML=stat('Токенов в обороте',num(s.tokenSupply))+stat('Заработано сегодня',num(s.earnedToday)+' ✦')+stat('Всего заработано',num(s.tokensEarned)+' ✦')+stat('Всего потрачено',num(s.tokensSpent)+' ✦')+stat('Покупок в магазине',num(s.storeSales))+stat('Активные VIP / Premium',num(s.activeVip)+' / '+num(s.activePremium))+stat('Денежные VIP / Premium',num(s.paidVip)+' / '+num(s.paidPremium))+stat('Оплат токенов',num(pw.topups))+stat('Токенов за деньги',num(pw.tokens_credited))+stat('Токенов возвращено',num(pw.tokens_reversed))+stat('Касса Paymentwall',r.paymentwallConfigured?'Ключи есть':'Не подключена','Активация после проверки проекта');
+    $('#monetizationStats').innerHTML=stat('Токенов в обороте',num(s.tokenSupply))+stat('Заработано сегодня',num(s.earnedToday)+' ✦')+stat('Всего заработано',num(s.tokensEarned)+' ✦')+stat('Всего потрачено',num(s.tokensSpent)+' ✦')+stat('Покупок в магазине',num(s.storeSales))+stat('Активные VIP / Premium',num(s.activeVip)+' / '+num(s.activePremium))+stat('Денежные VIP / Premium',num(s.paidVip)+' / '+num(s.paidPremium))+stat('Оплат токенов',num(pw.topups))+stat('Токенов за деньги',num(pw.tokens_credited))+stat('Токенов возвращено',num(pw.tokens_reversed))+stat('Касса токенов',r.paymentwallConfigured?'Ключи есть':'Не подключена','Virtual Currency')+stat('Касса магазина',r.paymentwallGoodsConfigured?'Ключи есть':'Не подключена','Digital Goods');
     const names=new Map((r.products||[]).map(p=>[p.id,p.name]));
     $('#monetizationSales').innerHTML=(r.salesByItem||[]).map(x=>'<div class="detail-row"><span>'+esc(names.get(x.item_id)||x.item_id)+'</span><strong>'+num(x.sales)+' покупок · '+num(x.tokens)+' ✦</strong></div>').join('')||'<p class="hint">Покупок пока нет.</p>';
     const recent=(r.paymentwallRecent||[]).map(x=>'<div class="detail-row"><span>Paymentwall · '+esc(x.username)+' · '+num(x.token_amount)+' ✦</span><strong>'+esc(x.status==='reversed'?'Возврат':'Зачислено')+' · '+date(x.created_at)+'</strong></div>');
     const legacy=(r.payments||[]).map(x=>'<div class="detail-row"><span>'+esc(x.provider)+' · '+esc(x.currency)+'</span><strong>'+num(x.count)+' · '+(Number(x.amount_minor)/100).toFixed(2)+' '+esc(x.currency)+'</strong></div>');
-    $('#monetizationPayments').innerHTML=recent.concat(legacy).join('')||'<p class="hint">Подтверждённых платежей пока нет. Для запуска кассы подключи Paymentwall и активируй проект после проверки.</p>';
-    $('#monetizationProducts').innerHTML=(r.products||[]).map(p=>'<article class="growth-row" data-product-row="'+esc(p.id)+'"><div><strong>'+esc(p.name)+'</strong><small>'+esc(p.category)+' · базовая цена '+num(p.basePrice)+' ✦'+(p.bundleOnly?' · предмет фирменного набора':'')+'</small><small>'+(p.enabled?'Доступно в магазине':'Временно скрыто')+'</small></div><div class="inline-actions"><label class="hint">Цена ✦ <input class="search-input" type="number" min="0" max="10000000" step="1" data-product-price value="'+num(p.price).replace(/\s/g,'')+'" style="width:112px"></label><label class="hint"><input type="checkbox" data-product-enabled '+(p.enabled?'checked':'')+'> В продаже</label><button class="secondary mini" type="button" data-save-product="'+esc(p.id)+'">Сохранить</button></div></article>').join('')||'<p class="empty-state">Каталог пуст.</p>';
+    const direct=(r.cashStoreRecent||[]).map(x=>'<div class="detail-row"><span>Digital Goods · '+esc(x.username)+' · '+esc(names.get(x.item_id)||x.item_id)+'</span><strong>'+(Number(x.amount_minor)/100).toFixed(2)+' '+esc(x.currency)+' · '+esc(x.status==='reversed'?'Возврат':x.status==='paid'?'Оплачено':'Ожидает')+'</strong></div>');
+    $('#monetizationPayments').innerHTML=recent.concat(direct,legacy).join('')||'<p class="hint">Подтверждённых платежей пока нет. Настрой две кассы Paymentwall, чтобы включить продажи.</p>';
+    $('#monetizationProducts').innerHTML=(r.products||[]).map(p=>'<article class="growth-row" data-product-row="'+esc(p.id)+'"><div><strong>'+esc(p.name)+'</strong><small>'+esc(p.category)+' · базовая цена '+num(p.basePrice)+' ✦'+(p.bundleOnly?' · предмет фирменного набора':'')+'</small><small>'+(p.enabled?'Доступно в магазине':'Токеновая покупка выключена')+(p.cashSellable?' · Цена за реальные деньги: '+(p.cashEnabled?(Number(p.cashPriceMinor)/100).toFixed(2)+' '+esc(p.cashCurrency):'не задана'):'')+'</small></div><div class="inline-actions"><label class="hint">Цена ✦ <input class="search-input" type="number" min="0" max="10000000" step="1" data-product-price value="'+num(p.price).replace(/\s/g,'')+'" style="width:90px"></label><label class="hint"><input type="checkbox" data-product-enabled '+(p.enabled?'checked':'')+'> В продаже</label><button class="secondary mini" type="button" data-save-product="'+esc(p.id)+'">Сохранить</button>'+(p.cashSellable?'<label class="hint">Цена EUR <input class="search-input" type="number" min="0.30" max="1000000" step="0.01" data-cash-price value="'+(p.cashPriceMinor?(Number(p.cashPriceMinor)/100).toFixed(2):'')+'" placeholder="1.99" style="width:82px"></label><label class="hint">Валюта<select class="search-input" data-cash-currency><option value="EUR" '+(p.cashCurrency==='EUR'?'selected':'')+'>EUR</option><option value="USD" '+(p.cashCurrency==='USD'?'selected':'')+'>USD</option></select></label><label class="hint"><input type="checkbox" data-cash-enabled '+(p.cashEnabled?'checked':'')+'> За деньги</label><button class="secondary mini" type="button" data-save-cash-price="'+esc(p.id)+'">Цена €</button>':'')+'</div></article>').join('')||'<p class="empty-state">Каталог пуст.</p>';
     $('#monetizationAdStats').innerHTML=(r.adStats||[]).map(x=>stat('Рекламные кампании · '+x.currency,num(x.campaigns),num(x.impressions)+' показов · '+num(x.clicks)+' переходов · оплачено '+(Number(x.booked_minor)/100).toFixed(2)+' '+x.currency)).join('')||stat('Рекламные кампании','0','Пока нет размещений');
     $('#adCampaignList').innerHTML=(r.adCampaigns||[]).map(x=>'<article class="growth-row" data-ad-row="'+esc(x.id)+'"><div><strong>'+esc(x.title)+' · '+esc(x.sponsor_name)+'</strong><small>'+esc(x.payment_status==='paid'?'Оплачено':x.payment_status==='comped'?'Без оплаты':'Ожидает оплаты')+' · '+esc(x.status==='active'?'Показывается':x.status==='ended'?'Завершена':'На паузе')+' · '+(Number(x.price_minor)/100).toFixed(2)+' '+esc(x.currency)+'</small><small>'+num(x.impressions)+' показов · '+num(x.clicks)+' переходов · '+esc(x.target_url)+'</small></div><div class="inline-actions">'+(x.payment_status==='unpaid'?'<button class="secondary mini" type="button" data-ad-pay="'+esc(x.id)+'">Отметить оплату</button>':'<button class="secondary mini" type="button" data-ad-unpay="'+esc(x.id)+'">Снять оплату</button>')+(x.status==='active'?'<button class="secondary mini" type="button" data-ad-toggle="'+esc(x.id)+'" data-active="1">Пауза</button>':'<button class="secondary mini" type="button" data-ad-toggle="'+esc(x.id)+'" data-active="0" '+(x.payment_status==='unpaid'?'disabled':'')+'>Запустить</button>')+'<button class="danger mini" type="button" data-ad-delete="'+esc(x.id)+'">Удалить</button></div></article>').join('')||'<p class="empty-state">Рекламных кампаний пока нет.</p>';
   }
@@ -336,12 +337,26 @@
     }catch(err){toast(err.message);}
   });
   $('#monetizationProducts').addEventListener('click',async e=>{
-    const button=e.target.closest('[data-save-product]');if(!button)return;
-    const row=button.closest('[data-product-row]');const price=Number(row.querySelector('[data-product-price]').value);const enabled=row.querySelector('[data-product-enabled]').checked;
-    if(!Number.isSafeInteger(price)||price<0||price>10000000)return toast('Цена должна быть целым числом от 0 до 10 000 000.');
-    button.disabled=true;
-    try{await api('/api/admin/store/'+encodeURIComponent(button.dataset.saveProduct)+'/price',{method:'PATCH',body:JSON.stringify({price,enabled})});await loadMonetization();toast('Цена и доступность обновлены.');}
-    catch(err){toast(err.message);}finally{button.disabled=false;}
+    const cash=e.target.closest('[data-save-cash-price]');
+    const button=e.target.closest('[data-save-product]');
+    const target=cash||button;if(!target)return;
+    const row=target.closest('[data-product-row]');target.disabled=true;
+    try{
+      if(cash){
+        const value=Number(row.querySelector('[data-cash-price]').value);
+        const priceMinor=Math.round(value*100);
+        const currency=row.querySelector('[data-cash-currency]').value;
+        const enabled=row.querySelector('[data-cash-enabled]').checked;
+        if(!Number.isSafeInteger(priceMinor)||priceMinor<30||priceMinor>100000000)return toast('Денежная цена должна быть от 0,30 до 1 000 000.');
+        await api('/api/admin/store/'+encodeURIComponent(cash.dataset.saveCashPrice)+'/cash-price',{method:'PATCH',body:JSON.stringify({priceMinor,currency,enabled})});
+        await loadMonetization();toast('Денежная цена товара сохранена.');
+      }else{
+        const price=Number(row.querySelector('[data-product-price]').value);const enabled=row.querySelector('[data-product-enabled]').checked;
+        if(!Number.isSafeInteger(price)||price<0||price>10000000)return toast('Цена должна быть целым числом от 0 до 10 000 000.');
+        await api('/api/admin/store/'+encodeURIComponent(button.dataset.saveProduct)+'/price',{method:'PATCH',body:JSON.stringify({price,enabled})});
+        await loadMonetization();toast('Цена за токены обновлена.');
+      }
+    }catch(err){toast(err.message);}finally{target.disabled=false;}
   });
   async function loadAudit(){const r=await api('/api/admin/audit');$('#auditList').textContent=(r.entries||[]).map(x=>date(x.created_at)+'  '+x.action+'  '+(x.target_id||'')+'\n'+JSON.stringify(x.details||{})).join('\n\n')||'Журнал пока пуст.';}
   function showTab(name,load){
