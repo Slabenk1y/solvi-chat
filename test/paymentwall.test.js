@@ -48,7 +48,7 @@ test('Paymentwall widget URL contains a verifiable server signature and safe use
 test('Paymentwall Digital Goods creates a one-time checkout for one server-priced item', () => {
   const url = new URL(buildDigitalGoodsCheckoutUrl({
     publicKey: 'public', privateKey: 'private', userId: 'ABCDEF1234', widgetCode: 'p1_1',
-    orderId: 'solvi_order_123', amountMinor: 499, currency: 'EUR',
+    orderId: 'solviorder123', amountMinor: 499, currency: 'EUR',
     productName: 'SOLVI · Северное сияние', email: 'buyer@example.com',
     successUrl: 'https://solvi.example/?billing=success',
     failureUrl: 'https://solvi.example/?billing=cancelled',
