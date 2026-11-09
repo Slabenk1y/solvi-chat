@@ -68,7 +68,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', APP_PUBLIC_URL: '', BILLING_CURRENCY: 'eur', VIP_PRICE_MINOR: '499', PREMIUM_PRICE_MINOR: '899', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890', OWNER_PUBLIC_ID: 'ABCDEF1234' },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', PAYMENTWALL_PUBLIC_KEY: '', PAYMENTWALL_PRIVATE_KEY: '', PAYMENTWALL_VC_PUBLIC_KEY: '', PAYMENTWALL_VC_PRIVATE_KEY: '', PAYMENTWALL_GOODS_PUBLIC_KEY: '', PAYMENTWALL_GOODS_PRIVATE_KEY: '', APP_PUBLIC_URL: '', BILLING_CURRENCY: 'eur', VIP_PRICE_MINOR: '499', PREMIUM_PRICE_MINOR: '899', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890', OWNER_PUBLIC_ID: 'ABCDEF1234' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let stderr = '';
