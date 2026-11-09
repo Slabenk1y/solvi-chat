@@ -575,10 +575,11 @@ function authMiddleware(req, res, next) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!token) return res.status(401).json({ error: 'Требуется вход в аккаунт.' });
   try {
-    const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat' });
+    const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat', ignoreExpiration: true });
     const user = getUserById(payload.sub);
     const session = dbGet('SELECT id, revoked_at, expires_at FROM sessions WHERE id = ? AND user_id = ?', [payload.jti, payload.sub]);
     if (!user || !session || session.revoked_at || session.expires_at <= nowIso()) return res.status(401).json({ error: 'Сессия недействительна. Войдите снова.' });
+    if (Number(payload.exp || 0) * 1000 <= Date.now() && user.account_type !== 'guest') return res.status(401).json({ error: 'Сессия истекла. Войдите снова.' });
     if (user.account_type === 'guest' && user.guest_expires_at && user.guest_expires_at <= nowIso()) return res.status(401).json({ error: 'Срок гостевого доступа истёк. Создай новый гостевой профиль.' });
     if (user.suspended_until && user.suspended_until > nowIso()) return res.status(403).json({ error: `Доступ временно ограничен до ${new Date(user.suspended_until).toLocaleString('ru-RU')}. Причина: ${user.suspension_reason || 'нарушение правил'}.` });
     req.user = user;
@@ -783,6 +784,7 @@ async function main() {
   db.exec("UPDATE users SET account_type = 'registered' WHERE account_type IS NULL OR account_type = ''");
   // Extend previously issued guest profiles to the new 180-day retention window.
   dbRun("UPDATE users SET guest_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0) WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0)");
+  dbRun("UPDATE sessions SET expires_at = (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id) WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL) AND expires_at < (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id)");
   // Expired temporary guests are removed during startup cleanup.
   const expiredGuests = dbAll("SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at <= ?", [nowIso()]).map(row => row.id);
   if (expiredGuests.length) {
@@ -1693,10 +1695,11 @@ async function main() {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('Требуется авторизация.'));
-      const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat' });
+      const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat', ignoreExpiration: true });
       const user = getUserById(payload.sub);
       const session = dbGet('SELECT id, revoked_at, expires_at FROM sessions WHERE id = ? AND user_id = ?', [payload.jti, payload.sub]);
       if (!user || !session || session.revoked_at || session.expires_at <= nowIso()) return next(new Error('Сессия недействительна. Войдите снова.'));
+      if (Number(payload.exp || 0) * 1000 <= Date.now() && user.account_type !== 'guest') return next(new Error('Сессия истекла. Войдите снова.'));
       if (user.suspended_until && user.suspended_until > nowIso()) return next(new Error(`Доступ ограничен: ${user.suspension_reason || 'нарушение правил'}.`));
       if (user.account_type === 'guest' && user.guest_expires_at && user.guest_expires_at <= nowIso()) return next(new Error('Срок гостевого доступа истёк.'));
       socket.data.userId = user.id;
