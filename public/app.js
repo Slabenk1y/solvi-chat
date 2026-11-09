@@ -419,7 +419,7 @@ function renderFavorites() {
     empty.append(icon,title,copy); root.append(empty); return;
   }
   state.favorites.forEach(person => {
-    const card = document.createElement('article'); card.className = 'favorite-card';
+    const card = document.createElement('article'); card.className = 'favorite-contact-card';
     const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; setAvatarContent(avatar, person);
     const details = document.createElement('div'); details.className = 'favorite-card-details';
     const name = document.createElement('strong'); name.textContent = person.username;
@@ -468,7 +468,7 @@ function renderBlockedUsers() {
     empty.append(icon, title, copy); root.append(empty); return;
   }
   state.blockedUsers.forEach(person => {
-    const card = document.createElement('article'); card.className = 'favorite-card';
+    const card = document.createElement('article'); card.className = 'favorite-contact-card';
     const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; setAvatarContent(avatar, person);
     const details = document.createElement('div'); details.className = 'favorite-card-details';
     const name = document.createElement('strong'); name.textContent = person.username;
@@ -518,6 +518,11 @@ function setView(view) {
     const panel = $(`#${name}Panel`);
     if (panel) panel.hidden = name !== view;
   });
+  const activePanel = $(`#${view}Panel`);
+  if (activePanel) {
+    activePanel.classList.remove('view-enter');
+    requestAnimationFrame(() => activePanel.classList.add('view-enter'));
+  }
   $$('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === (view === 'search' || view === 'chat' ? 'home' : view)));
   if (view === 'chat') scrollMessages();
   if (view === 'admin' && state.user?.role === 'owner') loadAdmin();
@@ -1480,10 +1485,12 @@ async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   applyTheme();
   let cachedUser = null;
+  const bootScreen = $('#sessionBootScreen');
   if (state.token) {
     try { cachedUser = JSON.parse(localStorage.getItem('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
     if (cachedUser?.id) { setUser(cachedUser); showApp(); }
   }
+  bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
   try { state.config = await api('/api/config'); }
   catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false }; }
   state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, 3);
@@ -1499,7 +1506,7 @@ async function boot() {
   } else if (state.config.publicMode) {
     $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
   }
-  if (!state.token) { showAuth(); return; }
+  if (!state.token) { showAuth(); bootScreen.hidden = true; return; }
   state.authRestoring = true;
   try {
     const response = await api('/api/me');
@@ -1521,7 +1528,7 @@ async function boot() {
       showAuth();
       setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
     }
-  } finally { state.authRestoring = false; }
+  } finally { state.authRestoring = false; bootScreen.hidden = true; }
 }
 
 $('#authForm').addEventListener('submit', async event => {
