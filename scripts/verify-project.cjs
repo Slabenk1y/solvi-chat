@@ -97,7 +97,7 @@ try {
   if (!server.includes('Гостевой профиль может менять только аватар.') || !app.includes('DEFAULT_AVATARS')) fail('Гостевые и стандартные аватары не восстановлены');
   else pass('Стандартные и пользовательские аватары доступны гостям и аккаунтам');
   const favoritesRoute = server.slice(server.indexOf("app.get('/api/favorites'"), server.indexOf("app.post('/api/favorites'"));
-  if (!favoritesRoute.includes('SELECT u.id, u.username, u.avatar, u.avatar_file') || /description: row\\.description|publicId: row\\.public_id/.test(favoritesRoute)) fail('Избранное должно возвращать только карточку с аватаром и ником');
+  if (!favoritesRoute.includes('SELECT u.id, u.username, u.avatar, u.avatar_file') || favoritesRoute.includes('description: row.description') || favoritesRoute.includes('publicId: row.public_id')) fail('Избранное должно возвращать только карточку с аватаром и ником');
   else pass('Избранное не раскрывает лишние поля профиля и не содержит функций связи');
   if (!html.includes('composer-tool-photo') || !html.includes('composer-tool-sticker') || !html.includes('composer-tool-voice')) fail('Иконки вложений чата отсутствуют');
   else pass('Иконки фото, стикеров и голосовых присутствуют');
