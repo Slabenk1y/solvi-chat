@@ -14,6 +14,7 @@ const { rateLimit } = require('express-rate-limit');
 const { Server } = require('socket.io');
 const sqlite = require('node:sqlite');
 const { PostgresSnapshotStore } = require('./lib/postgres-snapshot.cjs');
+const { buildVirtualCurrencyWidgetUrl, verifyPingback } = require('./lib/paymentwall.cjs');
 const SqliteDatabase = sqlite.Database || sqlite.DatabaseSync;
 const APP_VERSION = require('./package.json').version;
 
@@ -972,6 +973,16 @@ async function main() {
       amount_minor INTEGER NOT NULL, currency TEXT NOT NULL, created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS payment_records_user ON payment_records(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS paymentwall_token_purchases (
+      id TEXT PRIMARY KEY,
+      provider_reference TEXT NOT NULL UNIQUE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_amount INTEGER NOT NULL CHECK(token_amount > 0),
+      status TEXT NOT NULL CHECK(status IN ('credited','reversed')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS paymentwall_token_purchases_user ON paymentwall_token_purchases(user_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS moderation_actions (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, action TEXT NOT NULL, reason TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reports_status (report_id TEXT PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'open', reviewed_by TEXT REFERENCES users(id), reviewed_at TEXT, resolution TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS promo_codes (
@@ -1294,6 +1305,102 @@ async function main() {
       res.json({ url: result.url });
     } catch { res.status(502).json({ error: 'Платёжный сервис временно недоступен.' }); }
   });
+  const PAYMENTWALL_TOKEN_PACKAGES = Object.freeze([
+    { id: 'solvi-500', tokens: 500, name: 'Стартовый запас', description: '500 токенов для покупок в магазине SOLVI.' },
+    { id: 'solvi-1500', tokens: 1500, name: 'Популярный запас', description: '1 500 токенов для тем, рамок, стикеров и привилегий.' },
+    { id: 'solvi-5000', tokens: 5000, name: 'Большой запас', description: '5 000 токенов для крупных покупок в магазине.' }
+  ]);
+  function paymentwallSettings() {
+    const baseUrl = String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
+    const publicKey = String(process.env.PAYMENTWALL_PUBLIC_KEY || '').trim();
+    const privateKey = String(process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
+    const widgetCode = String(process.env.PAYMENTWALL_WIDGET_CODE || 'p1_1').trim();
+    return { baseUrl, publicKey, privateKey, widgetCode, configured: Boolean(publicKey && privateKey && /^https:\/\//i.test(baseUrl) && widgetCode) };
+  }
+  app.get('/api/billing/token-topup', authMiddleware, (_req, res) => {
+    const settings = paymentwallSettings();
+    res.json({
+      provider: 'Paymentwall',
+      configured: settings.configured,
+      currency: String(process.env.PAYMENTWALL_DISPLAY_CURRENCY || 'EUR').trim().toUpperCase(),
+      packages: PAYMENTWALL_TOKEN_PACKAGES
+    });
+  });
+  app.post('/api/billing/token-topup/checkout', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Пополнение доступно постоянным пользовательским аккаунтам.' });
+    const settings = paymentwallSettings();
+    if (!settings.configured) return res.status(503).json({ error: 'Платёжный шлюз ещё не настроен. Нужны ключи Paymentwall и публичный HTTPS-адрес проекта.' });
+    const packageId = String(req.body?.packageId || '');
+    if (!PAYMENTWALL_TOKEN_PACKAGES.some(item => item.id === packageId)) return res.status(404).json({ error: 'Пакет токенов не найден.' });
+    const registrationTimestamp = Math.floor(Date.parse(req.user.created_at || '') / 1000);
+    try {
+      const url = buildVirtualCurrencyWidgetUrl({
+        publicKey: settings.publicKey,
+        privateKey: settings.privateKey,
+        userId: req.user.id,
+        widgetCode: settings.widgetCode,
+        paymentSystems: 'all',
+        successUrl: settings.baseUrl + '/?billing=success',
+        failureUrl: settings.baseUrl + '/?billing=cancelled',
+        pingbackUrl: settings.baseUrl + '/api/billing/paymentwall/pingback',
+        registrationTimestamp
+      });
+      res.json({ url });
+    } catch (error) {
+      console.error('[BILLING] Paymentwall checkout configuration error:', error.message);
+      res.status(503).json({ error: 'Не удалось подготовить страницу оплаты. Проверь настройки Paymentwall.' });
+    }
+  });
+  app.get('/api/billing/paymentwall/pingback', (req, res) => {
+    const privateKey = String(process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
+    if (!privateKey) return res.status(503).type('text/plain').send('Paymentwall is not configured');
+    const params = Object.fromEntries(Object.entries(req.query || {}).map(([key, value]) => [key, Array.isArray(value) ? (value.length === 1 ? value[0] : '') : value]));
+    if (!verifyPingback(params, privateKey)) return res.status(400).type('text/plain').send('Invalid signature');
+    const type = String(params.type || '');
+    const reference = String(params.ref || '').trim();
+    const userId = String(params.uid || '').trim();
+    if (!reference || reference.length > 180) return res.status(400).type('text/plain').send('Invalid reference');
+    if (type === '0') {
+      const tokenAmount = Number(params.currency);
+      if (!Number.isSafeInteger(tokenAmount) || tokenAmount < 1 || tokenAmount > 1000000) return res.status(400).type('text/plain').send('Invalid token amount');
+      const user = getUserById(userId);
+      if (!user || user.account_type === 'guest') return res.status(200).type('text/plain').send('OK');
+      const previous = dbGet('SELECT status FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference]);
+      if (previous) return res.status(200).type('text/plain').send('OK');
+      const at = nowIso();
+      try {
+        transaction(() => {
+          dbRun('INSERT INTO paymentwall_token_purchases (id,provider_reference,user_id,token_amount,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
+            [crypto.randomUUID(), reference, userId, tokenAmount, 'credited', at, at]);
+          dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokenAmount, userId]);
+          dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)',
+            [crypto.randomUUID(), userId, 'cash_topup', tokenAmount, 'Покупка токенов за реальные деньги · Paymentwall', at]);
+        });
+      } catch (error) {
+        if (!dbGet('SELECT id FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference])) {
+          console.error('[BILLING] Paymentwall credit failed:', error.message);
+          return res.status(500).type('text/plain').send('Temporary processing error');
+        }
+      }
+      io?.to?.(userRoom(userId))?.emit('billing:tokens-credited', { tokens: tokenAmount });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    if (type === '2') {
+      const payment = dbGet('SELECT * FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference]);
+      if (!payment || payment.status === 'reversed') return res.status(200).type('text/plain').send('OK');
+      const at = nowIso();
+      transaction(() => {
+        dbRun('UPDATE users SET tokens = tokens - ? WHERE id = ?', [payment.token_amount, payment.user_id]);
+        dbRun("UPDATE paymentwall_token_purchases SET status = 'reversed', updated_at = ? WHERE provider_reference = ?", [at, reference]);
+        dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)',
+          [crypto.randomUUID(), payment.user_id, 'chargeback', -payment.token_amount, 'Отмена/возврат пополнения · Paymentwall', at]);
+      });
+      io?.to?.(userRoom(payment.user_id))?.emit('billing:tokens-reversed', { tokens: payment.token_amount });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    return res.status(200).type('text/plain').send('OK');
+  });
+
   app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, flirtInterests: FLIRT_INTERESTS, roleplayInterests: ROLEPLAY_INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
   function checkPublicInvite(req, res) {
@@ -2317,8 +2424,10 @@ async function main() {
     const storeSales = Number(dbGet('SELECT COUNT(*) AS n FROM store_purchases').n);
     const salesByItem = dbAll('SELECT item_id, COUNT(*) AS sales, COALESCE(SUM(price),0) AS tokens FROM store_purchases GROUP BY item_id ORDER BY sales DESC, tokens DESC LIMIT 20');
     const payments = dbAll('SELECT provider, currency, COUNT(*) AS count, COALESCE(SUM(amount_minor),0) AS amount_minor FROM payment_records GROUP BY provider, currency ORDER BY provider, currency');
+    const paymentwall = dbGet("SELECT COUNT(*) AS topups, COALESCE(SUM(CASE WHEN status = 'credited' THEN token_amount ELSE 0 END),0) AS tokens_credited, COALESCE(SUM(CASE WHEN status = 'reversed' THEN token_amount ELSE 0 END),0) AS tokens_reversed FROM paymentwall_token_purchases");
+    const paymentwallRecent = dbAll("SELECT p.provider_reference, p.user_id, u.username, p.token_amount, p.status, p.created_at, p.updated_at FROM paymentwall_token_purchases p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 20");
     const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), bundleOnly: Boolean(item.bundleOnly) }));
-    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments });
+    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent });
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
