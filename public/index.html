@@ -8,12 +8,25 @@
   <title>SOVLI — случайные разговоры</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=16">
+  <script>
+    try {
+      if (localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token')) {
+        document.documentElement.classList.add('session-checking');
+      }
+    } catch { /* Private browsing may block local storage. */ }
+  </script>
+  <link rel="stylesheet" href="/styles.css?v=17">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="sessionBootScreen" class="session-boot-screen" role="status" aria-live="polite" hidden>
+    <span class="session-boot-mark">✦</span>
+    <strong>SOVLI</strong>
+    <span>Восстанавливаем твою сессию…</span>
+    <i aria-hidden="true"></i>
+  </div>
 
   <section id="authView" class="auth-layout">
     <div class="auth-story">
@@ -184,9 +197,15 @@
           <form id="messageForm" class="message-composer">
             <div class="composer-tools">
               <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
-              <button id="photoButton" class="composer-tool" type="button" title="Отправить фото">▧ Фото</button>
-              <button id="stickerButton" class="composer-tool" type="button" title="Открыть стикеры">☺ Стикеры</button>
-              <button id="voiceButton" class="composer-tool" type="button" title="Записать голосовое">◉ Голосовое</button>
+              <button id="photoButton" class="composer-tool composer-tool-photo" type="button" title="Отправить фото">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.4-2h7.2l1.4 2h3A1.5 1.5 0 0 1 21.5 9v9A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V9A1.5 1.5 0 0 1 4 7.5Z"/><circle cx="12" cy="13" r="3.5"/><path d="M18 10h.01"/></svg><span>Фото</span>
+              </button>
+              <button id="stickerButton" class="composer-tool composer-tool-sticker" type="button" title="Открыть стикеры">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10.5L20.5 8v10A2.5 2.5 0 0 1 18 20.5H5A2.5 2.5 0 0 1 2.5 18V6A2.5 2.5 0 0 1 5 3.5Z"/><path d="M15.5 3.8V8h4.2M8 12h.01M15 12h.01M8.5 15.5q3.5 3 7 0"/></svg><span>Стикеры</span>
+              </button>
+              <button id="voiceButton" class="composer-tool composer-tool-voice" type="button" title="Записать голосовое">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6"/></svg><span>Голосовое</span>
+              </button>
               <span id="uploadStatus" class="upload-status" aria-live="polite"></span>
             </div>
             <div id="replyPreview" class="reply-preview" hidden><span></span><button id="cancelReplyButton" type="button" aria-label="Отменить ответ">×</button></div>
@@ -220,6 +239,23 @@
           <div class="store-toolbar store-toolbar-v1"><div id="storeCategories" class="store-categories"></div><button id="storeInventoryButton" class="button button-secondary" type="button">Только купленное</button></div>
           <div class="store-filter-row"><label><span>Подборка</span><select id="storeCollectionSelect" class="field"><option value="">Все коллекции</option></select></label><label class="store-search-field"><span>Поиск</span><input id="storeSearchInput" class="field" maxlength="60" placeholder="Название или описание"></label></div>
           <div id="storeEquippedSummary" class="store-equipped-summary"></div><div id="storeItems" class="store-grid"></div>
+          <div id="storePreviewModal" class="modal-backdrop store-preview-modal" hidden>
+            <section class="modal-card store-preview-modal-card" role="dialog" aria-modal="true" aria-labelledby="storePreviewTitle">
+              <div class="store-preview-modal-head">
+                <span id="storePreviewBadge" class="store-item-category">Предпросмотр</span>
+                <button class="modal-close" type="button" data-close-modal aria-label="Закрыть предпросмотр">×</button>
+              </div>
+              <div id="storePreviewCanvas" class="store-preview-canvas"></div>
+              <h2 id="storePreviewTitle">Предмет магазина</h2>
+              <p id="storePreviewDescription" class="store-preview-description"></p>
+              <div class="store-preview-benefit">
+                <strong>Что изменится</strong>
+                <p id="storePreviewBenefit"></p>
+              </div>
+              <div class="store-preview-price-row"><span>Стоимость / статус</span><strong id="storePreviewPrice">0 ✦</strong></div>
+              <button class="button button-primary button-wide" type="button" data-close-modal>Понятно</button>
+            </section>
+          </div>
           <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">Привилегии не обходят правила безопасности и не дают преимущества в очереди. Срок продлевается при повторной покупке. Цены высокие намеренно: токены зарабатываются временем общения.</p><div id="membershipOffers" class="membership-grid"></div></section>
           <details class="token-history" id="tokenHistory"><summary>История токенов</summary><div id="tokenHistoryList" class="token-history-list"></div></details>
           <div id="purchaseConfirmModal" class="purchase-confirm-backdrop" hidden>
@@ -243,7 +279,7 @@
         </section>
         <section id="inventoryPanel" class="settings-panel" hidden><div class="panel-heading"><div><div class="eyebrow">ВСЁ, ЧТО ТЫ СОБРАЛ</div><h1>Мой инвентарь</h1><p>Здесь хранятся все купленные и полученные предметы. Экипируй или снимай их, когда захочешь.</p></div><div class="panel-heading-icon">▣</div></div><div class="inventory-summary-v1"><div><span>ПРЕДМЕТОВ</span><strong id="inventoryCount">0</strong></div><div><span>БАЛАНС</span><strong id="inventoryBalance">0 ✦</strong></div><button class="button button-secondary" type="button" data-view="store">Открыть магазин</button></div><div id="inventoryItems" class="store-grid inventory-grid"></div></section>
         <section id="favoritesPanel" class="settings-panel" hidden>
-          <div class="panel-heading"><div><div class="eyebrow">ЛЮДИ, С КОТОРЫМИ БЫЛО ПРИЯТНО</div><h1>Избранное</h1><p>Сохраняй собеседников, чтобы не потерять интересные знакомства. Добавление в избранное не открывает личный чат автоматически.</p></div><div class="panel-heading-icon">♡</div></div>
+          <div class="panel-heading"><div><div class="eyebrow">ЛЮДИ, С КОТОРЫМИ БЫЛО ПРИЯТНО</div><h1>Избранное</h1><p>Здесь остаются только аватар и ник сохранённого собеседника. Личные сообщения, звонки и повторная связь пока недоступны.</p></div><div class="panel-heading-icon">♡</div></div>
           <div id="favoritesList" class="favorites-list"></div>
         </section>
         <section id="blockedPanel" class="settings-panel" hidden>
@@ -281,6 +317,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=16" defer></script>
+  <script src="/app.js?v=17" defer></script>
 </body>
 </html>
