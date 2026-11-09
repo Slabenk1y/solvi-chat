@@ -220,6 +220,8 @@ function openStorePreview(item) {
     const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '6 фото за раз', '10 языков · 12 интересов', 'Эксклюзивная Premium-подсветка'] : ['VIP-значок рядом с ником', '3 000 символов', '4 фото за раз', '5 языков · 8 интересов', 'Сияющая рамка профиля'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
+  } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
+    visual.append(createThemeStorePreview(item));
   } else {
     const preview = createStorePreview(item);
     preview.classList.add('store-detail-preview');
@@ -722,8 +724,13 @@ function toggleChoice(listName, value, container, values, limit) {
   renderFilters();
 }
 function renderFilters() {
-  renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, 3));
-  renderChoices($('#interestOptions'), state.config.interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), state.config.interests, 5));
+  const tier = state.user?.subscriptionTier || 'free';
+  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
+  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+  state.selectedLanguages = state.selectedLanguages.slice(0, languageLimit);
+  state.selectedInterests = state.selectedInterests.slice(0, interestLimit);
+  renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, languageLimit));
+  renderChoices($('#interestOptions'), state.config.interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), state.config.interests, interestLimit));
   const languageSummary = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
   const interestSummary = state.selectedInterests.length ? state.selectedInterests.slice(0, 2).join(', ') + (state.selectedInterests.length > 2 ? ` +${state.selectedInterests.length - 2}` : '') : 'Любые интересы';
   $('#languageSummary').textContent = languageSummary;
@@ -1316,9 +1323,11 @@ async function uploadMedia(blob, kind) {
 function setUploadStatus(text) { $('#uploadStatus').textContent = text; }
 async function sendSelectedPhotos(files) {
   if (!state.activeMatch) return showToast('Сначала найди собеседника.');
-  const selected = [...files].slice(0, 3);
+  const tier = state.user?.subscriptionTier || 'free';
+  const attachmentLimit = tier === 'premium' ? 6 : (tier === 'vip' ? 4 : 3);
+  const selected = [...files].slice(0, attachmentLimit);
   if (!selected.length) return;
-  if (files.length > 3) showToast('За один раз можно отправить не больше трёх фотографий.');
+  if (files.length > attachmentLimit) showToast(`За один раз можно отправить не больше ${attachmentLimit} фотографий.`);
   const uploaded = [];
   $('#photoButton').disabled = true;
   try {
@@ -1578,8 +1587,11 @@ async function boot() {
   bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
   try { state.config = await api('/api/config'); }
   catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false }; }
-  state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, 3);
-  state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, 5);
+  const tier = state.user?.subscriptionTier || 'free';
+  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
+  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+  state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, languageLimit);
+  state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, interestLimit);
   renderFilters();
   renderStickerPanel();
   $('#inviteCodeField').hidden = !state.config.inviteRequired;
@@ -1736,7 +1748,8 @@ $('#messageForm').addEventListener('submit', event => {
   const input = $('#messageInput');
   const content = input.value.trim();
   if (!content) return;
-  const messageLimit = state.user?.subscriptionTier === 'premium' ? 5000 : (state.user?.subscriptionTier === 'vip' ? 3000 : 2000);\n  if (content.length > messageLimit) { showToast(`Сообщение слишком длинное. Лимит: ${messageLimit.toLocaleString('ru-RU')} символов.`); return; }
+  const messageLimit = state.user?.subscriptionTier === 'premium' ? 5000 : (state.user?.subscriptionTier === 'vip' ? 3000 : 2000);
+  if (content.length > messageLimit) { showToast(`Сообщение слишком длинное. Лимит: ${messageLimit.toLocaleString('ru-RU')} символов.`); return; }
   const clientId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   sendMessage(content, clientId);
   $('#stickerPanel').hidden = true;
