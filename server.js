@@ -198,13 +198,11 @@ const STORE_CATALOG = Object.freeze([
   { id: "title-night-circuit", name: "Ночной контур", description: "Титул цифрового города.", category: "Титулы", slot: "title", price: 3920, rarity: "Легендарный", preview: "title-circuit", value: "night-circuit", collection: "Цифровой город" },
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
-  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок, сияющая рамка профиля и акцент твоих сообщений. Цена равна трём часам активного диалога.' },
-  { id: 'vip-3h', tier: 'vip', hours: 3, price: 540, name: 'VIP · 3 часа', description: 'Три часа VIP. Удобно, если хочешь включить привилегии на вечер.' },
-  { id: 'vip-12h', tier: 'vip', hours: 12, price: 2160, name: 'VIP · 12 часов', description: 'Полдня с оформлением VIP и заметным статусом в профиле.' },
+  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок, сияющая рамка профиля, акцент сообщений, до 3 000 символов, 4 фото, 5 языков и 8 интересов.' },
+  { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Шесть часов VIP по базовому тарифу: 180 ✦ за каждый час.' },
   { id: 'vip-24h', tier: 'vip', hours: 24, price: 4320, name: 'VIP · 24 часа', description: 'Полные сутки VIP. Срок прибавляется к оставшемуся времени.' },
-  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс двойное сияние профиля и эксклюзивная Premium-подсветка. Цена равна шести часам активного диалога.' },
-  { id: 'premium-3h', tier: 'premium', hours: 3, price: 1080, name: 'Premium · 3 часа', description: 'Три часа полного статуса Premium с усиленным оформлением.' },
-  { id: 'premium-12h', tier: 'premium', hours: 12, price: 4320, name: 'Premium · 12 часов', description: 'Полдня Premium для длинных разговоров и яркого профиля.' },
+  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс Premium-подсветка, до 5 000 символов, 6 фото, 10 языков и 12 интересов.' },
+  { id: 'premium-6h', tier: 'premium', hours: 6, price: 2160, name: 'Premium · 6 часов', description: 'Шесть часов Premium по базовому тарифу: 360 ✦ за каждый час.' },
   { id: 'premium-24h', tier: 'premium', hours: 24, price: 8640, name: 'Premium · 24 часа', description: 'Полные сутки Premium. Срок прибавляется к оставшемуся времени.' }
 ]);
 const LANGUAGES = ['Русский', 'English', 'Español', 'Deutsch', 'Français', 'Türkçe', 'Português', 'العربية', '中文', '日本語'];
@@ -408,7 +406,7 @@ function effectiveSubscription(user) {
   if (user.subscription_expires_at && user.subscription_expires_at <= nowIso()) return 'free';
   return tier;
 }
-function mediaPublic(row) {
+function membershipLimits(user) {\n  const tier = effectiveSubscription(user);\n  return { tier, messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH), languageLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3), interestLimit: tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5), attachmentLimit: tier === 'premium' ? 6 : (tier === 'vip' ? 4 : 3) };\n}\nfunction mediaPublic(row) {
   return { id: row.id, kind: row.media_kind, mime: row.mime_type, size: row.byte_size, url: `/api/media/${encodeURIComponent(row.id)}` };
 }
 function getMessageReactions(messageId, viewerId = null) {
@@ -1786,15 +1784,15 @@ async function main() {
       if (window.count >= 12) return ack({ ok: false, error: 'Слишком быстро. Сделай небольшую паузу перед следующим сообщением.' });
       window.count += 1;
       messageWindows.set(userId, window);
-      const content = typeof payload?.content === 'string' ? payload.content.trim() : '';
+      const membership = membershipLimits(getUserById(userId));\n      const messageLimit = membership.messageLength;\n      const content = typeof payload?.content === 'string' ? payload.content.trim() : '';
       const clientId = typeof payload?.clientId === 'string' && payload.clientId.length <= 80 ? payload.clientId : '';
       const requestedSticker = payload?.sticker;
       const equippedStickerPack = getEquippedItems(userId).stickers;
       const allowedStickers = new Set([...BASE_STICKERS, ...(STICKER_PACKS[equippedStickerPack] || [])]);
       const sticker = allowedStickers.has(requestedSticker) ? requestedSticker : null;
-      const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, 3) : [];
-      if (!clientId || content.length > MAX_MESSAGE_LENGTH || (!content && !sticker && !attachmentIds.length)) {
-        return ack({ ok: false, error: `Добавь текст, стикер или вложение. Текст — до ${MAX_MESSAGE_LENGTH} символов.` });
+      const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, membership.attachmentLimit) : [];
+      if (!clientId || content.length > messageLimit || (!content && !sticker && !attachmentIds.length)) {
+        return ack({ ok: false, error: `Добавь текст, стикер или вложение. Твой лимит — до ${messageLimit.toLocaleString('ru-RU')} символов.` });
       }
       const existing = dbGet('SELECT * FROM messages WHERE sender_id = ? AND client_id = ?', [userId, clientId]);
       if (existing) return ack({ ok: true, message: serializeMessage(existing, userId), duplicate: true });
