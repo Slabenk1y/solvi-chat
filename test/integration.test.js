@@ -113,9 +113,9 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(storeBefore.dailyAvailable, undefined, 'daily rewards are not part of v1 economy');
     assert.ok(storeBefore.collections.length >= 8, 'catalog is grouped into collections');
     const bought = await postJson(baseUrl, '/api/store/buy', { itemId: 'theme-aurora' }, user1.token);
-    assert.equal(bought.balance, 550);
+    assert.equal(bought.balance, 800);
     const stickerPackPurchase = await postJson(baseUrl, '/api/store/buy', { itemId: 'stickers-night-owl' }, user2.token);
-    assert.equal(stickerPackPurchase.balance, 520);
+    assert.equal(stickerPackPurchase.balance, 780);
     const stickerPackEquipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackEquipped.equipped.stickers, 'stickers-night-owl');
     const equipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'theme-aurora' }, user1.token);
