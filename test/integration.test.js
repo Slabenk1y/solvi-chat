@@ -93,6 +93,8 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.deepEqual(tokenTopup.packages.map(pack => pack.tokens), [500, 1500, 5000], 'published top-up packages match the Paymentwall virtual-currency inventory');
     const tokenCheckout = await fetch(`${baseUrl}/api/billing/token-topup/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId: 'solvi-1500' }) });
     assert.equal(tokenCheckout.status, 503, 'real-money checkout must remain disabled without Paymentwall merchant credentials');
+    const directStoreCheckout = await fetch(`${baseUrl}/api/billing/store/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: 'theme-aurora', email: 'buyer@example.com' }) });
+    assert.equal(directStoreCheckout.status, 503, 'direct Digital Goods checkout must remain disabled without its separate Paymentwall project credentials');
     const noAd = await fetch(`${baseUrl}/api/ads/slot?placement=store`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
     assert.equal(noAd.ad, null, 'unpaid or absent sponsor campaigns are never served');
     const publicConfig = await fetch(`${baseUrl}/api/config`).then(response => response.json());
