@@ -198,12 +198,12 @@ const STORE_CATALOG = Object.freeze([
   { id: "title-night-circuit", name: "Ночной контур", description: "Титул цифрового города.", category: "Титулы", slot: "title", price: 3920, rarity: "Легендарный", preview: "title-circuit", value: "night-circuit", collection: "Цифровой город" },
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
-  { id: 'vip-1d', tier: 'vip', days: 1, price: 270, name: 'VIP · 1 день', description: 'Значок VIP, расширенное оформление профиля и эксклюзивные косметические функции.' },
-  { id: 'vip-7d', tier: 'vip', days: 7, price: 1350, name: 'VIP · 7 дней', description: 'Неделя дополнительных косметических возможностей. Выгоднее дневного тарифа.' },
-  { id: 'vip-30d', tier: 'vip', days: 30, price: 4200, name: 'VIP · 30 дней', description: 'Месяц статуса VIP с заметной скидкой за длительный срок.' },
-  { id: 'premium-1d', tier: 'premium', days: 1, price: 480, name: 'Premium · 1 день', description: 'Все возможности VIP плюс эксклюзивная рамка, титул и набор оформления.' },
-  { id: 'premium-7d', tier: 'premium', days: 7, price: 2400, name: 'Premium · 7 дней', description: 'Неделя полного косметического набора Premium.' },
-  { id: 'premium-30d', tier: 'premium', days: 30, price: 7200, name: 'Premium · 30 дней', description: 'Месяц полного статуса Premium с выгодной месячной ценой.' }
+  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'Значок VIP, золотистое оформление профиля и до 3 000 символов в одном сообщении.' },
+  { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Шесть часов VIP по базовому тарифу: 180 ✦ за каждый час.' },
+  { id: 'vip-24h', tier: 'vip', hours: 24, price: 4320, name: 'VIP · 24 часа', description: 'Полные сутки VIP. До 3 000 символов в сообщении и оформление профиля.' },
+  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Все возможности VIP, статус Premium, особое оформление профиля и до 5 000 символов в сообщении.' },
+  { id: 'premium-6h', tier: 'premium', hours: 6, price: 2160, name: 'Premium · 6 часов', description: 'Шесть часов Premium по базовому тарифу: 360 ✦ за каждый час.' },
+  { id: 'premium-24h', tier: 'premium', hours: 24, price: 8640, name: 'Premium · 24 часа', description: 'Полные сутки Premium со всеми возможностями VIP и расширенным лимитом сообщений.' }
 ]);
 const LANGUAGES = ['Русский', 'English', 'Español', 'Deutsch', 'Français', 'Türkçe', 'Português', 'العربية', '中文', '日本語'];
 const INTERESTS = ['Музыка', 'Игры', 'Кино и сериалы', 'Технологии', 'Путешествия', 'Спорт', 'Книги', 'Юмор', 'Наука', 'Искусство', 'Языки', 'Общение'];
@@ -405,6 +405,10 @@ function effectiveSubscription(user) {
   if (tier === 'free') return 'free';
   if (user.subscription_expires_at && user.subscription_expires_at <= nowIso()) return 'free';
   return tier;
+}
+function membershipLimits(user) {
+  const tier = effectiveSubscription(user);
+  return { tier, messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH) };
 }
 function mediaPublic(row) {
   return { id: row.id, kind: row.media_kind, mime: row.mime_type, size: row.byte_size, url: `/api/media/${encodeURIComponent(row.id)}` };
@@ -1060,10 +1064,12 @@ async function main() {
         const current = dbGet('SELECT tokens, subscription_tier, subscription_expires_at FROM users WHERE id = ?', [req.user.id]);
         if (!current || Number(current.tokens) < pack.price) throw new Error('Недостаточно токенов для покупки привилегии.');
         const now = Date.now();
-        const oldExpires = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? Date.parse(current.subscription_expires_at) : now;
-        const expires = new Date(oldExpires + pack.days * 86400000).toISOString();
-        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [pack.price, pack.tier, expires, req.user.id]);
-        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -pack.price, `${pack.name} · ${pack.days} дн.`, nowIso()]);
+        const activeUntil = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? Date.parse(current.subscription_expires_at) : now;
+        const expires = new Date(activeUntil + pack.hours * 3600000).toISOString();
+        const activeTier = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? current.subscription_tier : 'free';
+        const tier = activeTier === 'premium' || pack.tier === 'premium' ? 'premium' : 'vip';
+        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [pack.price, tier, expires, req.user.id]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -pack.price, `${pack.name} · ${pack.hours} ч.`, nowIso()]);
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.json({ ok: true, user: publicUser(getUserById(req.user.id)) });
@@ -1786,6 +1792,7 @@ async function main() {
       messageWindows.set(userId, window);
       const content = typeof payload?.content === 'string' ? payload.content.trim() : '';
       const clientId = typeof payload?.clientId === 'string' && payload.clientId.length <= 80 ? payload.clientId : '';
+      const messageLimit = membershipLimits(getUserById(userId)).messageLength;
       const requestedSticker = payload?.sticker;
       const equippedStickerPack = getEquippedItems(userId).stickers;
       const allowedStickers = new Set([...BASE_STICKERS, ...(STICKER_PACKS[equippedStickerPack] || [])]);
