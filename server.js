@@ -289,7 +289,7 @@ async function flushPersistentSnapshot(force = false) {
 async function initializePersistentStorage() {
   const connectionString = String(process.env.DATABASE_URL || '').trim();
   if (!connectionString) {
-    if (process.env.RENDER_SERVICE_ID || process.env.RENDER === 'true') {
+    if (process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL || process.env.RENDER === 'true') {
       throw new Error('На Render обязательно задай DATABASE_URL в Environment, иначе аккаунты будут храниться только во временной файловой системе.');
     }
     console.warn('[SOVLI] DATABASE_URL не задан: локальная SQLite работает без постоянного облачного хранения.');
