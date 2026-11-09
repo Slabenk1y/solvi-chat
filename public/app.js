@@ -943,7 +943,8 @@ async function api(url, options = {}) {
   if (!response.ok) {
     const error = new Error(payload.error || `Ошибка запроса (${response.status})`);
     error.status = response.status;
-    if (response.status === 401 && state.token && !state.authRestoring) logout(false, false);
+    // Only boot() may invalidate a session after /api/me confirms it.
+    // A 401 from an unrelated background endpoint must not erase the user's token.
     throw error;
   }
   return payload;
