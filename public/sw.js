@@ -10,7 +10,7 @@ const SHELL = [
   '/socket.io/socket.io.js',
   '/owner',
   '/owner.css?v=24',
-  '/owner.js?v=26',
+  '/owner.js?v=27',
   '/owner-manifest.webmanifest'
 ];
 
