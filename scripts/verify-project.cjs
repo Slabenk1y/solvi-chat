@@ -87,7 +87,7 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v18/.test(sw)) fail('Service Worker cache version не соответствует v1.7.0');
+  if (!/sovli-shell-v19/.test(sw)) fail('Service Worker cache version не соответствует v1.7.0');
   else pass('Service Worker cache version обновлён');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
