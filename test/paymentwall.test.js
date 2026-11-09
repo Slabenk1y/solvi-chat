@@ -11,8 +11,8 @@ test('Paymentwall signature is independent of parameter insertion order', () => 
   assert.match(a, /^[a-f0-9]{64}$/);
 });
 
-test('Paymentwall Virtual Currency uses type=1 for payment credit and type=2 for reversal (handled by route)', () => {
-  const success = { uid: 'ABCDEF1234', currency: '500', type: '1', ref: 'vc-ref-1', sign_version: '3' };
+test('Paymentwall Virtual Currency uses type=0 for payment credit and type=2 for reversal (handled by route)', () => {
+  const success = { uid: 'ABCDEF1234', currency: '500', type: '0', ref: 'vc-ref-1', sign_version: '3' };
   success.sig = signature(success, 'private-key', 3);
   assert.equal(verifyPingback(success, 'private-key'), true);
   const reversal = { uid: 'ABCDEF1234', currency: '500', type: '2', ref: 'vc-ref-1', sign_version: '3' };
