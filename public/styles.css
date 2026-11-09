@@ -469,3 +469,27 @@ html.session-checking #sessionBootScreen{display:grid!important}
 @media(prefers-reduced-motion:reduce){.modal-backdrop:not([hidden])>.modal-card,.store-preview-modal:not([hidden])>.store-preview-modal-card{animation:none!important}}
 .reduce-motion-user .modal-backdrop:not([hidden])>.modal-card,
 .reduce-motion-user .store-preview-modal:not([hidden])>.store-preview-modal-card{animation:none!important}
+
+
+/* v1.7 membership status visuals + realistic preview */
+:root[data-member-tier="vip"] .profile-mini .avatar,:root[data-member-tier="vip"] .user-chip .avatar,:root[data-member-tier="vip"] #profilePreviewAvatar{box-shadow:0 0 0 2px #f0c66b,0 0 0 5px color-mix(in srgb,#f0c66b 24%,transparent),0 0 18px color-mix(in srgb,#f0c66b 45%,transparent)}
+:root[data-member-tier="premium"] .profile-mini .avatar,:root[data-member-tier="premium"] .user-chip .avatar,:root[data-member-tier="premium"] #profilePreviewAvatar{box-shadow:0 0 0 2px #c5a2ff,0 0 0 5px color-mix(in srgb,#c5a2ff 30%,transparent),0 0 24px color-mix(in srgb,#a77bff 62%,transparent);animation:premium-profile-glow 2.8s ease-in-out infinite alternate}
+:root[data-member-tier="vip"] #profileRoleBadge{color:#94651b;background:color-mix(in srgb,#f0c66b 22%,var(--surface));border-color:color-mix(in srgb,#d9aa4c 42%,var(--line))}
+:root[data-member-tier="premium"] #profileRoleBadge{color:#8051c8;background:color-mix(in srgb,#b990ff 20%,var(--surface));border-color:color-mix(in srgb,#a77bff 48%,var(--line))}
+@keyframes premium-profile-glow{from{filter:drop-shadow(0 0 2px rgba(167,123,255,.25))}to{filter:drop-shadow(0 0 8px rgba(167,123,255,.62))}}
+.membership-showcase{width:100%;min-height:245px;padding:18px;display:flex;flex-direction:column;gap:14px;border-radius:14px;background:linear-gradient(145deg,#f5f0ff,#e9e6fa 52%,#f9f5ff);color:#30264b}
+.membership-showcase-premium{background:radial-gradient(circle at 82% 8%,rgba(206,174,255,.8),transparent 35%),linear-gradient(145deg,#211638,#49306d 58%,#241b3e);color:#fff}
+.membership-showcase-top{display:flex;align-items:center;gap:12px}
+.membership-showcase-avatar{width:56px;height:56px;flex:none;display:grid;place-items:center;border-radius:50%;font-size:25px;color:#79531a;background:linear-gradient(145deg,#fff7d9,#e9bd5c);box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 0 6px rgba(217,170,76,.55),0 0 20px rgba(217,170,76,.55)}
+.membership-showcase-premium .membership-showcase-avatar{color:#fff;background:linear-gradient(145deg,#f1d9ff,#a87bff);box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 0 7px rgba(190,146,255,.65),0 0 25px rgba(190,146,255,.9)}
+.membership-showcase-identity{display:flex;flex-direction:column;gap:5px}.membership-showcase-identity strong{font-size:15px}
+.membership-showcase-badge{width:max-content;padding:4px 9px;border-radius:99px;font-size:9px;font-weight:900;letter-spacing:.6px;color:#765015;background:linear-gradient(90deg,#ffe7a5,#f2c65f)}
+.membership-showcase-premium .membership-showcase-badge{color:#fff;background:linear-gradient(90deg,#9b69e9,#d4aaff)}
+.membership-showcase-chat{display:flex;flex-direction:column;gap:8px}.membership-demo-message{max-width:88%;padding:9px 12px;border-radius:13px;font-size:11px;line-height:1.4}
+.membership-demo-message.incoming{align-self:flex-start;background:rgba(255,255,255,.88);color:#413957;border-bottom-left-radius:4px}
+.membership-demo-message.outgoing{align-self:flex-end;color:#fff;background:linear-gradient(110deg,#8b73c9,#aa8de0);border-bottom-right-radius:4px}
+.membership-showcase-premium .membership-demo-message.outgoing{background:linear-gradient(110deg,#8c5bd3,#c28df4);box-shadow:0 0 16px rgba(190,146,255,.28)}
+.membership-showcase-perks{display:flex;flex-wrap:wrap;gap:6px}.membership-showcase-perks span{padding:5px 8px;border:1px solid rgba(153,116,53,.22);border-radius:99px;background:rgba(255,255,255,.54);font-size:9px;font-weight:700}
+.membership-showcase-premium .membership-showcase-perks span{color:#f5eaff;border-color:rgba(220,190,255,.28);background:rgba(255,255,255,.09)}
+.store-preview-duration{margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line);font-size:10px;line-height:1.5;color:var(--ink)}
+@media(prefers-reduced-motion:reduce){:root[data-member-tier="premium"] .profile-mini .avatar,:root[data-member-tier="premium"] .user-chip .avatar,:root[data-member-tier="premium"] #profilePreviewAvatar{animation:none}}
