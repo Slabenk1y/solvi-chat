@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#171326">
+  <meta name="theme-color" content="#f4f5fb">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="/owner-manifest.webmanifest">
   <title>SOLVI · Панель владельца</title>
-  <link rel="stylesheet" href="/owner.css?v=21">
+  <link rel="stylesheet" href="/owner.css?v=22">
 </head>
 <body>
   <div class="owner-shell">
     <header class="topbar">
       <a class="brand" href="/" aria-label="SOLVI"><span class="brand-mark">S</span><span>SOLVI <small>OWNER</small></span></a>
-      <div class="top-actions"><span id="connectionBadge" class="status-pill">Проверяем сервер…</span><button id="logoutButton" class="ghost" hidden>Выйти</button></div>
+      <div class="top-actions"><span id="connectionBadge" class="status-pill">Проверяем доступ…</span><button id="logoutButton" class="ghost" type="button" hidden>Выйти</button></div>
     </header>
 
     <main>
@@ -22,165 +22,121 @@
         <div class="login-card">
           <div class="eyebrow">ЗАКРЫТЫЙ ДОСТУП</div>
           <h1>Панель владельца</h1>
-          <p>Войди постоянным аккаунтом, которому назначена роль владельца через OWNER_PUBLIC_ID в .env.</p>
+          <p>Войди постоянным аккаунтом, которому назначен доступ владельца SOLVI.</p>
           <form id="loginForm">
             <label>Никнейм<input id="loginName" autocomplete="username" required minlength="3" maxlength="20" placeholder="Твой ник"></label>
             <label>Пароль<input id="loginPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="Пароль аккаунта"></label>
-            <label>Код приглашения <span class="optional">если публичный режим включён</span><input id="loginInvite" autocomplete="off" maxlength="80" placeholder="Код от владельца"></label>
+            <label>Код приглашения <span class="optional">если требуется для входа</span><input id="loginInvite" autocomplete="off" maxlength="80" placeholder="Код доступа"></label>
             <button class="primary wide" type="submit">Войти в управление</button>
             <p id="loginError" class="error" role="alert"></p>
           </form>
-          <div class="login-note">Панель использует те же серверные права, что и основной сайт. Скрытого чтения личных переписок здесь нет.</div>
+          <div class="login-note">Все изменения выполняются сервером и записываются в журнал действий.</div>
         </div>
       </section>
 
       <section id="dashboardView" hidden>
         <div class="welcome-row">
-          <div><div class="eyebrow">ЦЕНТР УПРАВЛЕНИЯ</div><h1>Привет, владелец 👋</h1><p>Управляй SOLVI с компьютера или телефона.</p></div>
-          <button id="refreshAllButton" class="secondary">↻ Обновить</button>
+          <div><div class="eyebrow">ЦЕНТР УПРАВЛЕНИЯ</div><h1>Панель SOLVI</h1><p>Пользователи, награды, поддержка и контент — в одном месте.</p></div>
+          <button id="refreshAllButton" class="secondary" type="button"><span>↻</span> Обновить данные</button>
         </div>
-        <nav class="tabs" aria-label="Разделы панели">
-          <button class="tab active" data-tab="overview">Обзор</button>
-          <button class="tab" data-tab="public">Локальный туннель</button>
-          <button class="tab" data-tab="cloud">Облачный сервер</button>
-          <button class="tab" data-tab="users">Пользователи</button>
-          <button class="tab" data-tab="promos">Промокоды</button>
-          <button class="tab" data-tab="dialogs">Диалоги</button>
-          <button class="tab" data-tab="reports">Жалобы</button>
-          <button class="tab" data-tab="tickets">Идеи и баги</button>
-          <button class="tab" data-tab="growth">Соцсети и задания</button>
-          <button class="tab" data-tab="audit">Журнал</button>
-        </nav>
 
-        <section class="tab-page" data-page="overview">
-          <div id="statsGrid" class="stats-grid"></div>
-          <div class="grid-two">
-            <article class="card"><div class="card-head"><div><div class="eyebrow">СЕРВЕР</div><h2>Состояние SOLVI</h2></div><span id="serverState" class="status-pill">—</span></div><div id="serverDetails" class="detail-list"></div><button id="checkHealthButton" class="secondary wide">Проверить сервер</button><p class="hint">Эта панель работает внутри уже запущенного сервера. Если компьютер выключен или Node.js остановлен, сначала запусти start.bat на компьютере.</p></article>
-            <article class="card"><div class="card-head"><div><div class="eyebrow">ЭКОНОМИКА</div><h2>Токены</h2></div><span class="coin">✦</span></div><div id="economyDetails" class="detail-list"></div></article>
-          </div>
-          <article class="card"><div class="card-head"><div><div class="eyebrow">ПОСЛЕДНИЕ АККАУНТЫ</div><h2>Новые пользователи</h2></div><button class="text-button" data-go="users">Все пользователи →</button></div><div id="recentUsers" class="user-list"></div></article>
-        </section>
+        <div class="owner-layout">
+          <aside class="owner-sidebar">
+            <div class="sidebar-caption">УПРАВЛЕНИЕ</div>
+            <nav class="tabs" aria-label="Разделы панели">
+              <button class="tab active" type="button" data-tab="overview"><span>⌂</span> Обзор</button>
+              <button class="tab" type="button" data-tab="users"><span>♙</span> Пользователи</button>
+              <button class="tab" type="button" data-tab="promos"><span>✦</span> Промокоды</button>
+              <button class="tab" type="button" data-tab="dialogs"><span>◫</span> Диалоги</button>
+              <button class="tab" type="button" data-tab="reports"><span>⚑</span> Жалобы</button>
+              <button class="tab" type="button" data-tab="tickets"><span>✉</span> Тикеты</button>
+              <button class="tab" type="button" data-tab="growth"><span>↗</span> Соцсети и задания</button>
+              <button class="tab" type="button" data-tab="audit"><span>☷</span> Журнал</button>
+            </nav>
+            <div class="sidebar-note"><strong>Подсказка</strong><p>Нажми на карточку пользователя, чтобы открыть его профиль и все действия.</p></div>
+          </aside>
 
-        <section class="tab-page" data-page="public" hidden>
-          <div class="section-intro"><div class="eyebrow">ДОСТУП И ССЫЛКА</div><h2>Публичный режим</h2><p>Включает временную ссылку Cloudflare Quick Tunnel и код доступа. Для постоянного адреса нужен именованный Tunnel в твоём Cloudflare аккаунте.</p></div>
-          <div id="renderHostedNotice" class="card cloud-status-card" hidden><h3>Облачный SOLVI уже опубликован</h3><p class="hint">На Render отдельный Cloudflare Tunnel не нужен. Этот адрес работает независимо от твоего ноутбука, пока облачный сервис активен.</p><div id="cloudPublicUrl" class="url-box">Адрес загружается…</div><div class="button-row"><button id="copyCloudUrlButton" class="secondary">Копировать адрес</button></div><div class="invite-box"><span>Код доступа для тестовой группы</span><strong id="cloudInviteCode">—</strong><button id="copyCloudInviteButton" class="text-button">Копировать код</button></div></div>
-          <div id="localTunnelGrid" class="grid-two">
-            <article class="card tunnel-card"><div class="card-head"><h3>Состояние туннеля</h3><span id="tunnelState" class="status-pill">Остановлен</span></div><div id="tunnelUrl" class="url-box">Публичная ссылка ещё не создана</div><div class="button-row"><button id="copyUrlButton" class="secondary" disabled>Копировать ссылку</button><button id="stopTunnelButton" class="danger" disabled>Остановить</button></div><div class="invite-box"><span>Код приглашения</span><strong id="inviteCode">—</strong><button id="copyInviteButton" class="text-button" disabled>Копировать</button></div><p id="tunnelError" class="error"></p></article>
-            <article class="card"><h3>Запустить публичный доступ</h3><label>Транспорт<select id="tunnelProtocol"><option value="auto">Авто (рекомендуется)</option><option value="http2">HTTP/2 (TCP)</option><option value="quic">QUIC (UDP)</option></select></label><label class="check-row"><input id="matchingToggle" type="checkbox" checked><span>Разрешить случайный подбор в публичном режиме</span></label><button id="startTunnelButton" class="primary wide">Запустить туннель</button><p class="hint">Для работы нужен cloudflared.exe рядом с проектом. Панель может включать/выключать туннель, пока компьютер и сервер работают.</p></article>
-          </div>
-          <article id="localTunnelLogsCard" class="card"><div class="card-head"><h3>Диагностика Cloudflare</h3><button id="refreshTunnelButton" class="text-button">Обновить</button></div><pre id="tunnelLogs" class="logs">Ожидание данных…</pre><div class="hint">Quick Tunnel — временный канал для тестирования без SLA. Если соединение регулярно теряется, настрой именованный Tunnel и задай CLOUDFLARE_TUNNEL_TOKEN в .env.</div></article>
-        </section>
+          <div class="owner-content">
+            <section class="tab-page" data-page="overview">
+              <div class="section-intro"><div class="eyebrow">СЕЙЧАС В SOLVI</div><h2>Общая картина</h2><p>Ключевые показатели проекта и быстрый переход к нужному разделу.</p></div>
+              <div id="statsGrid" class="stats-grid"></div>
+              <div class="grid-two">
+                <article class="card"><div class="card-head"><div><div class="eyebrow">ЭКОНОМИКА</div><h3>Токены и активность</h3></div><span class="coin">✦</span></div><div id="economyDetails" class="detail-list"></div></article>
+                <article class="card quick-actions"><div class="card-head"><div><div class="eyebrow">БЫСТРЫЙ ДОСТУП</div><h3>Что нужно сделать?</h3></div></div><button type="button" data-go="users">Найти пользователя <span>→</span></button><button type="button" data-go="promos">Создать промокод <span>→</span></button><button type="button" data-go="tickets">Ответить на тикеты <span>→</span></button><button type="button" data-go="reports">Проверить жалобы <span>→</span></button></article>
+              </div>
+            </section>
 
-        <section class="tab-page" data-page="cloud" hidden>
-          <div class="section-intro"><div class="eyebrow">УПРАВЛЕНИЕ БЕЗ НОУТБУКА</div><h2>Облачный сервер</h2><p>Когда SOLVI размещён в Render, он работает независимо от твоего компьютера. Эту страницу можно добавить на главный экран телефона.</p></div>
-          <article class="card cloud-status-card">
-            <div class="card-head"><div><div class="eyebrow">RENDER CONTROL PLANE</div><h3>Состояние облака</h3></div><span id="renderState" class="status-pill">Не проверено</span></div>
-            <div id="renderDetails" class="detail-list"><div class="hint">Нажми «Проверить облако», чтобы получить состояние Render.</div></div>
-            <div class="button-row"><button id="renderRefreshButton" class="secondary">↻ Проверить облако</button><button id="renderRestartButton" class="primary" disabled>Перезапустить сервер</button><button id="renderSuspendButton" class="danger" disabled>Остановить сервис</button><button id="renderDashboardButton" class="secondary" disabled>Открыть Render</button><a id="renderActionsButton" class="secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">Запуск через GitHub Actions ↗</a></div>
-            <p id="renderMessage" class="hint">Ключ Render API хранится только на сервере и никогда не отправляется в браузер.</p>
-          </article>
-          <article class="card"><h3>Если сервис остановлен</h3><p class="hint">Если Render-сервис полностью приостановлен, сама панель SOLVI недоступна. Возобновить его можно с телефона через Render Dashboard → Resume или GitHub Actions → SOLVI cloud control. API-ключ Render не хранится в браузере.</p><div class="button-row"><a id="renderDashboardHelpLink" class="secondary" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Открыть Render Dashboard ↗</a><a id="renderActionsHelpLink" class="secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">Открыть GitHub Actions ↗</a></div></article>
-          <article class="card"><h3>Как добавить на телефон</h3><ol class="mobile-install-steps"><li>Открой эту страницу в Chrome или Safari.</li><li>Открой меню браузера.</li><li>Выбери «Добавить на главный экран» или «Установить приложение».</li><li>Открывай SOLVI Owner как отдельное приложение.</li></ol></article>
-        </section>
+            <section class="tab-page" data-page="users" hidden>
+              <div class="section-intro"><div class="eyebrow">АККАУНТЫ</div><h2>Пользователи</h2><p>Единый список всех аккаунтов. Открой карточку, чтобы посмотреть регистрацию, статистику и управлять наградами или доступом.</p></div>
+              <form id="userSearchForm" class="search-row"><input id="userSearchInput" type="search" placeholder="Никнейм или Public ID"><button class="primary" type="submit">Найти</button><button id="clearUserSearch" class="secondary" type="button">Сбросить</button></form>
+              <div class="list-toolbar"><span id="userCountSummary" class="hint">Загружаем пользователей…</span><span class="hint">Нажми на аккаунт для подробностей</span></div>
+              <div id="userResults" class="user-list"></div>
+              <button id="loadMoreUsers" class="secondary wide load-more" type="button" hidden>Показать ещё</button>
+            </section>
 
-        <section class="tab-page" data-page="users" hidden>
-          <div class="section-intro"><div class="eyebrow">АККАУНТЫ</div><h2>Пользователи</h2><p>Поиск, баланс, привилегии, роли и ограничения доступа.</p></div>
-          <form id="userSearchForm" class="search-row"><input id="userSearchInput" placeholder="Ник или Public ID"><button class="primary" type="submit">Найти</button></form>
-          <div id="userResults" class="user-list"></div>
-        </section>
-
-        <section class="tab-page" data-page="promos" hidden>
-          <div class="section-intro"><div class="eyebrow">НАГРАДЫ</div><h2>Промокоды</h2><p>Создавай ограниченные по сроку и числу активаций коды для токенов, предметов и статусов.</p></div>
-          <form id="promoForm" class="card form-grid">
-            <label>Код промокода<input id="promoCode" maxlength="32" placeholder="SOLVI-FRIENDS"></label>
-            <label>Токены<input id="promoTokens" type="number" min="0" max="1000000" value="0"></label>
-            <label>Предмет магазина<select id="promoItem"><option value="">Без предмета</option></select></label>
-            <label>Привилегия<select id="promoTier"><option value="">Без привилегии</option><option value="vip">VIP</option><option value="premium">Premium</option></select></label>
-            <label>Дней привилегии<select id="promoDays"><option>1</option><option>7</option><option>30</option><option>90</option></select></label>
-            <label>Максимум активаций<input id="promoMaxUses" type="number" min="1" max="100000" value="1"></label>
-            <label>Истекает (необязательно)<input id="promoExpires" type="date"></label>
-            <button class="primary" type="submit">Создать промокод</button><p id="promoMessage" class="hint full"></p>
-          </form>
-          <article class="card"><div class="card-head"><h3>Созданные промокоды</h3><button id="refreshPromosButton" class="text-button">Обновить</button></div><div id="promoList" class="user-list"></div></article>
-        </section>
-
-        <section class="tab-page" data-page="dialogs" hidden><div class="section-intro"><div class="eyebrow">АКТИВНОСТЬ И БЕЗОПАСНОСТЬ</div><h2>Активные диалоги</h2><p>Можно проверить последние сообщения только активного диалога. Для каждого просмотра нужна причина; обе стороны получат уведомление, а действие попадёт в журнал. Медиа и вложения не открываются.</p></div><div class="card"><div class="card-head"><div><h3>Сейчас общаются</h3><p class="hint">Список обновляется по запросу · до 200 активных диалогов</p></div><button id="refreshMatchesButton" class="text-button">↻ Обновить</button></div><div id="matchList" class="user-list"></div></div></section>
-
-        <section class="tab-page" data-page="reports" hidden><div class="section-intro"><div class="eyebrow">БЕЗОПАСНОСТЬ</div><h2>Жалобы</h2><p>Проверяй обращения, фиксируй решение и ограничивай доступ при необходимости.</p></div><div class="card"><div class="card-head"><h3>Входящие обращения</h3><button id="refreshReportsButton" class="text-button">Обновить</button></div><div id="reportList" class="user-list"></div></div></section>
-        <section class="tab-page" data-page="tickets" hidden>
-          <div class="section-intro"><div class="eyebrow">ОБРАТНАЯ СВЯЗЬ</div><h2>Идеи и баг-репорты</h2><p>Смотри обращения пользователей и отвечай в приватном треде. Статус обновляется вместе с ответом.</p></div>
-          <div class="ticket-admin-layout">
-            <article class="card"><div class="card-head"><div><h3>Все обращения</h3><p id="ticketCounters" class="hint">Загрузка…</p></div><button id="refreshTicketsButton" class="text-button">Обновить</button></div><input id="ticketAdminSearch" class="owner-ticket-search" type="search" placeholder="Поиск по теме, автору или ID"><div id="ticketAdminFilters" class="ticket-admin-filters"><button type="button" class="active" data-ticket-filter="all">Все</button><button type="button" data-ticket-filter="open">Открытые</button><button type="button" data-ticket-filter="in_progress">В работе</button><button type="button" data-ticket-filter="closed">Закрытые</button><button type="button" data-ticket-filter="bug">Ошибки</button><button type="button" data-ticket-filter="idea">Идеи</button></div><div id="adminTicketList" class="user-list"></div></article>
-            <article class="card">
-              <div class="card-head"><div><h3 id="adminTicketTitle">Выбери обращение</h3><p id="adminTicketMeta" class="hint">Идеи и баги пользователей</p></div></div>
-              <div id="adminTicketMessages" class="ticket-thread-messages"></div>
-              <form id="adminTicketReplyForm" class="owner-ticket-reply" hidden>
-                <label>Ответ владельца<textarea id="adminTicketReply" maxlength="1500" rows="4" required placeholder="Напиши ответ пользователю…"></textarea></label>
-                <label>Новый статус<select id="adminTicketStatus"><option value="in_progress">В работе</option><option value="open">Открыт</option><option value="closed">Закрыт</option></select></label>
-                <button id="adminTicketReplyButton" class="primary" type="submit">Отправить ответ</button>
+            <section class="tab-page" data-page="promos" hidden>
+              <div class="section-intro"><div class="eyebrow">НАГРАДЫ И ЛОЯЛЬНОСТЬ</div><h2>Промокоды</h2><p>Создавай общие кампании или персональные коды для конкретных пользователей. Для каждого кода доступна статистика активаций.</p></div>
+              <div id="promoStatsSummary" class="stats-grid compact-stats"></div>
+              <form id="promoForm" class="card form-grid">
+                <div class="form-heading"><h3>Новый общий промокод</h3><p class="hint">Персональные коды создаются из карточки пользователя.</p></div>
+                <label>Код промокода<input id="promoCode" maxlength="32" placeholder="SOLVI-FRIENDS"></label>
+                <label>Токены<input id="promoTokens" type="number" min="0" max="1000000" value="0"></label>
+                <label>Предмет магазина<select id="promoItem"><option value="">Без предмета</option></select></label>
+                <label>Привилегия<select id="promoTier"><option value="">Без привилегии</option><option value="vip">VIP</option><option value="premium">Premium</option></select></label>
+                <label>Дней привилегии<select id="promoDays"><option value="1">1</option><option value="7">7</option><option value="30">30</option><option value="90">90</option></select></label>
+                <label>Максимум активаций<input id="promoMaxUses" type="number" min="1" max="100000" value="1"></label>
+                <label>Начало действия<input id="promoStarts" type="datetime-local"></label>
+                <label>Окончание действия<input id="promoExpires" type="datetime-local"></label>
+                <button class="primary" type="submit">Создать промокод</button><p id="promoMessage" class="hint full"></p>
               </form>
-            </article>
-          </div>
-        </section>
+              <article class="card"><div class="card-head"><div><h3>Все промокоды</h3><p class="hint">Статистика, редактирование срока и включение или отключение</p></div><button id="refreshPromosButton" class="text-button" type="button">↻ Обновить</button></div><div id="promoList" class="user-list"></div></article>
+            </section>
 
-        <section class="tab-page" data-page="growth" hidden>
-          <div class="section-intro"><div class="eyebrow">РОСТ И МОНЕТИЗАЦИЯ</div><h2>Соцсети, задания и реклама</h2><p>Управляй публичными ссылками и заданиями. Награды за подписку выдаются только после ручной проверки доказательства — платформа не позволяет надёжно проверить подписку по одной ссылке.</p></div>
-          <div class="grid-two">
-            <form id="socialLinkForm" class="card growth-form">
-              <div class="card-head"><h3>Добавить соцсеть</h3></div>
-              <label>Платформа<input id="socialPlatform" maxlength="40" placeholder="Telegram / TikTok / YouTube" required></label>
-              <label>Подпись кнопки<input id="socialLabel" maxlength="60" placeholder="Наш Telegram-канал" required></label>
-              <label>Ссылка<input id="socialUrl" type="url" maxlength="500" placeholder="https://t.me/..." required></label>
-              <label>Иконка / эмодзи<input id="socialIcon" maxlength="8" value="↗"></label>
-              <button class="primary" type="submit">Добавить ссылку</button>
-              <div id="socialLinkList" class="growth-list"></div>
-            </form>
-            <form id="rewardTaskForm" class="card growth-form">
-              <div class="card-head"><h3>Создать задание</h3></div>
-              <label>Название<input id="taskTitle" maxlength="100" placeholder="Подпишись на Telegram SOLVI" required></label>
-              <label>Описание<textarea id="taskDescription" maxlength="500" rows="3" placeholder="Подпишись и приложи ссылку на скриншот подтверждения." required></textarea></label>
-              <label>Платформа<input id="taskPlatform" maxlength="40" placeholder="Telegram" required></label>
-              <label>Ссылка на канал / рекламодателя<input id="taskUrl" type="url" maxlength="500" placeholder="https://t.me/..." required></label>
-              <label>Награда в токенах<input id="taskReward" type="number" min="1" max="5000" value="50" required></label>
-              <label>Рекламодатель (необязательно)<input id="taskSponsor" maxlength="80" placeholder="Название бренда"></label>
-              <label>Лимит наград, 0 = без лимита<input id="taskMaxClaims" type="number" min="0" max="100000" value="0"></label>
-              <button class="primary" type="submit">Опубликовать задание</button>
-              <div id="rewardTaskList" class="growth-list"></div>
-            </form>
+            <section class="tab-page" data-page="dialogs" hidden>
+              <div class="section-intro"><div class="eyebrow">АКТИВНОСТЬ И БЕЗОПАСНОСТЬ</div><h2>Активные диалоги</h2><p>Список текущих чатов. Просмотр сообщений требует причины, уведомляет обоих участников и фиксируется в журнале. Вложения не открываются.</p></div>
+              <article class="card"><div class="card-head"><div><h3>Сейчас общаются</h3><p id="matchCounters" class="hint">Загрузка…</p></div><button id="refreshMatchesButton" class="text-button" type="button">↻ Обновить</button></div><input id="matchSearchInput" class="search-input" type="search" placeholder="Поиск по именам или ID диалога"><div id="matchList" class="user-list"></div></article>
+            </section>
+
+            <section class="tab-page" data-page="reports" hidden>
+              <div class="section-intro"><div class="eyebrow">БЕЗОПАСНОСТЬ</div><h2>Жалобы</h2><p>Проверяй описание и контекст обращения, открывай профили участников и фиксируй решение.</p></div>
+              <article class="card"><div class="card-head"><div><h3>Входящие обращения</h3><p id="reportCounters" class="hint">Загрузка…</p></div><button id="refreshReportsButton" class="text-button" type="button">↻ Обновить</button></div><div class="filter-row" id="reportFilters"><button class="filter-chip active" type="button" data-report-filter="all">Все</button><button class="filter-chip" type="button" data-report-filter="open">Открытые</button><button class="filter-chip" type="button" data-report-filter="resolved">Рассмотренные</button></div><input id="reportSearchInput" class="search-input" type="search" placeholder="Поиск по пользователю, причине или ID"><div id="reportList" class="user-list"></div></article>
+            </section>
+
+            <section class="tab-page" data-page="tickets" hidden>
+              <div class="section-intro"><div class="eyebrow">ОБРАТНАЯ СВЯЗЬ</div><h2>Тикеты</h2><p>Идеи и сообщения об ошибках собраны в одном списке. Открой тикет, ответь пользователю и измени статус.</p></div>
+              <div class="ticket-admin-layout">
+                <article class="card"><div class="card-head"><div><h3>Все тикеты</h3><p id="ticketCounters" class="hint">Загрузка…</p></div><button id="refreshTicketsButton" class="text-button" type="button">↻ Обновить</button></div><input id="ticketAdminSearch" class="search-input" type="search" placeholder="Поиск по теме, автору или ID"><div id="ticketAdminFilters" class="filter-row"><button class="filter-chip active" type="button" data-ticket-filter="all">Все</button><button class="filter-chip" type="button" data-ticket-filter="open">Открытые</button><button class="filter-chip" type="button" data-ticket-filter="in_progress">В работе</button><button class="filter-chip" type="button" data-ticket-filter="closed">Закрытые</button><button class="filter-chip" type="button" data-ticket-filter="bug">Ошибки</button><button class="filter-chip" type="button" data-ticket-filter="idea">Идеи</button></div><div id="adminTicketList" class="user-list"></div></article>
+                <article class="card"><div class="card-head"><div><h3 id="adminTicketTitle">Выбери тикет</h3><p id="adminTicketMeta" class="hint">Переписка с пользователем появится здесь</p></div></div><div id="adminTicketMessages" class="ticket-thread-messages"><p class="empty-state">Выбери тикет слева, чтобы посмотреть переписку.</p></div><form id="adminTicketReplyForm" class="owner-ticket-reply" hidden><label>Ответ пользователю<textarea id="adminTicketReply" maxlength="1500" rows="4" required placeholder="Напиши ответ…"></textarea></label><label>Статус<select id="adminTicketStatus"><option value="in_progress">В работе</option><option value="open">Открыт</option><option value="closed">Закрыт</option></select></label><button id="adminTicketReplyButton" class="primary" type="submit">Отправить ответ</button></form></article>
+              </div>
+            </section>
+
+            <section class="tab-page" data-page="growth" hidden>
+              <div class="section-intro"><div class="eyebrow">РОСТ И МОНЕТИЗАЦИЯ</div><h2>Соцсети и задания</h2><p>Добавляй площадки и задания, редактируй опубликованное и архивируй завершённые кампании. Награды выдаются после ручной проверки доказательств.</p></div>
+              <div class="grid-two">
+                <article class="card"><form id="socialLinkForm" class="growth-form"><div class="card-head"><h3>Добавить соцсеть</h3></div><label>Платформа<input id="socialPlatform" maxlength="40" placeholder="Telegram / TikTok / YouTube" required></label><label>Подпись кнопки<input id="socialLabel" maxlength="60" placeholder="Наш Telegram-канал" required></label><label>Ссылка<input id="socialUrl" type="url" maxlength="500" placeholder="https://t.me/..." required></label><label>Иконка или эмодзи<input id="socialIcon" maxlength="8" value="↗"></label><label>Порядок отображения<input id="socialSortOrder" type="number" min="0" max="10000" value="0"></label><button class="primary" type="submit">Добавить ссылку</button></form><div class="list-section-head"><h3>Публичные ссылки</h3><span class="hint">Нажми «Изменить», чтобы отредактировать</span></div><div id="socialLinkList" class="growth-list"></div></article>
+                <article class="card"><form id="rewardTaskForm" class="growth-form"><div class="card-head"><h3>Создать задание</h3></div><label>Название<input id="taskTitle" maxlength="100" placeholder="Подпишись на Telegram SOLVI" required></label><label>Описание<textarea id="taskDescription" maxlength="500" rows="3" placeholder="Что должен сделать участник?" required></textarea></label><label>Платформа<input id="taskPlatform" maxlength="40" placeholder="Telegram" required></label><label>Ссылка на канал / рекламодателя<input id="taskUrl" type="url" maxlength="500" placeholder="https://t.me/..." required></label><label>Награда в токенах<input id="taskReward" type="number" min="1" max="5000" value="50" required></label><label>Рекламодатель (необязательно)<input id="taskSponsor" maxlength="80" placeholder="Название бренда"></label><label>Лимит наград, 0 = без лимита<input id="taskMaxClaims" type="number" min="0" max="100000" value="0"></label><button class="primary" type="submit">Опубликовать задание</button></form><div class="list-section-head"><h3>Задания</h3><span class="hint">Можно менять, выключать и удалять</span></div><div id="rewardTaskList" class="growth-list"></div></article>
+              </div>
+              <article class="card growth-submissions"><div class="card-head"><div><h3>Заявки на награду</h3><p id="revenueSummary" class="hint">Загрузка статистики…</p></div><button id="refreshGrowthButton" class="text-button" type="button">↻ Обновить</button></div><div id="taskSubmissionList" class="growth-list"></div></article>
+            </section>
+
+            <section class="tab-page" data-page="audit" hidden><div class="section-intro"><div class="eyebrow">ПРОЗРАЧНОСТЬ</div><h2>Журнал действий</h2><p>Все административные изменения, награды, ограничения и решения по обращениям.</p></div><article class="card"><div class="card-head"><h3>Последние операции</h3><button id="refreshAuditButton" class="text-button" type="button">↻ Обновить</button></div><pre id="auditList" class="logs">Загрузка…</pre></article></section>
           </div>
-          <article class="card growth-submissions"><div class="card-head"><div><h3>Проверка заявок на награду</h3><p id="revenueSummary" class="hint">Полученные оплаты загрузятся вместе с данными.</p></div><button id="refreshGrowthButton" class="text-button">Обновить</button></div><div id="taskSubmissionList" class="growth-list"></div></article>
-        </section>
-        <section class="tab-page" data-page="audit" hidden><div class="section-intro"><div class="eyebrow">ПРОЗРАЧНОСТЬ</div><h2>Журнал действий</h2><p>Здесь фиксируются административные изменения, выдача токенов, привилегий и промокодов.</p></div><div class="card"><div class="card-head"><h3>Последние операции</h3><button id="refreshAuditButton" class="text-button">Обновить</button></div><pre id="auditList" class="logs">Загрузка…</pre></div></section>
+        </div>
       </section>
-      <div id="ownerActionModal" class="owner-action-backdrop" hidden>
-        <section class="owner-action-card" role="dialog" aria-modal="true" aria-labelledby="ownerActionTitle">
-          <div class="owner-action-icon">✦</div>
-          <span class="eyebrow">ИНСТРУМЕНТЫ ВЛАДЕЛЬЦА</span>
-          <h2 id="ownerActionTitle">Действие с аккаунтом</h2>
-          <p id="ownerActionDescription" class="owner-action-description"></p>
-          <form id="ownerActionForm">
-            <div id="ownerActionFields" class="owner-action-fields"></div>
-            <div class="owner-action-buttons"><button id="ownerActionCancel" class="secondary" type="button">Отмена</button><button id="ownerActionSubmit" class="primary" type="submit">Подтвердить</button></div>
-          </form>
-          <small>Все изменения записываются в журнал действий.</small>
-        </section>
-      </div>
-      <div id="dialogInspector" class="inspector-backdrop" hidden>
-        <section class="inspector-panel" role="dialog" aria-modal="true" aria-labelledby="inspectorTitle">
-          <div class="card-head"><div><div class="eyebrow">ПРОВЕРКА АКТИВНОГО ДИАЛОГА</div><h2 id="inspectorTitle">Диалог пользователей</h2></div><button id="closeDialogInspector" class="ghost" type="button">Закрыть</button></div>
-          <p id="inspectorParticipants" class="hint"></p>
-          <label class="inspector-label" for="inspectReason">Причина просмотра · обязательно<input id="inspectReason" maxlength="240" placeholder="Например: проверка жалобы или безопасности"></label>
-          <button id="inspectDialogButton" class="primary" type="button">Открыть последние сообщения</button>
-          <div id="dialogMessages" class="inspector-messages"><p class="hint">Укажи причину и нажми «Открыть последние сообщения».</p></div>
-          <label class="inspector-label" for="dialogNoticeText">Сообщение обоим участникам<textarea id="dialogNoticeText" rows="3" maxlength="240" placeholder="Короткое уведомление от команды SOLVI"></textarea></label>
-          <div class="button-row"><button id="sendDialogNoticeButton" class="secondary" type="button">Отправить уведомление</button><button id="endInspectedMatch" class="danger" type="button">Завершить диалог</button></div>
-          <p class="hint">Просмотр доступен только пока диалог активен. Каждое открытие регистрируется в журнале владельца и автоматически уведомляет участников.</p>
-        </section>
-      </div>
     </main>
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <footer> SOLVI OWNER · Управление доступно только назначенному владельцу.</footer>
+    <footer class="app-footer"><span>SOLVI · Панель управления</span><span>Доступ только владельцу проекта</span></footer>
   </div>
-  <script src="/owner.js?v=21" defer></script>
+
+  <div id="ownerActionModal" class="modal-backdrop" hidden><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="ownerActionTitle"><div class="modal-heading"><div><div class="eyebrow">ДЕЙСТВИЕ ВЛАДЕЛЬЦА</div><h2 id="ownerActionTitle">Изменить</h2><p id="ownerActionDescription" class="hint"></p></div><button id="ownerActionClose" class="modal-close" type="button" aria-label="Закрыть">×</button></div><form id="ownerActionForm"><div id="ownerActionFields" class="form-grid"></div><div class="modal-actions"><button id="ownerActionCancel" class="secondary" type="button">Отмена</button><button id="ownerActionSubmit" class="primary" type="submit">Сохранить</button></div></form></section></div>
+
+  <div id="userDetailModal" class="modal-backdrop drawer-backdrop" hidden><section class="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="userDetailTitle"><div class="drawer-head"><div><div class="eyebrow">ПРОФИЛЬ АККАУНТА</div><h2 id="userDetailTitle">Пользователь</h2><p id="userDetailMeta" class="hint"></p></div><button id="closeUserDetail" class="modal-close" type="button" aria-label="Закрыть">×</button></div><div id="userDetailContent"><p class="empty-state">Загрузка профиля…</p></div></section></div>
+
+  <div id="infoModal" class="modal-backdrop" hidden><section class="modal-card info-modal-card" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle"><div class="modal-heading"><div><div class="eyebrow">ПОДРОБНОСТИ</div><h2 id="infoModalTitle">Информация</h2></div><button id="closeInfoModal" class="modal-close" type="button" aria-label="Закрыть">×</button></div><div id="infoModalBody"></div></section></div>
+
+  <div id="dialogInspector" class="modal-backdrop" hidden><section class="modal-card inspector-card" role="dialog" aria-modal="true" aria-labelledby="inspectorTitle"><div class="modal-heading"><div><div class="eyebrow">ПРОВЕРКА АКТИВНОГО ДИАЛОГА</div><h2 id="inspectorTitle">Диалог пользователей</h2></div><button id="closeDialogInspector" class="modal-close" type="button" aria-label="Закрыть">×</button></div><p id="inspectorParticipants" class="hint"></p><label>Причина проверки<input id="inspectReason" maxlength="240" placeholder="Например: проверка жалобы №…"></label><div id="dialogMessages" class="inspector-messages"><p class="empty-state">Для просмотра сообщений сначала укажи причину.</p></div><button id="inspectDialogButton" class="primary wide" type="button">Открыть последние сообщения</button><label>Уведомление участникам<textarea id="dialogNoticeText" rows="3" maxlength="240" placeholder="Сообщение обоим участникам…"></textarea></label><div class="modal-actions"><button id="sendDialogNoticeButton" class="secondary" type="button">Отправить уведомление</button><button id="endInspectedMatch" class="danger" type="button">Завершить диалог</button></div></section></div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/owner.js?v=22" defer></script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
 </body>
 </html>

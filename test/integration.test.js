@@ -68,7 +68,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', APP_PUBLIC_URL: '', BILLING_CURRENCY: 'eur', VIP_PRICE_MINOR: '499', PREMIUM_PRICE_MINOR: '899', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890' },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', APP_PUBLIC_URL: '', BILLING_CURRENCY: 'eur', VIP_PRICE_MINOR: '499', PREMIUM_PRICE_MINOR: '899', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890', OWNER_PUBLIC_ID: 'ABCDEF1234' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let stderr = '';
@@ -101,6 +101,31 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const closedTicketReply = await fetch(`${baseUrl}/api/tickets/${initialTicket.id}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: 'Ответ после закрытия тикета' }) });
     assert.equal(closedTicketReply.status, 409, 'closed tickets cannot receive replies');
     testDb = new DatabaseSync(path.join(dataDir, 'orbit.sqlite'));
+    const owner = await postJson(baseUrl, '/api/auth/register', { username: 'solvi-owner', password: 'test-owner-password-333' });
+    testDb.prepare('UPDATE users SET public_id = ? WHERE id = ?').run('ABCDEF1234', owner.user.id);
+    const ownerHeaders = { Authorization: `Bearer ${owner.token}` };
+    const ownerUserListResponse = await fetch(`${baseUrl}/api/admin/users?limit=1`, { headers: ownerHeaders });
+    assert.equal(ownerUserListResponse.status, 200, 'owner can retrieve unified paginated user directory');
+    const ownerUserList = await ownerUserListResponse.json();
+    assert.equal(ownerUserList.total, 3);
+    assert.equal(ownerUserList.users.length, 1);
+    assert.equal(ownerUserList.hasMore, true);
+    const accountDetailsResponse = await fetch(`${baseUrl}/api/admin/users/${encodeURIComponent(user1.user.id)}`, { headers: ownerHeaders });
+    assert.equal(accountDetailsResponse.status, 200, 'owner can open individual account details');
+    const accountDetails = await accountDetailsResponse.json();
+    assert.equal(accountDetails.user.createdAt, user1.user.createdAt);
+    assert.ok(Object.hasOwn(accountDetails.stats, 'activeSessions'));
+    const personalPromo = await postJson(baseUrl, `/api/admin/users/${encodeURIComponent(user1.user.id)}/promo`, { code: 'PRIVATE-TEST-01', tokens: 35 }, owner.token);
+    const otherAccountRedeem = await fetch(`${baseUrl}/api/promos/redeem`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user2.token}` }, body: JSON.stringify({ code: 'PRIVATE-TEST-01' }) });
+    assert.equal(otherAccountRedeem.status, 404, 'a personal promo must not be discoverable by another account');
+    const personalRedeem = await postJson(baseUrl, '/api/promos/redeem', { code: 'PRIVATE-TEST-01' }, user1.token);
+    assert.equal(personalRedeem.reward.tokens, 35, 'the intended account can redeem its personal promo');
+    const personalPromoStats = await fetch(`${baseUrl}/api/admin/promos/${encodeURIComponent(personalPromo.promo.id)}`, { headers: ownerHeaders }).then(response => response.json());
+    assert.equal(personalPromoStats.stats.uniqueUsers, 1);
+    const personalPromoUpdate = await fetch(`${baseUrl}/api/admin/promos/${encodeURIComponent(personalPromo.promo.id)}`, { method: 'PATCH', headers: { ...ownerHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ code: 'PRIVATE-TEST-02', maxUses: 1, active: true }) });
+    assert.equal(personalPromoUpdate.status, 200, 'owner can edit promo codes');
+    const updatedAccountDetails = await fetch(`${baseUrl}/api/admin/users/${encodeURIComponent(user1.user.id)}`, { headers: ownerHeaders }).then(response => response.json());
+    assert.equal(updatedAccountDetails.stats.promoRedemptions, 1, 'account stats include promo redemptions');
     const taskNow = new Date().toISOString();
     testDb.prepare('INSERT INTO reward_tasks (id,title,description,platform,url,reward_tokens,sponsor_name,active,max_claims,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,?,?,?)').run('integration-task', 'Подпишись на канал', 'Тестовое задание с ручной проверкой доказательства.', 'Telegram', 'https://t.me/example', 40, 'SOLVI Test', 1, taskNow, taskNow);
     const taskSubmission = await postJson(baseUrl, '/api/tasks/integration-task/submit', { proofUrl: 'https://example.com/proof.png' }, user1.token);

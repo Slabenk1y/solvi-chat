@@ -891,6 +891,9 @@ async function main() {
   // Backward-compatible migration: keep legacy accounts, normalize unique nicknames,
   // and add synced preferences without collecting birth dates or age declarations.
   const userColumns = dbAll('PRAGMA table_info(users)').map(column => column.name);
+  const promoColumns = dbAll('PRAGMA table_info(promo_codes)').map(column => column.name);
+  if (!promoColumns.includes('target_user_id')) db.exec('ALTER TABLE promo_codes ADD COLUMN target_user_id TEXT REFERENCES users(id) ON DELETE CASCADE');
+  db.exec('CREATE INDEX IF NOT EXISTS promo_codes_target_user_idx ON promo_codes(target_user_id, created_at DESC)');
   if (!userColumns.includes('username_key')) db.exec('ALTER TABLE users ADD COLUMN username_key TEXT');
   if (!userColumns.includes('settings_json')) db.exec("ALTER TABLE users ADD COLUMN settings_json TEXT NOT NULL DEFAULT '{}'");
   if (!userColumns.includes('account_type')) db.exec("ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'registered'");
@@ -1395,7 +1398,7 @@ async function main() {
   app.post('/api/promos/redeem', authMiddleware, (req, res) => {
     const code = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase().replace(/\s+/g, '') : '';
     if (!/^[A-Z0-9-]{4,32}$/.test(code)) return res.status(400).json({ error: 'Промокод имеет неверный формат.' });
-    const promo = dbGet('SELECT * FROM promo_codes WHERE code = ? AND active = 1', [code]);
+    const promo = dbGet('SELECT * FROM promo_codes WHERE code = ? AND active = 1 AND (target_user_id IS NULL OR target_user_id = ?)', [code, req.user.id]);
     if (!promo) return res.status(404).json({ error: 'Промокод не найден или отключён.' });
     const now = nowIso();
     if (promo.starts_at && promo.starts_at > now) return res.status(400).json({ error: 'Промокод ещё не активен.' });
@@ -1910,12 +1913,85 @@ async function main() {
   app.get('/api/admin/users', authMiddleware, ownerOnly, (req, res) => {
     const query = String(req.query.q || '').trim().slice(0, 80);
     const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
+    const offset = Math.max(0, Math.min(1000000, Number(req.query.offset) || 0));
     const like = `%${query}%`;
-    const projection = "id, public_id, username, account_type, role, subscription_tier, subscription_expires_at, tokens, suspended_until, suspension_reason, created_at, EXISTS(SELECT 1 FROM admin_audit_log l WHERE l.target_id = users.id AND l.action = 'starter_pack') AS starter_gifted";
+    const projection = "id, public_id, username, account_type, role, subscription_tier, subscription_expires_at, paid_subscription_tier, paid_subscription_expires_at, tokens, suspended_until, suspension_reason, created_at, EXISTS(SELECT 1 FROM admin_audit_log l WHERE l.target_id = users.id AND l.action = 'starter_pack') AS starter_gifted";
+    const total = Number((query
+      ? dbGet('SELECT COUNT(*) AS n FROM users WHERE username LIKE ? OR public_id LIKE ?', [like, like])
+      : dbGet('SELECT COUNT(*) AS n FROM users')).n || 0);
     const rows = query
-      ? dbAll(`SELECT ${projection} FROM users WHERE username LIKE ? OR public_id LIKE ? ORDER BY created_at DESC LIMIT ?`, [like, like, limit])
-      : dbAll(`SELECT ${projection} FROM users ORDER BY created_at DESC LIMIT ?`, [limit]);
-    res.json({ users: rows.map(row => ({ ...row, owner: isOwner(row), online: onlineUserIds().has(row.id) })) });
+      ? dbAll(`SELECT ${projection} FROM users WHERE username LIKE ? OR public_id LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, [like, like, limit, offset])
+      : dbAll(`SELECT ${projection} FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`, [limit, offset]);
+    res.json({ users: rows.map(row => ({ ...row, owner: isOwner(row), online: onlineUserIds().has(row.id) })), total, offset, hasMore: offset + rows.length < total });
+  });
+  app.get('/api/admin/users/:id', authMiddleware, ownerOnly, (req, res) => {
+    const target = getUserById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден.' });
+    const statsParams = [target.id, target.id, nowIso(), target.id, ...Array.from({ length: 17 }, () => target.id)];
+    const stats = dbGet(`SELECT
+      (SELECT COUNT(*) FROM sessions WHERE user_id = ?) AS total_sessions,
+      (SELECT COUNT(*) FROM sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?) AS active_sessions,
+      (SELECT MAX(created_at) FROM sessions WHERE user_id = ?) AS last_login_at,
+      (SELECT COUNT(*) FROM matches WHERE user1_id = ? OR user2_id = ?) AS total_matches,
+      (SELECT COUNT(*) FROM matches WHERE status = 'active' AND (user1_id = ? OR user2_id = ?)) AS active_matches,
+      (SELECT COALESCE(SUM(active_seconds), 0) FROM matches WHERE user1_id = ? OR user2_id = ?) AS active_seconds,
+      (SELECT COUNT(*) FROM messages m JOIN matches x ON x.id = m.match_id WHERE x.user1_id = ? OR x.user2_id = ?) AS total_messages,
+      (SELECT COUNT(*) FROM messages WHERE sender_id = ?) AS sent_messages,
+      (SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) FROM token_transactions WHERE user_id = ?) AS tokens_earned,
+      (SELECT COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) FROM token_transactions WHERE user_id = ?) AS tokens_spent,
+      (SELECT COUNT(*) FROM store_inventory WHERE user_id = ?) AS inventory_count,
+      (SELECT COUNT(*) FROM promo_redemptions WHERE user_id = ?) AS promo_redemptions,
+      (SELECT COUNT(*) FROM support_tickets WHERE user_id = ?) AS ticket_count,
+      (SELECT COUNT(*) FROM reports WHERE reported_id = ?) AS reports_received,
+      (SELECT COUNT(*) FROM reports WHERE reporter_id = ?) AS reports_made,
+      (SELECT COUNT(*) FROM moderation_actions WHERE target_id = ?) AS moderation_count`, statsParams);
+    const user = {
+      id: target.id, publicId: target.public_id, username: target.username, avatar: target.avatar,
+      description: target.description || '', gender: target.gender || '', accountType: target.account_type,
+      role: isOwner(target) ? 'owner' : target.role, owner: isOwner(target), online: onlineUserIds().has(target.id),
+      tokens: Number(target.tokens || 0), subscriptionTier: effectiveSubscription(target),
+      subscriptionExpiresAt: target.subscription_expires_at, paidSubscriptionTier: target.paid_subscription_tier || 'free',
+      paidSubscriptionExpiresAt: target.paid_subscription_expires_at, suspendedUntil: target.suspended_until,
+      suspensionReason: target.suspension_reason || '', createdAt: target.created_at,
+      starterGifted: Boolean(dbGet("SELECT id FROM admin_audit_log WHERE action = 'starter_pack' AND target_id = ? LIMIT 1", [target.id]))
+    };
+    res.json({
+      user,
+      stats: {
+        ...stats, totalSessions: Number(stats.total_sessions || 0), activeSessions: Number(stats.active_sessions || 0),
+        totalMatches: Number(stats.total_matches || 0), activeMatches: Number(stats.active_matches || 0),
+        activeMinutes: Math.floor(Number(stats.active_seconds || 0) / 60), totalMessages: Number(stats.total_messages || 0),
+        sentMessages: Number(stats.sent_messages || 0), tokensEarned: Number(stats.tokens_earned || 0),
+        tokensSpent: Number(stats.tokens_spent || 0), inventoryCount: Number(stats.inventory_count || 0),
+        promoRedemptions: Number(stats.promo_redemptions || 0), ticketCount: Number(stats.ticket_count || 0),
+        reportsReceived: Number(stats.reports_received || 0), reportsMade: Number(stats.reports_made || 0),
+        moderationCount: Number(stats.moderation_count || 0), lastLoginAt: stats.last_login_at || null
+      },
+      transactions: dbAll('SELECT kind, amount, description, created_at FROM token_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 8', [target.id]),
+      moderation: dbAll('SELECT action, reason, expires_at, created_at FROM moderation_actions WHERE target_id = ? ORDER BY created_at DESC LIMIT 8', [target.id]),
+      personalPromos: dbAll('SELECT id, code, token_reward, membership_tier, membership_days, uses, max_uses, active, expires_at FROM promo_codes WHERE target_user_id = ? ORDER BY created_at DESC LIMIT 10', [target.id])
+    });
+  });
+  app.post('/api/admin/users/:id/promo', authMiddleware, ownerOnly, (req, res) => {
+    const target = getUserById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден.' });
+    if (isOwner(target)) return res.status(403).json({ error: 'Персональную награду нельзя выдать владельцу.' });
+    const code = String(req.body?.code || `SOLVI-${crypto.randomBytes(4).toString('hex').toUpperCase()}`).trim().toUpperCase().replace(/\s+/g, '');
+    const tokens = Math.trunc(Number(req.body?.tokens) || 0);
+    const itemId = req.body?.itemId ? String(req.body.itemId) : null;
+    const tier = ['vip', 'premium'].includes(req.body?.membershipTier) ? req.body.membershipTier : null;
+    const days = tier ? Math.trunc(Number(req.body?.membershipDays)) : null;
+    const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : new Date(Date.now() + 30 * 86400000);
+    if (!/^[A-Z0-9-]{4,32}$/.test(code) || !Number.isFinite(expiresAt.getTime())) return res.status(400).json({ error: 'Проверь код и дату окончания.' });
+    if (tokens < 0 || tokens > 1000000 || (itemId && !STORE_CATALOG.some(item => item.id === itemId)) || (tier && ![1, 7, 30, 90].includes(days)) || (!tokens && !itemId && !tier)) return res.status(400).json({ error: 'Укажи хотя бы одну допустимую награду.' });
+    const id = crypto.randomUUID();
+    try {
+      transaction(() => {
+        dbRun('INSERT INTO promo_codes (id, code, token_reward, item_id, membership_tier, membership_days, max_uses, starts_at, expires_at, created_by, created_at, target_user_id) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)', [id, code, tokens, itemId, tier, days, nowIso(), expiresAt.toISOString(), req.user.id, nowIso(), target.id]);
+        auditAdmin(req.user.id, 'personal_promo_create', target.id, { promoId: id, code, tokens, itemId, tier, days, expiresAt: expiresAt.toISOString() });
+      });
+    } catch (error) { return res.status(409).json({ error: String(error.message).includes('UNIQUE') ? 'Такой промокод уже существует.' : 'Не удалось создать персональный промокод.' }); }
+    res.status(201).json({ ok: true, promo: dbGet('SELECT * FROM promo_codes WHERE id = ?', [id]) });
   });
   app.post('/api/admin/users/:id/logout', authMiddleware, ownerOnly, (req, res) => {
     const target = getUserById(req.params.id);
@@ -2034,20 +2110,51 @@ async function main() {
     try {
       const id = crypto.randomUUID();
       transaction(() => {
-        dbRun('INSERT INTO promo_codes (id, code, token_reward, item_id, membership_tier, membership_days, max_uses, starts_at, expires_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, code, tokens, itemId, tier, days, maxUses, startsAt, expiresAt, req.user.id, nowIso()]);
+        dbRun('INSERT INTO promo_codes (id, code, token_reward, item_id, membership_tier, membership_days, max_uses, starts_at, expires_at, created_by, created_at, target_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)', [id, code, tokens, itemId, tier, days, maxUses, startsAt, expiresAt, req.user.id, nowIso()]);
         auditAdmin(req.user.id, 'promo_create', id, { code, tokens, itemId, tier, days, maxUses });
       });
       res.status(201).json({ ok: true, promo: dbGet('SELECT * FROM promo_codes WHERE id = ?', [id]) });
     } catch (error) { res.status(409).json({ error: String(error.message).includes('UNIQUE') ? 'Такой промокод уже существует.' : 'Не удалось создать промокод.' }); }
   });
   app.get('/api/admin/promos', authMiddleware, ownerOnly, (_req, res) => {
-    res.json({ promos: dbAll('SELECT id, code, token_reward, item_id, membership_tier, membership_days, max_uses, uses, starts_at, expires_at, active, created_at FROM promo_codes ORDER BY created_at DESC LIMIT 200') });
+    const promos = dbAll(`SELECT p.id, p.code, p.token_reward, p.item_id, p.membership_tier, p.membership_days,
+      p.max_uses, p.uses, p.starts_at, p.expires_at, p.active, p.created_at, p.target_user_id,
+      u.username AS target_username,
+      (SELECT COUNT(*) FROM promo_redemptions r WHERE r.promo_id = p.id) AS redemption_count
+      FROM promo_codes p LEFT JOIN users u ON u.id = p.target_user_id
+      ORDER BY p.created_at DESC LIMIT 200`);
+    res.json({ promos });
+  });
+  app.get('/api/admin/promos/:id', authMiddleware, ownerOnly, (req, res) => {
+    const promo = dbGet(`SELECT p.*, u.username AS target_username FROM promo_codes p
+      LEFT JOIN users u ON u.id = p.target_user_id WHERE p.id = ?`, [req.params.id]);
+    if (!promo) return res.status(404).json({ error: 'Промокод не найден.' });
+    const redemptions = dbAll(`SELECT r.redeemed_at, u.id AS user_id, u.username, u.public_id
+      FROM promo_redemptions r JOIN users u ON u.id = r.user_id
+      WHERE r.promo_id = ? ORDER BY r.redeemed_at DESC LIMIT 100`, [promo.id]);
+    res.json({ promo, redemptions, stats: { uses: Number(promo.uses || 0), maxUses: Number(promo.max_uses || 0), uniqueUsers: redemptions.length } });
   });
   app.patch('/api/admin/promos/:id', authMiddleware, ownerOnly, (req, res) => {
-    const active = req.body?.active === false ? 0 : 1;
-    const result = dbRun('UPDATE promo_codes SET active = ? WHERE id = ?', [active, req.params.id]);
-    if (!result.changes) return res.status(404).json({ error: 'Промокод не найден.' });
-    auditAdmin(req.user.id, active ? 'promo_enable' : 'promo_disable', req.params.id, {});
+    const old = dbGet('SELECT * FROM promo_codes WHERE id = ?', [req.params.id]);
+    if (!old) return res.status(404).json({ error: 'Промокод не найден.' });
+    const code = String(req.body?.code ?? old.code).trim().toUpperCase().replace(/\s+/g, '');
+    const maxUses = req.body?.maxUses === undefined ? Number(old.max_uses) : Math.trunc(Number(req.body.maxUses));
+    const parseDate = (value, fallback) => {
+      if (value === undefined) return fallback;
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+    };
+    const startsAt = parseDate(req.body?.startsAt, old.starts_at);
+    const expiresAt = parseDate(req.body?.expiresAt, old.expires_at);
+    const active = req.body?.active === undefined ? Number(old.active) : (req.body.active === false ? 0 : 1);
+    if (!/^[A-Z0-9-]{4,32}$/.test(code) || !Number.isInteger(maxUses) || maxUses < Number(old.uses) || maxUses > 100000 || startsAt === undefined || expiresAt === undefined || (startsAt && expiresAt && expiresAt <= startsAt)) {
+      return res.status(400).json({ error: 'Проверь код, даты и лимит. Лимит нельзя сделать меньше числа активаций.' });
+    }
+    try {
+      dbRun('UPDATE promo_codes SET code = ?, max_uses = ?, starts_at = ?, expires_at = ?, active = ? WHERE id = ?', [code, maxUses, startsAt, expiresAt, active, old.id]);
+    } catch (error) { return res.status(409).json({ error: String(error.message).includes('UNIQUE') ? 'Такой промокод уже существует.' : 'Не удалось изменить промокод.' }); }
+    auditAdmin(req.user.id, 'promo_update', old.id, { code, maxUses, startsAt, expiresAt, active: Boolean(active) });
     res.json({ ok: true, active: Boolean(active) });
   });
   app.patch('/api/admin/store/:itemId/price', authMiddleware, ownerOnly, (req, res) => {
@@ -2121,10 +2228,17 @@ async function main() {
   });
   app.patch('/api/admin/social-links/:id', authMiddleware, ownerOnly, (req,res)=>{
     const old=dbGet('SELECT * FROM site_social_links WHERE id=?',[req.params.id]);if(!old)return res.status(404).json({error:'Ссылка не найдена.'});
-    const enabled=req.body?.enabled===undefined?old.enabled:(req.body.enabled?1:0),label=typeof req.body?.label==='string'?req.body.label.trim().slice(0,60):old.label,url=typeof req.body?.url==='string'?req.body.url.trim().slice(0,500):old.url;
+    const enabled=req.body?.enabled===undefined?old.enabled:(req.body.enabled?1:0);
+    const platform=typeof req.body?.platform==='string'?req.body.platform.trim().slice(0,40):old.platform;
+    const label=typeof req.body?.label==='string'?req.body.label.trim().slice(0,60):old.label;
+    const url=typeof req.body?.url==='string'?req.body.url.trim().slice(0,500):old.url;
+    const icon=typeof req.body?.icon==='string'?req.body.icon.trim().slice(0,8):old.icon;
+    const sortOrder=req.body?.sortOrder===undefined?Number(old.sort_order):Math.max(0,Math.min(10000,Math.trunc(Number(req.body.sortOrder)||0)));
     let parsed;try{parsed=new URL(url)}catch{return res.status(400).json({error:'Некорректная ссылка.'})}
-    if(parsed.protocol!=='https:'||!label)return res.status(400).json({error:'Нужны подпись и HTTPS-ссылка.'});
-    dbRun('UPDATE site_social_links SET label=?,url=?,enabled=?,updated_at=? WHERE id=?',[label,url,enabled,nowIso(),old.id]);auditAdmin(req.user.id,'social_link_update',old.id,{enabled,label,url});res.json({ok:true});
+    if(parsed.protocol!=='https:'||!platform||!label||!icon)return res.status(400).json({error:'Нужны платформа, подпись, иконка и HTTPS-ссылка.'});
+    dbRun('UPDATE site_social_links SET platform=?,label=?,url=?,icon=?,sort_order=?,enabled=?,updated_at=? WHERE id=?',[platform,label,url,icon,sortOrder,enabled,nowIso(),old.id]);
+    auditAdmin(req.user.id,'social_link_update',old.id,{platform,label,url,icon,sortOrder,enabled});
+    res.json({ok:true});
   });
   app.delete('/api/admin/social-links/:id', authMiddleware, ownerOnly, (req,res)=>{
     const old=dbGet('SELECT id FROM site_social_links WHERE id=?',[req.params.id]);if(!old)return res.status(404).json({error:'Ссылка не найдена.'});
@@ -2138,7 +2252,31 @@ async function main() {
   });
   app.patch('/api/admin/tasks/:id', authMiddleware, ownerOnly, (req,res)=>{
     const task=dbGet('SELECT * FROM reward_tasks WHERE id=?',[req.params.id]);if(!task)return res.status(404).json({error:'Задание не найдено.'});
-    const active=req.body?.active===undefined?task.active:(req.body.active?1:0);dbRun('UPDATE reward_tasks SET active=?,updated_at=? WHERE id=?',[active,nowIso(),task.id]);auditAdmin(req.user.id,'reward_task_toggle',task.id,{active});res.json({ok:true});
+    const title=typeof req.body?.title==='string'?req.body.title.trim().slice(0,100):task.title;
+    const description=typeof req.body?.description==='string'?req.body.description.trim().slice(0,500):task.description;
+    const platform=typeof req.body?.platform==='string'?req.body.platform.trim().slice(0,40):task.platform;
+    const url=typeof req.body?.url==='string'?req.body.url.trim().slice(0,500):task.url;
+    const reward=req.body?.rewardTokens===undefined?Number(task.reward_tokens):Math.trunc(Number(req.body.rewardTokens));
+    const sponsor=typeof req.body?.sponsorName==='string'?req.body.sponsorName.trim().slice(0,80):task.sponsor_name;
+    const maxClaims=req.body?.maxClaims===undefined?Number(task.max_claims):Math.max(0,Math.min(100000,Math.trunc(Number(req.body.maxClaims)||0)));
+    const active=req.body?.active===undefined?Number(task.active):(req.body.active?1:0);
+    let parsed;try{parsed=new URL(url)}catch{return res.status(400).json({error:'Укажи корректную HTTPS-ссылку.'})}
+    if(title.length<4||description.length<10||!platform||parsed.protocol!=='https:'||!Number.isInteger(reward)||reward<1||reward>5000||!Number.isInteger(maxClaims))return res.status(400).json({error:'Проверь название, описание, платформу, ссылку, награду и лимит.'});
+    dbRun('UPDATE reward_tasks SET title=?,description=?,platform=?,url=?,reward_tokens=?,sponsor_name=?,max_claims=?,active=?,updated_at=? WHERE id=?',[title,description,platform,url,reward,sponsor,maxClaims,active,nowIso(),task.id]);
+    auditAdmin(req.user.id,'reward_task_update',task.id,{title,description,platform,url,reward,sponsor,maxClaims,active});
+    res.json({ok:true});
+  });
+  app.delete('/api/admin/tasks/:id', authMiddleware, ownerOnly, (req,res)=>{
+    const task=dbGet('SELECT id,title FROM reward_tasks WHERE id=?',[req.params.id]);if(!task)return res.status(404).json({error:'Задание не найдено.'});
+    const submissionCount=Number(dbGet('SELECT COUNT(*) AS n FROM reward_task_submissions WHERE task_id=?',[task.id]).n||0);
+    if(submissionCount){
+      dbRun('UPDATE reward_tasks SET active=0,updated_at=? WHERE id=?',[nowIso(),task.id]);
+      auditAdmin(req.user.id,'reward_task_archive',task.id,{submissionCount});
+      return res.json({ok:true,archived:true,submissionCount});
+    }
+    dbRun('DELETE FROM reward_tasks WHERE id=?',[task.id]);
+    auditAdmin(req.user.id,'reward_task_delete',task.id,{});
+    res.json({ok:true,archived:false,submissionCount:0});
   });
   app.post('/api/admin/task-submissions/:id/review', authMiddleware, ownerOnly, (req,res)=>{
     const submission=dbGet(`SELECT s.*,t.title,t.reward_tokens FROM reward_task_submissions s JOIN reward_tasks t ON t.id=s.task_id WHERE s.id=?`,[req.params.id]);
@@ -2180,10 +2318,12 @@ async function main() {
 
   app.get('/api/admin/reports', authMiddleware, ownerOnly, (_req, res) => {
     const reports = dbAll(`SELECT r.id, r.category, r.details, r.context_json, r.created_at, r.reporter_id, r.reported_id,
-      reporter.username AS reporter_name, reported.username AS reported_name, COALESCE(rs.status, 'open') AS status
+      reporter.username AS reporter_name, reporter.public_id AS reporter_public_id,
+      reported.username AS reported_name, reported.public_id AS reported_public_id,
+      COALESCE(rs.status, 'open') AS status, rs.resolution, rs.reviewed_at
       FROM reports r JOIN users reporter ON reporter.id = r.reporter_id JOIN users reported ON reported.id = r.reported_id
       LEFT JOIN reports_status rs ON rs.report_id = r.id ORDER BY r.created_at DESC LIMIT 100`);
-    res.json({ reports: reports.map(row => ({ id: row.id, category: row.category, details: row.details, context: safeJsonArray(row.context_json), createdAt: row.created_at, reporter: row.reporter_name, reported: row.reported_name, reportedId: row.reported_id, status: row.status })) });
+    res.json({ reports: reports.map(row => ({ id: row.id, category: row.category, details: row.details, context: safeJsonArray(row.context_json), createdAt: row.created_at, reporter: row.reporter_name, reporterId: row.reporter_id, reporterPublicId: row.reporter_public_id, reported: row.reported_name, reportedId: row.reported_id, reportedPublicId: row.reported_public_id, status: row.status, resolution: row.resolution || '', reviewedAt: row.reviewed_at || null })) });
   });
   app.post('/api/admin/reports/:id/resolve', authMiddleware, ownerOnly, (req, res) => {
     const report = dbGet('SELECT id FROM reports WHERE id = ?', [req.params.id]);
