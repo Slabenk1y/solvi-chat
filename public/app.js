@@ -149,6 +149,56 @@ function createStorePreview(item) {
   preview.append(scene);
   return preview;
 }
+function createThemeStorePreview(item) {
+  const palettes = {
+    aurora: ['#101d34','#1b3150','#79d7ca','#f2fbff','#a8bfd2'],
+    sunset: ['#30232b','#50343b','#f09b78','#fff3eb','#d9b9ae'],
+    midnight: ['#151525','#222139','#9f88f4','#f2efff','#b1a9ca'],
+    candy: ['#321e38','#512b55','#ec83c0','#fff0fa','#d7b8d4'],
+    arcade: ['#142a35','#1c3c49','#20c6d1','#eaffff','#a7cdd2'],
+    cream: ['#fbf5e9','#fffaf0','#bc8b57','#514333','#96846d'],
+    ice: ['#eff7fb','#fbfeff','#4c9ec6','#253d52','#7c9bb0'],
+    sakura: ['#fff5f8','#fffafd','#d57fa7','#55384a','#a17b90'],
+    violet: ['#241d3b','#382c55','#a47ce9','#f5efff','#c3b1dd'],
+    space: ['#111b31','#1c2b49','#8f83ee','#f2efff','#a9abc9'],
+    paper: ['#eee5d5','#fffaf0','#ad825b','#514333','#96846d'],
+    neon: ['#101b2b','#172c43','#43d5e7','#e9fbff','#9dbdca'],
+    pixel: ['#18263a','#263a54','#e1a64b','#fff5dc','#b9c6d8'],
+    clouds: ['#e9f2fa','#ffffff','#6fa9d0','#31475c','#8ba1b3'],
+    default: ['#f2f1f8','#ffffff','#8278d8','#302d45','#918ca7'],
+    dark: ['#181827','#232337','#8d86ff','#f0efff','#a2a2ba'],
+    light: ['#f5f6fb','#ffffff','#756ee8','#29263e','#88859e']
+  };
+  const paletteAliases = { royal: 'violet', mint: 'clouds', berry: 'candy', lilac: 'violet', gold: 'cream', orbit: 'space', comet: 'space', soft: 'clouds', night: 'midnight', ocean: 'ice', flower: 'sakura', rain: 'clouds', rose: 'sakura', mountain: 'sunset', cyber: 'neon', sea: 'ice', citrus: 'sunset', graphite: 'midnight', glass: 'ice', bubble: 'candy', synth: 'arcade', 'deep-sea': 'ice', 'first-contact': 'aurora', 'sakura-keeper': 'sakura', 'night-circuit': 'neon' };
+  const colors = palettes[item.value] || palettes[paletteAliases[item.value]] || palettes.default;
+  const root = document.createElement('div');
+  root.className = 'store-detail-preview theme-context-preview';
+  root.style.setProperty('--mock-bg', colors[0]);
+  root.style.setProperty('--mock-surface', colors[1]);
+  root.style.setProperty('--mock-accent', colors[2]);
+  root.style.setProperty('--mock-ink', colors[3]);
+  root.style.setProperty('--mock-muted', colors[4]);
+  const shell = document.createElement('div'); shell.className = 'theme-mock-shell';
+  const top = document.createElement('div'); top.className = 'theme-mock-top';
+  const brand = document.createElement('strong'); brand.textContent = 'SOVLI';
+  const topLabel = document.createElement('span'); topLabel.textContent = 'ТВОЁ ПРОСТРАНСТВО';
+  top.append(brand, topLabel);
+  const body = document.createElement('div'); body.className = 'theme-mock-body';
+  const rail = document.createElement('aside'); rail.className = 'theme-mock-rail';
+  ['◉','⌕','♡','⚙'].forEach((symbol,index)=>{const icon=document.createElement('i');icon.textContent=symbol;if(index===0)icon.className='active';rail.append(icon);});
+  const chat = document.createElement('div'); chat.className = 'theme-mock-chat';
+  const heading = document.createElement('div'); heading.className = 'theme-mock-heading';
+  const avatar = document.createElement('span'); avatar.className='theme-mock-avatar';avatar.textContent='🌙';
+  const headingCopy = document.createElement('div'); const name=document.createElement('strong');name.textContent='northstar';const online=document.createElement('small');online.textContent='● В сети';headingCopy.append(name,online);heading.append(avatar,headingCopy);
+  const messages=document.createElement('div');messages.className='theme-mock-messages';
+  const incoming=document.createElement('span');incoming.className='theme-mock-bubble incoming';incoming.textContent='Привет! Как настроение?';
+  const outgoing=document.createElement('span');outgoing.className='theme-mock-bubble outgoing';outgoing.textContent='Отличное ✨ А у тебя?';
+  const incoming2=document.createElement('span');incoming2.className='theme-mock-bubble incoming';incoming2.textContent='Теперь ещё лучше :)';
+  messages.append(incoming,outgoing,incoming2);
+  const composer=document.createElement('div');composer.className='theme-mock-composer';composer.textContent='Написать сообщение…';
+  chat.append(heading,messages,composer);body.append(rail,chat);shell.append(top,body);root.append(shell);
+  return root;
+}
 function openStorePreview(item) {
   const modal = $('#storePreviewModal');
   const visual = $('#storePreviewCanvas');
@@ -167,7 +217,7 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', 'Усиленный ореол профиля', 'Эксклюзивная Premium-подсветка'] : ['VIP-значок рядом с ником', 'Сияющая рамка профиля', 'Акцент твоих сообщений'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '6 фото за раз', '10 языков · 12 интересов', 'Эксклюзивная Premium-подсветка'] : ['VIP-значок рядом с ником', '3 000 символов', '4 фото за раз', '5 языков · 8 интересов', 'Сияющая рамка профиля'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else {
@@ -573,7 +623,7 @@ function setUser(user) {
   const isNewAccount = state.user?.id !== user.id;
   state.user = user;
   document.documentElement.dataset.role = user.role === 'owner' ? 'owner' : (user.role || 'member');
-  document.documentElement.dataset.memberTier = ['vip', 'premium'].includes(user.subscriptionTier) ? user.subscriptionTier : 'free';
+  document.documentElement.dataset.memberTier = ['vip', 'premium'].includes(user.subscriptionTier) ? user.subscriptionTier : 'free';\n  const messageLimit = user.subscriptionTier === 'premium' ? 5000 : (user.subscriptionTier === 'vip' ? 3000 : 2000);\n  $('#messageInput').maxLength = messageLimit;\n  $('#messageHint').textContent = `До ${messageLimit.toLocaleString('ru-RU')} символов · Enter — отправить · Shift + Enter — новая строка`;\n  if ($('#languageOptions')) renderFilters();
   if (isNewAccount) state.selectedAvatar = user.avatarUrl ? null : user.avatar;
   setAvatarContent($('#sideAvatar'), user);
   setAvatarContent($('#topAvatar'), user);
@@ -677,9 +727,9 @@ function renderFilters() {
   const languageSummary = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
   const interestSummary = state.selectedInterests.length ? state.selectedInterests.slice(0, 2).join(', ') + (state.selectedInterests.length > 2 ? ` +${state.selectedInterests.length - 2}` : '') : 'Любые интересы';
   $('#languageSummary').textContent = languageSummary;
-  $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / 3` : 'Не ограничивать';
+  $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / ${languageLimit}` : 'Не ограничивать';
   $('#interestSummary').textContent = interestSummary;
-  $('#interestCount').textContent = state.selectedInterests.length ? `${state.selectedInterests.length} / 5` : 'Без фильтра';
+  $('#interestCount').textContent = state.selectedInterests.length ? `${state.selectedInterests.length} / ${interestLimit}` : 'Без фильтра';
   try {
     localStorage.setItem('sovli_languages', JSON.stringify(state.selectedLanguages));
     localStorage.setItem('sovli_interests', JSON.stringify(state.selectedInterests));
@@ -1686,7 +1736,7 @@ $('#messageForm').addEventListener('submit', event => {
   const input = $('#messageInput');
   const content = input.value.trim();
   if (!content) return;
-  if (content.length > 2000) { showToast('Сообщение слишком длинное.'); return; }
+  const messageLimit = state.user?.subscriptionTier === 'premium' ? 5000 : (state.user?.subscriptionTier === 'vip' ? 3000 : 2000);\n  if (content.length > messageLimit) { showToast(`Сообщение слишком длинное. Лимит: ${messageLimit.toLocaleString('ru-RU')} символов.`); return; }
   const clientId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   sendMessage(content, clientId);
   $('#stickerPanel').hidden = true;
