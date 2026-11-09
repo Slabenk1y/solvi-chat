@@ -950,7 +950,7 @@ function renderFilters() {
   state.selectedInterests = state.selectedInterests.slice(0, interestLimit);
   state.selectedFlirtInterests = state.selectedFlirtInterests.slice(0, interestLimit);
   state.selectedRoleplayInterests = state.selectedRoleplayInterests.slice(0, interestLimit);
-  $('[data-match-mode]').forEach(button => {
+  $$('[data-match-mode]').forEach(button => {
     const active = button.dataset.matchMode === state.matchingMode;
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
@@ -1963,7 +1963,7 @@ $('#guestButton').addEventListener('click', async () => {
   } catch (error) { setAuthError(error.message); }
   finally { button.disabled = false; button.querySelector('span:first-child').textContent = 'Продолжить гостем'; }
 });
-$('[data-match-mode]').forEach(button => button.addEventListener('click', () => {
+$$('[data-match-mode]').forEach(button => button.addEventListener('click', () => {
   state.matchingMode = button.dataset.matchMode; $('#flirtAdultConsent').checked = false; $('#roleplayAdultConsent').checked = false; renderFilters();
 }));
 $('#desiredGender').addEventListener('change', () => { state.desiredGender = $('#desiredGender').value; renderFilters(); });
