@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.6.0') fail(`Ожидалась версия 1.6.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.7.0') fail(`Ожидалась версия 1.7.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -52,8 +52,16 @@ try {
   if (catalogSection.includes('category: "Обои"') || catalogSection.includes('slot: "wallpaper"')) fail('Каталог всё ещё содержит отдельную категорию обоев');
   else pass('Все бывшие обои переведены в темы интерфейса');
   const membershipSection = server.slice(server.indexOf('const MEMBERSHIP_PACKAGES'), server.indexOf('const LANGUAGES'));
-  if (!membershipSection.includes("id: 'vip-1d', tier: 'vip', days: 1, price: 270") || !membershipSection.includes("id: 'premium-1d', tier: 'premium', days: 1, price: 480")) fail('Цены привилегий не соответствуют экономике v1.5.1');
-  else pass('Новые цены VIP и Premium проверены');
+  const expectedMembershipRates = [
+    "id: 'vip-1h', tier: 'vip', hours: 1, price: 180",
+    "id: 'vip-3h', tier: 'vip', hours: 3, price: 540",
+    "id: 'vip-6h', tier: 'vip', hours: 6, price: 1080",
+    "id: 'premium-1h', tier: 'premium', hours: 1, price: 360",
+    "id: 'premium-3h', tier: 'premium', hours: 3, price: 1080",
+    "id: 'premium-6h', tier: 'premium', hours: 6, price: 2160"
+  ];
+  if (expectedMembershipRates.some(item => !membershipSection.includes(item)) || !server.includes("pack.hours * 60 * 60 * 1000")) fail('Часовые цены VIP/Premium не совпадают с формулой 180/360 токенов за час');
+  else pass('VIP 180 ✦/ч и Premium 360 ✦/ч проверены для пакетов 1/3/6 часов');
   if (collectionNames.length < 10) fail(`Слишком мало коллекций: ${collectionNames.length}`);
   else pass(`Коллекции: ${collectionNames.length}`);
 
@@ -85,7 +93,7 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v17/.test(sw)) fail('Service Worker cache version не соответствует v1.6.0');
+  if (!/sovli-shell-v18/.test(sw)) fail('Service Worker cache version не соответствует v1.7.0');
   else pass('Service Worker cache version обновлён');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
@@ -99,6 +107,15 @@ try {
   const favoritesRoute = server.slice(server.indexOf("app.get('/api/favorites'"), server.indexOf("app.post('/api/favorites'"));
   if (!favoritesRoute.includes('SELECT u.id, u.username, u.avatar, u.avatar_file') || favoritesRoute.includes('description: row.description') || favoritesRoute.includes('publicId: row.public_id')) fail('Избранное должно возвращать только карточку с аватаром и ником');
   else pass('Избранное не раскрывает лишние поля профиля и не содержит функций связи');
+  if (!app.includes('function createLiveStorePreview(item)') || !app.includes('visual.replaceChildren(createLiveStorePreview(item))') || !html.includes('id="storePreviewPerks"')) fail('В магазине нет живого макета интерфейса и списка видимых изменений');
+  else pass('Предпросмотр показывает макет SOVLI, а не только отдельный символ/описание');
+  if (!server.includes('const VIP_STICKERS') || !server.includes('const PREMIUM_STICKERS') || !app.includes('const VIP_STICKERS') || !app.includes('const PREMIUM_STICKERS')) fail('VIP/Premium sticker packs are not synchronized between client and server');
+  else pass('VIP и Premium имеют отдельные синхронизированные наборы стикеров');
+  if (!server.includes('membershipCurrent: effectiveSubscription(user)') || !app.includes('function renderMembershipPerks(user)') || !app.includes('function renderMembershipQuickReplies(user)')) fail('Преимущества статусов или отображение текущей подписки отсутствуют');
+  else pass('Преимущества VIP/Premium отображаются в профиле и быстрых фразах');
+  if (!app.includes('playStoreSoundPreview(item.value)')) fail('Звуковой предпросмотр не воспроизводит выбранный товар');
+  else pass('Звуковой предпросмотр использует выбранный звуковой товар');
+
   if (!html.includes('composer-tool-photo') || !html.includes('composer-tool-sticker') || !html.includes('composer-tool-voice')) fail('Иконки вложений чата отсутствуют');
   else pass('Иконки фото, стикеров и голосовых присутствуют');
 
