@@ -24,6 +24,13 @@ function submitChatComposer() {
   if (stickerPanel) stickerPanel.hidden = true;
   state.socket?.emit('chat:typing', { matchId: state.activeMatch?.matchId, typing: false });
 }
+document.addEventListener('keydown', event => {
+  if (event.target?.id !== 'messageInput' || event.key !== 'Enter' || event.shiftKey) return;
+  if (window.__solviChatStateReady && state.settings.enterToSend === false) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  submitChatComposer();
+}, true);
 document.addEventListener('submit', event => {
   if (event.target?.id !== 'messageForm') return;
   event.preventDefault();
