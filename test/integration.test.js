@@ -104,6 +104,11 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.items.some(item => item.id === 'theme-aurora' && !item.owned));
     assert.ok(storeBefore.items.some(item => item.id === 'theme-default' && item.owned));
     assert.ok(storeBefore.categories.includes('Титулы'));
+    assert.ok(storeBefore.categories.includes('Темы'));
+    assert.ok(!storeBefore.categories.includes('Обои'), 'wallpapers are now full-interface themes');
+    assert.ok(storeBefore.items.some(item => item.id === 'wallpaper-deep-space' && item.category === 'Темы' && item.slot === 'theme'));
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1d')?.price, 180);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1d')?.price, 320);
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
     assert.equal(storeBefore.dailyAvailable, undefined, 'daily rewards are not part of v1 economy');
     assert.ok(storeBefore.collections.length >= 8, 'catalog is grouped into collections');
