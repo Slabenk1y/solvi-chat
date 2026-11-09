@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.5.1') fail(`Ожидалась версия 1.5.1, получена ${pkg.version}`);
+  if (pkg.version !== '1.6.0') fail(`Ожидалась версия 1.6.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -85,8 +85,20 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v16/.test(sw)) fail('Service Worker cache version не соответствует v1.5.1');
+  if (!/sovli-shell-v17/.test(sw)) fail('Service Worker cache version не соответствует v1.6.0');
   else pass('Service Worker cache version обновлён');
+
+  if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
+  else pass('Ответы на собственные сообщения блокируются сервером');
+  if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
+  else pass('У каждого предмета магазина доступен отдельный предпросмотр');
+  if (!html.includes('id="sessionBootScreen"') || !app.includes("classList.remove('session-checking')")) fail('Экран восстановления сессии не настроен');
+  else pass('При перезагрузке отображается экран восстановления сессии, а не форма входа');
+  if (!server.includes('Guests may personalize their avatar') || !app.includes('DEFAULT_AVATARS')) fail('Гостевые и стандартные аватары не восстановлены');
+  else pass('Стандартные и пользовательские аватары доступны гостям и аккаунтам');
+  if (!html.includes('composer-tool-photo') || !html.includes('composer-tool-sticker') || !html.includes('composer-tool-voice')) fail('Иконки вложений чата отсутствуют');
+  else pass('Иконки фото, стикеров и голосовых присутствуют');
+
 
   for (const file of ['start.bat', 'start-public.bat', 'owner-console.bat', 'owner-panel.bat', 'stop-server.bat', '.env.example', 'README.md', 'PROJECT_PROGRESS.md', 'lib/postgres-snapshot.cjs', 'public/owner.html', 'public/owner.css', 'public/owner.js']) {
     if (!fs.existsSync(path.join(root, file))) fail(`Отсутствует обязательный файл ${file}`);
