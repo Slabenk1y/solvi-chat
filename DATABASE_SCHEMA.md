@@ -31,3 +31,10 @@ New registered users and guests are inserted with `tokens = 0`. No welcome/daily
 ## Migration and backup
 
 Before update, stop the server and copy `data/` and `.env`. Never remove `data/.jwt-secret`. SQLite migration leaves old account token balances intact. A pre-migration backup is made for the native-SQLite transition if required by the existing database state.
+
+
+## External persistence layer (v1.3)
+
+The runtime schema remains SQLite. When `DATABASE_URL` is configured, Neon stores the complete set of application tables in `sovli_persistent_state.payload` (JSONB). Avatar files are stored separately in `sovli_avatar_files` (BYTEA, one row per file). The app restores both at startup and refreshes the JSONB snapshot after database writes.
+
+This is a single-instance persistence bridge for Render Free, not a direct PostgreSQL schema migration. Do not run multiple SOVLI instances against this snapshot design.
