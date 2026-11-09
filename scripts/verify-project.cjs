@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.10.1') fail(`Ожидалась версия 1.10.1, получена ${pkg.version}`);
+  if (pkg.version !== '1.10.2') fail(`Ожидалась версия 1.10.2, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const matchingHtml = read('public/index.html');
@@ -109,9 +109,9 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v25/.test(sw)) fail('Service Worker cache version не соответствует v1.10.0');
+  if (!/sovli-shell-v26/.test(sw)) fail('Service Worker cache version не соответствует v1.10.2');
   else pass('Service Worker cache version обновлён');
-  if (!html.includes('/styles.css?v=25') || !html.includes('/app.js?v=25')) fail('Версии клиентских CSS/JS assets не обновлены');
+  if (!html.includes('/styles.css?v=26') || !html.includes('/app.js?v=26')) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
@@ -159,9 +159,11 @@ try {
   else pass('Neon persistent snapshot storage is connected');
 
   const ownerHtml = read('public/owner.html');
-  for (const endpoint of ['/api/admin/runtime', '/api/admin/runtime/public/start', '/api/admin/runtime/public/stop', '/api/admin/users']) if (!read('public/owner.js').includes(endpoint)) fail(`Mobile owner panel does not call ${endpoint}`);
-  if (!ownerHtml.includes('id=\"dashboardView\"') || !ownerHtml.includes('id=\"loginView\"')) fail('Mobile owner panel login/dashboard missing');
-  else pass('Мобильная панель владельца и её основные API на месте');
+  const ownerUiEndpoints = ['/api/admin/users', '/api/admin/users/', '/api/admin/promos', '/api/admin/promos/', '/api/admin/matches', '/api/admin/reports', '/api/admin/tickets', '/api/admin/growth'];
+  for (const endpoint of ownerUiEndpoints) if (!ownerPanel.includes(endpoint)) fail(`Owner panel does not call ${endpoint}`);
+  if (!ownerHtml.includes('id=\\"dashboardView\\"') || !ownerHtml.includes('id=\\"loginView\\"') || !ownerHtml.includes('data-page=\\"users\\"') || !ownerHtml.includes('data-page=\\"tickets\\"')) fail('Owner panel login, dashboard or key sections missing');
+  if (ownerHtml.includes('data-page=\\"public\\"') || ownerHtml.includes('data-page=\\"cloud\\"') || ownerPanel.includes('/api/admin/runtime/public/')) fail('Unused public-tunnel or cloud-server panels are still exposed');
+  else pass('Новая панель владельца, карточки аккаунтов и основные API подключены; устаревшие панели убраны');
   if (!process.exitCode) pass('Комплект запуска и документации на месте');
 } catch (error) {
   fail(error.stack || error.message);
