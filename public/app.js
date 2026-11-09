@@ -296,7 +296,7 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 12 МБ', 'Русский язык', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 8 МБ', 'Русский язык', 'Набор «Звёздный след»'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 12 МБ', 'Русский язык', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 12 МБ', 'Русский язык', 'Набор «Звёздный след»'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
@@ -317,8 +317,8 @@ function openStorePreview(item) {
     stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
     membership: item.tier === 'premium'
-      ? 'Premium включает VIP, усиливает оформление профиля и расширяет лимиты: 5 000 символов, 8 фото до 12 МБ, голосовые до 4 минут, аватар до 8 МБ, 10 языков и 12 интересов. Поиск и правила безопасности одинаковы для всех.'
-      : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 2:30, аватар до 4 МБ, 5 языков и 8 интересов. Без преимущества в очереди поиска.'
+      ? 'Premium включает VIP, усиливает оформление профиля и расширяет лимиты: 5 000 символов, 10 фото до 12 МБ, голосовые до 1 минуты, аватар до 12 МБ, 10 языков и 12 интересов. Поиск и правила безопасности одинаковы для всех.'
+      : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов. Без преимущества в очереди поиска.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
