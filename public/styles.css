@@ -611,3 +611,13 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 /* SOLVI v1.11.0 real-money token top-up */
 .topup-pack-list{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 4px}
 .topup-pack-list span{padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:var(--surface-soft);font-size:10px;font-weight:800;color:var(--ink)}
+
+
+/* SOLVI sponsored store placements */
+.store-sponsored-ad{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:16px 0;padding:17px 18px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(120deg,var(--surface),var(--surface-soft))}
+.store-sponsored-ad[hidden]{display:none}
+.store-sponsored-ad-copy{display:grid;gap:5px;min-width:0}
+.store-sponsored-ad-copy small{color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.store-sponsored-ad-copy strong{font:800 15px Manrope,sans-serif;overflow-wrap:anywhere}
+.store-sponsored-ad-copy p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}
+@media(max-width:560px){.store-sponsored-ad{align-items:stretch;flex-direction:column}.store-sponsored-ad .button{width:100%}}
