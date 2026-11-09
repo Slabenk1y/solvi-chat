@@ -460,3 +460,12 @@ html.session-checking #sessionBootScreen{display:grid!important}
 .store-item-footer{flex-wrap:wrap}
 .store-membership-preview-mark{display:grid;place-items:center;min-width:160px;min-height:76px;padding:14px 24px;border:1px solid color-mix(in srgb,var(--primary) 55%,transparent);border-radius:20px;background:var(--primary-soft);color:var(--primary);font:900 26px Manrope,sans-serif;letter-spacing:2px}
 .composer-tool-voice.recording{background:rgba(218,75,92,.1);border-color:#dc7180;color:#d24f62}
+
+
+/* Lightweight entry motion for dialogs and menus. */
+.modal-backdrop:not([hidden])>.modal-card,
+.store-preview-modal:not([hidden])>.store-preview-modal-card{animation:sovli-modal-in .18s ease-out both}
+@keyframes sovli-modal-in{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.modal-backdrop:not([hidden])>.modal-card,.store-preview-modal:not([hidden])>.store-preview-modal-card{animation:none!important}}
+.reduce-motion-user .modal-backdrop:not([hidden])>.modal-card,
+.reduce-motion-user .store-preview-modal:not([hidden])>.store-preview-modal-card{animation:none!important}
