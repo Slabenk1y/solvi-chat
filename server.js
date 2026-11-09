@@ -1448,8 +1448,8 @@ async function main() {
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
     res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
-      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, current: effectiveSubscription(user) === item.tier })),
-      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
+      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), current: effectiveSubscription(user) === item.tier })),
+      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
@@ -1487,18 +1487,20 @@ async function main() {
   app.post('/api/store/bundle', authMiddleware, (req, res) => {
     const bundle = STORE_BUNDLES.find(item => item.id === req.body?.bundleId);
     if (!bundle) return res.status(404).json({ error: 'Фирменный набор не найден.' });
+    const bundlePrice = storePrice(bundle.id, bundle.price);
+    if (!bundlePrice.enabled) return res.status(404).json({ error: 'Этот набор временно снят с продажи.' });
     const paidTier = effectivePaidSubscription(req.user);
     if (bundle.tier === 'premium' ? paidTier !== 'premium' : !['vip', 'premium'].includes(paidTier)) return res.status(403).json({ error: 'Наборы доступны только при активной VIP/Premium-привилегии, оплаченной реальными деньгами. Покупка статуса за токены не подходит.' });
     try {
       transaction(() => {
         if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])) throw new Error('Этот набор уже приобретён.');
         const current = dbGet('SELECT tokens FROM users WHERE id = ?', [req.user.id]);
-        if (!current || Number(current.tokens) < bundle.price) throw new Error('Недостаточно токенов для покупки набора.');
+        if (!current || Number(current.tokens) < bundlePrice.price) throw new Error('Недостаточно токенов для покупки набора.');
         const createdAt = nowIso();
-        dbRun('UPDATE users SET tokens = tokens - ? WHERE id = ? AND tokens >= ?', [bundle.price, req.user.id, bundle.price]);
-        dbRun('INSERT INTO store_purchases (id, user_id, item_id, price, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, bundle.id, bundle.price, createdAt]);
+        dbRun('UPDATE users SET tokens = tokens - ? WHERE id = ? AND tokens >= ?', [bundlePrice.price, req.user.id, bundlePrice.price]);
+        dbRun('INSERT INTO store_purchases (id, user_id, item_id, price, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, bundle.id, bundlePrice.price, createdAt]);
         for (const itemId of bundle.itemIds) dbRun('INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, ?)', [req.user.id, itemId, createdAt, bundle.id]);
-        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'bundle_purchase', -bundle.price, `Фирменный набор: ${bundle.name}`, createdAt]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'bundle_purchase', -bundlePrice.price, `Фирменный набор: ${bundle.name}`, createdAt]);
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.json({ ok: true, balance: Number(getUserById(req.user.id).tokens || 0), itemIds: bundle.itemIds });
@@ -1506,18 +1508,20 @@ async function main() {
   app.post('/api/store/membership', authMiddleware, (req, res) => {
     const pack = MEMBERSHIP_PACKAGES.find(item => item.id === req.body?.packageId);
     if (!pack) return res.status(404).json({ error: 'Пакет привилегии не найден.' });
+    const packPrice = storePrice(pack.id, pack.price);
+    if (!packPrice.enabled) return res.status(404).json({ error: 'Этот пакет привилегии временно недоступен.' });
     if (isOwner(req.user)) return res.status(400).json({ error: 'Владельцу не требуется покупать привилегии.' });
     try {
       transaction(() => {
         const current = dbGet('SELECT tokens, subscription_tier, subscription_expires_at FROM users WHERE id = ?', [req.user.id]);
-        if (!current || Number(current.tokens) < pack.price) throw new Error('Недостаточно токенов для покупки привилегии.');
+        if (!current || Number(current.tokens) < packPrice.price) throw new Error('Недостаточно токенов для покупки привилегии.');
         const now = Date.now();
         const oldExpires = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? Date.parse(current.subscription_expires_at) : now;
         const activeTier = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? current.subscription_tier : 'free';
         const tier = activeTier === 'premium' || pack.tier === 'premium' ? 'premium' : 'vip';
         const expires = new Date(oldExpires + pack.hours * 3600000).toISOString();
-        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [pack.price, tier, expires, req.user.id]);
-        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -pack.price, `${pack.name} · ${pack.hours} ч.`, nowIso()]);
+        dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [packPrice.price, tier, expires, req.user.id]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -packPrice.price, `${pack.name} · ${pack.hours} ч.`, nowIso()]);
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.json({ ok: true, user: publicUser(getUserById(req.user.id)) });
@@ -2286,8 +2290,8 @@ async function main() {
     res.json({ ok: true, active: Boolean(active) });
   });
   app.patch('/api/admin/store/:itemId/price', authMiddleware, ownerOnly, (req, res) => {
-    const item = STORE_CATALOG.find(row => row.id === req.params.itemId);
-    if (!item) return res.status(404).json({ error: 'Товар не найден.' });
+    const item = STORE_CATALOG.find(row => row.id === req.params.itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === req.params.itemId) || STORE_BUNDLES.find(row => row.id === req.params.itemId);
+    if (!item) return res.status(404).json({ error: 'Товар или тариф не найден.' });
     const price = Math.trunc(Number(req.body?.price));
     if (!Number.isFinite(price) || price < 0 || price > 10000000) return res.status(400).json({ error: 'Цена должна быть от 0 до 10 000 000.' });
     const enabled = req.body?.enabled === false ? 0 : 1;
@@ -2296,6 +2300,22 @@ async function main() {
       auditAdmin(req.user.id, 'store_price', item.id, { price, enabled: Boolean(enabled) });
     });
     res.json({ ok: true, itemId: item.id, price, enabled: Boolean(enabled) });
+  });
+  app.get('/api/admin/monetization', authMiddleware, ownerOnly, (_req, res) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const now = nowIso();
+    const activeVip = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE subscription_tier = 'vip' AND (subscription_expires_at IS NULL OR subscription_expires_at > ?)", [now]).n);
+    const activePremium = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE subscription_tier = 'premium' AND (subscription_expires_at IS NULL OR subscription_expires_at > ?)", [now]).n);
+    const paidVip = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE paid_subscription_tier = 'vip' AND paid_subscription_expires_at > ?", [now]).n);
+    const paidPremium = Number(dbGet("SELECT COUNT(*) AS n FROM users WHERE paid_subscription_tier = 'premium' AND paid_subscription_expires_at > ?", [now]).n);
+    const tokenSupply = Number(dbGet('SELECT COALESCE(SUM(tokens),0) AS n FROM users').n);
+    const earnedToday = Number(dbGet('SELECT COALESCE(SUM(earned),0) AS n FROM token_earning_daily WHERE day = ?', [today]).n);
+    const tokenFlow = dbGet("SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END),0) AS earned, COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END),0) AS spent FROM token_transactions");
+    const storeSales = Number(dbGet('SELECT COUNT(*) AS n FROM store_purchases').n);
+    const salesByItem = dbAll('SELECT item_id, COUNT(*) AS sales, COALESCE(SUM(price),0) AS tokens FROM store_purchases GROUP BY item_id ORDER BY sales DESC, tokens DESC LIMIT 20');
+    const payments = dbAll('SELECT provider, currency, COUNT(*) AS count, COALESCE(SUM(amount_minor),0) AS amount_minor FROM payment_records GROUP BY provider, currency ORDER BY provider, currency');
+    const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), bundleOnly: Boolean(item.bundleOnly) }));
+    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments });
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
