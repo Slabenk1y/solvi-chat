@@ -630,3 +630,5 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 .store-billing-email-row span{font-size:9px;color:var(--muted)}
 .store-cash-buy{border-color:rgba(126,98,240,.35)!important;background:var(--surface)!important}
 .store-cash-buy:disabled{opacity:.55}
+
+.topup-pack-list select{width:100%;min-width:0}
