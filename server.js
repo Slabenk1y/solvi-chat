@@ -408,7 +408,7 @@ function effectiveSubscription(user) {
 }
 function membershipLimits(user) {
   const tier = effectiveSubscription(user);
-  return { tier, messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH) };
+  return { tier, messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH), languageLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3), interestLimit: tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5) };
 }
 function mediaPublic(row) {
   return { id: row.id, kind: row.media_kind, mime: row.mime_type, size: row.byte_size, url: `/api/media/${encodeURIComponent(row.id)}` };
@@ -556,8 +556,9 @@ function addToQueue(socket, preferences) {
   const userId = socket.data.userId;
   if (PUBLIC_MODE && !PUBLIC_MATCHING) return { ok: false, error: 'Публичный подбор временно отключён в настройках сервера.' };
   if (getActiveMatch(userId)) return { ok: false, error: 'У вас уже есть активный диалог.' };
-  const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(x => LANGUAGES.includes(x)))].slice(0, 3) : [];
-  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => INTERESTS.includes(x)))].slice(0, 5) : [];
+  const limits = membershipLimits(getUserById(userId));
+  const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(x => LANGUAGES.includes(x)))].slice(0, limits.languageLimit) : [];
+  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => INTERESTS.includes(x)))].slice(0, limits.interestLimit) : [];
   const entry = { userId, languages, interests, joinedAt: Date.now() };
   queue.set(userId, entry);
   tryMatch(userId);
@@ -1792,12 +1793,13 @@ async function main() {
       messageWindows.set(userId, window);
       const content = typeof payload?.content === 'string' ? payload.content.trim() : '';
       const clientId = typeof payload?.clientId === 'string' && payload.clientId.length <= 80 ? payload.clientId : '';
-      const messageLimit = membershipLimits(getUserById(userId)).messageLength;
+      const membership = membershipLimits(getUserById(userId));
+      const messageLimit = membership.messageLength;
       const requestedSticker = payload?.sticker;
       const equippedStickerPack = getEquippedItems(userId).stickers;
       const allowedStickers = new Set([...BASE_STICKERS, ...(STICKER_PACKS[equippedStickerPack] || [])]);
       const sticker = allowedStickers.has(requestedSticker) ? requestedSticker : null;
-      const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, 3) : [];
+      const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, membership.tier === 'premium' ? 6 : (membership.tier === 'vip' ? 4 : 3)) : [];
       if (!clientId || content.length > messageLimit || (!content && !sticker && !attachmentIds.length)) {
         return ack({ ok: false, error: `Добавь текст, стикер или вложение. Твой лимит — до ${messageLimit.toLocaleString('ru-RU')} символов.` });
       }
