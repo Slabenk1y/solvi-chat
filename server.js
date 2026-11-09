@@ -1422,7 +1422,7 @@ async function main() {
     const reference = String(params.ref || '').trim();
     const userId = String(params.uid || '').trim();
     if (!reference || reference.length > 180) return res.status(400).type('text/plain').send('Invalid reference');
-    if (type === '1') {
+    if (type === '0') {
       const tokenAmount = Number(params.currency);
       if (!Number.isSafeInteger(tokenAmount) || tokenAmount < 1 || tokenAmount > 1000000) return res.status(400).type('text/plain').send('Invalid token amount');
       const user = dbGet('SELECT * FROM users WHERE public_id = ?', [userId]);
