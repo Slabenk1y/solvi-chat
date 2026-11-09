@@ -116,8 +116,10 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1h')?.price, 360);
     assert.equal(storeBefore.memberships.find(item => item.id === 'vip-24h')?.price, 4320);
     assert.equal(storeBefore.memberships.find(item => item.id === 'premium-24h')?.price, 8640);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-3h')?.hours, 3);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-3h')?.hours, 3);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-6h')?.price, 1080);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-6h')?.price, 2160);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-6h')?.hours, 6);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-6h')?.hours, 6);
     assert.equal(storeBefore.items.find(item => item.id === 'theme-aurora')?.price, 300);
     assert.equal(storeBefore.items.find(item => item.id === 'stickers-night-owl')?.price, 330);
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
