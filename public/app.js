@@ -150,17 +150,24 @@ function createStorePreview(item) {
 }
 function openStoreItemPreview(item) {
   const modal = $('#storePreviewModal');
-  const visual = $('#storePreviewVisual');
+  const visual = $('#storePreviewCanvas');
   visual.replaceChildren();
   if (item.slot === 'membership') {
     const mark = document.createElement('div'); mark.className = 'store-membership-preview-mark';
     mark.textContent = item.tier === 'premium' ? 'PREMIUM' : 'VIP';
     visual.append(mark);
-  } else visual.append(createStorePreview(item));
+  } else {
+    const preview = createStorePreview(item);
+    preview.classList.add('store-detail-preview');
+    visual.append(preview);
+  }
+  $('#storePreviewBadge').textContent = item.category || (item.tier === 'premium' ? 'PREMIUM' : 'VIP');
   $('#storePreviewTitle').textContent = item.name || 'Предпросмотр';
   $('#storePreviewDescription').textContent = item.description || 'Посмотри, как предмет будет выглядеть в SOVLI.';
+  $('#storePreviewBenefit').textContent = item.slot === 'membership'
+    ? 'Особый статус действует указанный срок и продлевается при повторной покупке.'
+    : (item.slot === 'theme' ? 'Изменит палитру всего интерфейса.' : 'Применяется к разделу: ' + (item.category || 'оформление') + '.');
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
-  $('#storePreviewCategory').textContent = item.category || (item.tier === 'premium' ? 'Premium' : 'VIP');
   modal.hidden = false;
 }
 function renderStore(data) {
@@ -1655,9 +1662,6 @@ $('#messageInput').addEventListener('input', () => {
 $('#messageInput').addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && state.settings.enterToSend !== false) { event.preventDefault(); $('#messageForm').requestSubmit(); }
 });
-$('#storePreviewClose').addEventListener('click', () => { $('#storePreviewModal').hidden = true; });
-$('#storePreviewCloseBottom').addEventListener('click', () => { $('#storePreviewModal').hidden = true; });
-$('#storePreviewModal').addEventListener('click', event => { if (event.target === $('#storePreviewModal')) $('#storePreviewModal').hidden = true; });
 $('#photoButton').addEventListener('click', () => $('#photoInput').click());
 $('#photoInput').addEventListener('change', () => sendSelectedPhotos($('#photoInput').files));
 $('#stickerButton').addEventListener('click', () => { $('#stickerPanel').hidden = !$('#stickerPanel').hidden; });
