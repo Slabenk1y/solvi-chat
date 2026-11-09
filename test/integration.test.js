@@ -206,7 +206,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
       matchId: match1.matchId, clientId: 'integration-free-long-message', content: 'x'.repeat(2001)
     }, resolve));
     assert.equal(freeLongMessage.ok, false, 'free accounts keep the 2,000-character message limit');
-    assert.match(freeLongMessage.error, /2 000/);
+    assert.match(freeLongMessage.error, /2.?000/);
     const premiumLongIncoming = waitForEvent(socket1, 'chat:message');
     const premiumLongMessage = await new Promise((resolve, reject) => socket2.emit('chat:send', {
       matchId: match1.matchId, clientId: 'integration-premium-long-message', content: 'x'.repeat(2500)
