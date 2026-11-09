@@ -63,10 +63,45 @@ function showToast(message, duration = 2800) {
   state.toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
+function confirmStorePurchase({ title, description, price, balance, confirmLabel = 'Купить' }) {
+  const modal = $('#purchaseConfirmModal');
+  const cost = Math.max(0, Number(price) || 0);
+  const wallet = Math.max(0, Number(balance) || 0);
+  const enough = wallet >= cost;
+  $('#purchaseConfirmTitle').textContent = title;
+  $('#purchaseConfirmDescription').textContent = description || 'Покупка навсегда останется в твоём инвентаре.';
+  $('#purchaseConfirmPrice').textContent = `${cost.toLocaleString('ru-RU')} ✦`;
+  $('#purchaseConfirmBalance').textContent = `${wallet.toLocaleString('ru-RU')} ✦`;
+  $('#purchaseConfirmShortfall').hidden = enough;
+  $('#purchaseConfirmShortfall').textContent = `Не хватает ${(cost - wallet).toLocaleString('ru-RU')} токенов. Продолжай общаться, чтобы заработать их.`;
+  const confirm = $('#purchaseConfirmButton');
+  confirm.disabled = !enough;
+  confirm.textContent = enough ? confirmLabel : 'Не хватает токенов';
+  modal.hidden = false;
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      modal.hidden = true;
+      $('#purchaseCancelButton').onclick = null;
+      confirm.onclick = null;
+      modal.onclick = null;
+      window.removeEventListener('keydown', onKeyDown);
+      resolve(value);
+    };
+    const onKeyDown = event => { if (event.key === 'Escape') finish(false); };
+    $('#purchaseCancelButton').onclick = () => finish(false);
+    confirm.onclick = () => finish(true);
+    modal.onclick = event => { if (event.target === modal) finish(false); };
+    window.addEventListener('keydown', onKeyDown);
+  });
+}
+
 function applyEquipped(equipped = {}) {
   const root = document.documentElement;
-  root.dataset.storeTheme = equipped.theme || 'theme-default';
-  root.dataset.storeWallpaper = equipped.wallpaper || '';
+  root.dataset.storeTheme = equipped.theme || equipped.wallpaper || 'theme-light';
+  delete root.dataset.storeWallpaper;
   root.dataset.storeBubble = equipped.bubble || '';
   root.dataset.storeFrame = equipped.frame || '';
   root.dataset.storeSound = equipped.sound || '';
@@ -136,7 +171,7 @@ function renderStore(data) {
   $('#storeInventoryButton').classList.toggle('active', state.storeCollectionOnly);
   $('#storeInventoryButton').textContent = state.storeCollectionOnly ? 'Весь каталог' : 'Только купленное';
   $('#storeEquippedSummary').replaceChildren();
-  const slotLabels = { theme: 'Тема', wallpaper: 'Обои', bubble: 'Сообщения', frame: 'Рамка', sound: 'Звук', stickers: 'Стикеры', title: 'Титул' };
+  const slotLabels = { theme: 'Тема интерфейса', bubble: 'Сообщения', frame: 'Рамка', sound: 'Звук', stickers: 'Стикеры', title: 'Титул' };
   Object.entries(slotLabels).forEach(([slot, label]) => {
     const itemId = data.equipped?.[slot];
     const item = data.items.find(row => row.id === itemId);
@@ -183,7 +218,8 @@ function renderStore(data) {
           applyEquipped(result.equipped); if (state.user) state.user.equipped = result.equipped;
           renderStickerPanel(); showToast(`Снято: ${item.name}.`);
         } else if (!item.owned) {
-          if (!window.confirm(`Купить «${item.name}» за ${Number(item.price).toLocaleString('ru-RU')} токенов?`)) { action.disabled = false; return; }
+          const approved = await confirmStorePurchase({ title: `Купить «${item.name}»?`, description: item.description, price: item.price, balance: data.balance });
+          if (!approved) { action.disabled = false; return; }
           const result = await api('/api/store/buy', { method: 'POST', body: JSON.stringify({ itemId: item.id }) });
           if (state.user) state.user.tokens = result.balance;
           showToast(`«${item.name}» добавлен в коллекцию.`);
@@ -206,7 +242,8 @@ function renderStore(data) {
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
     button.addEventListener('click', async () => {
-      if (!window.confirm(`Купить ${pack.name} за ${Number(pack.price).toLocaleString('ru-RU')} токенов? Срок добавится к активной привилегии.`)) return;
+      const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
+      if (!approved) return;
       button.disabled = true;
       try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
