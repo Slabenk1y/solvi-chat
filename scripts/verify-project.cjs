@@ -166,20 +166,20 @@ try {
   else pass('Новая панель владельца, карточки аккаунтов и основные API подключены; устаревшие панели убраны');
 
   const guestServer = read('server.js');
-  const ownerHtml = read('public/owner.html');
-  const ownerJs = read('public/owner.js');
-  const ownerCss = read('public/owner.css');
-  const appJs = read('public/app.js');
+  const darkOwnerHtml = read('public/owner.html');
+  const darkOwnerJs = read('public/owner.js');
+  const darkOwnerCss = read('public/owner.css');
+  const guestAppJs = read('public/app.js');
   if (!guestServer.includes("3 * 24 * 60 * 60 * 1000") || guestServer.includes("180 * 24 * 60 * 60 * 1000") || guestServer.includes("'180d'")) fail('Guest lifetime must be three days everywhere');
   else pass('Гостевой срок и серверные сессии ограничены тремя днями');
-  if (!guestServer.includes('Гостевой аккаунт нельзя превратить в постоянный') || !appJs.includes('Гостевой профиль · 3 дня'.toUpperCase()) && !appJs.includes('ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ')) fail('Guest identity restrictions or UI copy missing');
-  if (!ownerHtml.includes('data-theme="dark"') || !ownerHtml.includes('themeToggleButton') || !ownerJs.includes('applyOwnerTheme') || !ownerCss.includes(':root[data-theme="dark"]')) fail('Owner dark theme toggle is incomplete');
+  if (!guestServer.includes('Гостевой аккаунт нельзя превратить в постоянный') || !guestAppJs.includes('Гостевой профиль · 3 дня'.toUpperCase()) && !guestAppJs.includes('ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ')) fail('Guest identity restrictions or UI copy missing');
+  if (!darkOwnerHtml.includes('data-theme="dark"') || !darkOwnerHtml.includes('themeToggleButton') || !darkOwnerJs.includes('applyOwnerTheme') || !darkOwnerCss.includes(':root[data-theme="dark"]')) fail('Owner dark theme toggle is incomplete');
   else pass('Тёмная тема панели владельца подключена');
-  if (!ownerCss.includes('animation:none!important') || !ownerCss.includes('transition-duration:.08s')) fail('Owner motion optimization missing');
+  if (!darkOwnerCss.includes('animation:none!important') || !darkOwnerCss.includes('transition-duration:.08s')) fail('Owner motion optimization missing');
   else pass('Анимации панели владельца облегчены');
-  const staticSelectors = [...appJs.matchAll(/\$\(['"]#([^'"]+)['"]\)\.addEventListener/g)].map(match => match[1]);
-  const ids = new Set([...read('public/index.html').matchAll(/\bid=["']([^"']+)["']/g)].map(match => match[1]));
-  const missingSelectors = [...new Set(staticSelectors)].filter(id => !ids.has(id));
+  const staticSelectors = [...guestAppJs.matchAll(/\$\(['"]#([^'"]+)['"]\)\.addEventListener/g)].map(match => match[1]);
+  const pageIds = new Set([...read('public/index.html').matchAll(/\bid=["']([^"']+)["']/g)].map(match => match[1]));
+  const missingSelectors = [...new Set(staticSelectors)].filter(id => !pageIds.has(id));
   if (missingSelectors.length) fail('Main page buttons reference missing elements: ' + missingSelectors.join(', '));
   else pass('Все статические обработчики кнопок основного сайта имеют DOM-элементы');
 
