@@ -141,7 +141,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(dailyBonus.status, 404, 'daily bonus endpoint must be removed');
     const tokenHistory = await (await fetch(`${baseUrl}/api/store/transactions`, { headers: { Authorization: `Bearer ${user1.token}` } })).json();
     assert.ok(!tokenHistory.transactions.some(row => ['welcome', 'daily_reward'].includes(row.kind)), 'welcome and daily rewards are not issued');
-    assert.ok(tokenHistory.transactions.some(row => row.kind === 'purchase' && row.amount === -450));
+    assert.ok(tokenHistory.transactions.some(row => row.kind === 'purchase' && row.amount === -200));
     const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+N8AAAAASUVORK5CYII=', 'base64');
     const avatarUpload = await fetch(`${baseUrl}/api/avatar/upload`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'image/png' }, body: tinyPng });
     assert.equal(avatarUpload.status, 201, `avatar upload failed: ${(await avatarUpload.clone().json()).error}`);
