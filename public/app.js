@@ -592,10 +592,11 @@ async function loadPaidMemberships(){
     const title=document.createElement('h3');title.textContent='Токены SOLVI';
     const description=document.createElement('p');description.textContent='Покупай токены за реальные деньги на защищённой странице платёжного сервиса, затем трать их на VIP/Premium, темы, рамки, стикеры и другие товары магазина.';
     const packages=document.createElement('div');packages.className='topup-pack-list';
-    (data.packages||[]).forEach(pack=>{const line=document.createElement('span');line.textContent=pack.name+' · '+Number(pack.tokens).toLocaleString('ru-RU')+' ✦';packages.append(line);});
-    const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Открыть оплату':'Онлайн-платежи пока не подключены';button.disabled=!data.configured;
-    button.addEventListener('click',async()=>{button.disabled=true;try{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)throw new Error('Сначала укажи email для платёжного чека.');const checkout=await api('/api/billing/token-topup/checkout',{method:'POST',body:JSON.stringify({packageId:'solvi-1500',email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
-    card.append(kicker,title,description,packages,button);root.append(card);
+    const packageSelect=document.createElement('select');packageSelect.className='field';packageSelect.setAttribute('aria-label','Пакет токенов');
+    (data.packages||[]).forEach(pack=>{const option=document.createElement('option');option.value=pack.id;option.textContent=pack.name+' · '+Number(pack.tokens).toLocaleString('ru-RU')+' ✦';packageSelect.append(option);});
+    const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Перейти к оплате':'Онлайн-платежи пока не подключены';button.disabled=!data.configured||!data.packages?.length;
+    button.addEventListener('click',async()=>{button.disabled=true;try{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)throw new Error('Сначала укажи email для платёжного чека.');const checkout=await api('/api/billing/token-topup/checkout',{method:'POST',body:JSON.stringify({packageId:packageSelect.value,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
+    packages.append(packageSelect);card.append(kicker,title,description,packages,button);root.append(card);
     if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Для запуска пополнений нужны ключи PAYMENTWALL_VC_PUBLIC_KEY и PAYMENTWALL_VC_PRIVATE_KEY (или общие PAYMENTWALL_PUBLIC_KEY / PAYMENTWALL_PRIVATE_KEY) и Price Points в VC-проекте Paymentwall.';root.append(note);}
     const membershipRoot=document.createElement('div');membershipRoot.className='paid-membership-grid';
     (data.membershipProducts||[]).forEach(product=>{
