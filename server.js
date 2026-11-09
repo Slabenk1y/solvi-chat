@@ -1359,11 +1359,21 @@ async function main() {
     { id: 'solvi-1500', tokens: 1500, name: 'Популярный запас', description: '1 500 токенов для тем, рамок, стикеров и привилегий.' },
     { id: 'solvi-5000', tokens: 5000, name: 'Большой запас', description: '5 000 токенов для крупных покупок в магазине.' }
   ]);
+  function paymentwallBaseUrl() {
+    return String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
+  }
   function paymentwallSettings() {
-    const baseUrl = String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
-    const publicKey = String(process.env.PAYMENTWALL_PUBLIC_KEY || '').trim();
-    const privateKey = String(process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
-    const widgetCode = String(process.env.PAYMENTWALL_WIDGET_CODE || 'p1_1').trim();
+    const baseUrl = paymentwallBaseUrl();
+    const publicKey = String(process.env.PAYMENTWALL_VC_PUBLIC_KEY || process.env.PAYMENTWALL_PUBLIC_KEY || '').trim();
+    const privateKey = String(process.env.PAYMENTWALL_VC_PRIVATE_KEY || process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
+    const widgetCode = String(process.env.PAYMENTWALL_VC_WIDGET_CODE || process.env.PAYMENTWALL_WIDGET_CODE || 'p1_1').trim();
+    return { baseUrl, publicKey, privateKey, widgetCode, configured: Boolean(publicKey && privateKey && /^https:\/\//i.test(baseUrl) && widgetCode) };
+  }
+  function paymentwallGoodsSettings() {
+    const baseUrl = paymentwallBaseUrl();
+    const publicKey = String(process.env.PAYMENTWALL_GOODS_PUBLIC_KEY || '').trim();
+    const privateKey = String(process.env.PAYMENTWALL_GOODS_PRIVATE_KEY || '').trim();
+    const widgetCode = String(process.env.PAYMENTWALL_GOODS_WIDGET_CODE || 'p1').trim();
     return { baseUrl, publicKey, privateKey, widgetCode, configured: Boolean(publicKey && privateKey && /^https:\/\//i.test(baseUrl) && widgetCode) };
   }
   app.get('/api/billing/token-topup', authMiddleware, (_req, res) => {
@@ -1372,7 +1382,8 @@ async function main() {
       provider: 'Paymentwall',
       configured: settings.configured,
       currency: String(process.env.PAYMENTWALL_DISPLAY_CURRENCY || 'EUR').trim().toUpperCase(),
-      packages: PAYMENTWALL_TOKEN_PACKAGES
+      packages: PAYMENTWALL_TOKEN_PACKAGES,
+      billingEmail: String(_req.user?.billing_email || '')
     });
   });
   app.post('/api/billing/token-topup/checkout', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
@@ -1386,7 +1397,7 @@ async function main() {
       const url = buildVirtualCurrencyWidgetUrl({
         publicKey: settings.publicKey,
         privateKey: settings.privateKey,
-        userId: req.user.id,
+        userId: req.user.public_id,
         widgetCode: settings.widgetCode,
         paymentSystems: 'all',
         successUrl: settings.baseUrl + '/?billing=success',
@@ -1409,10 +1420,10 @@ async function main() {
     const reference = String(params.ref || '').trim();
     const userId = String(params.uid || '').trim();
     if (!reference || reference.length > 180) return res.status(400).type('text/plain').send('Invalid reference');
-    if (type === '0') {
+    if (type === '1') {
       const tokenAmount = Number(params.currency);
       if (!Number.isSafeInteger(tokenAmount) || tokenAmount < 1 || tokenAmount > 1000000) return res.status(400).type('text/plain').send('Invalid token amount');
-      const user = getUserById(userId);
+      const user = dbGet('SELECT * FROM users WHERE public_id = ?', [userId]);
       if (!user || user.account_type === 'guest') return res.status(200).type('text/plain').send('OK');
       const previous = dbGet('SELECT status FROM paymentwall_token_purchases WHERE provider_reference = ?', [reference]);
       if (previous) return res.status(200).type('text/plain').send('OK');
@@ -1420,7 +1431,7 @@ async function main() {
       try {
         transaction(() => {
           dbRun('INSERT INTO paymentwall_token_purchases (id,provider_reference,user_id,token_amount,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
-            [crypto.randomUUID(), reference, userId, tokenAmount, 'credited', at, at]);
+            [crypto.randomUUID(), reference, user.id, tokenAmount, 'credited', at, at]);
           dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokenAmount, userId]);
           dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)',
             [crypto.randomUUID(), userId, 'cash_topup', tokenAmount, 'Покупка токенов за реальные деньги · Paymentwall', at]);
@@ -1431,7 +1442,7 @@ async function main() {
           return res.status(500).type('text/plain').send('Temporary processing error');
         }
       }
-      io?.to?.(userRoom(userId))?.emit('billing:tokens-credited', { tokens: tokenAmount });
+      io?.to?.(userRoom(user.id))?.emit('billing:tokens-credited', { tokens: tokenAmount });
       return res.status(200).type('text/plain').send('OK');
     }
     if (type === '2') {
@@ -1445,6 +1456,139 @@ async function main() {
           [crypto.randomUUID(), payment.user_id, 'chargeback', -payment.token_amount, 'Отмена/возврат пополнения · Paymentwall', at]);
       });
       io?.to?.(userRoom(payment.user_id))?.emit('billing:tokens-reversed', { tokens: payment.token_amount });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    return res.status(200).type('text/plain').send('OK');
+  });
+
+  app.post('/api/billing/store/checkout', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Денежные покупки доступны постоянным аккаунтам.' });
+    const settings = paymentwallGoodsSettings();
+    if (!settings.configured) return res.status(503).json({ error: 'Прямые денежные покупки магазина ещё не подключены. Нужен отдельный Paymentwall-проект Widget API — Digital Goods.' });
+    const itemId = String(req.body?.itemId || '');
+    const item = STORE_CATALOG.find(row => row.id === itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === itemId) || STORE_BUNDLES.find(row => row.id === itemId) || BILLING_PRODUCTS.find(row => row.id === itemId);
+    if (!item) return res.status(404).json({ error: 'Товар не найден.' });
+    const itemKind = STORE_CATALOG.some(row => row.id === itemId) ? 'catalog'
+      : MEMBERSHIP_PACKAGES.some(row => row.id === itemId) ? 'membership'
+      : STORE_BUNDLES.some(row => row.id === itemId) ? 'bundle' : 'paid_tier';
+    const priceInfo = itemKind === 'paid_tier'
+      ? { cashPriceMinor: item.amountMinor, cashCurrency: item.currency.toUpperCase(), cashEnabled: item.amountMinor >= 30 }
+      : cashStorePrice(item.id);
+    if (!priceInfo.cashEnabled || !Number.isSafeInteger(priceInfo.cashPriceMinor) || priceInfo.cashPriceMinor < 30) return res.status(403).json({ error: 'Для этого товара ещё не установлена денежная цена в панели владельца.' });
+    if (itemKind === 'catalog' && dbGet('SELECT item_id FROM store_inventory WHERE user_id = ? AND item_id = ?', [req.user.id, item.id])) return res.status(409).json({ error: 'Этот товар уже находится в твоей коллекции.' });
+    if (itemKind === 'bundle') {
+      const paidTier = effectivePaidSubscription(req.user);
+      if (item.tier === 'premium' ? paidTier !== 'premium' : !['vip','premium'].includes(paidTier)) return res.status(403).json({ error: 'Для покупки набора сначала нужен оплаченный VIP/Premium.' });
+      if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, item.id])) return res.status(409).json({ error: 'Этот набор уже приобретён.' });
+    }
+    const billingEmail = String(req.body?.email || req.user.billing_email || '').trim().toLowerCase();
+    if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(billingEmail)) return res.status(400).json({ error: 'Укажи действующий email для платёжного чека.' });
+    const currency = String(priceInfo.cashCurrency || 'EUR').toUpperCase();
+    const priceMinor = Number(priceInfo.cashPriceMinor);
+    const orderId = 'solvi_order_' + crypto.randomUUID().replace(/-/g, '');
+    const registrationTimestamp = Math.floor(Date.parse(req.user.created_at || '') / 1000);
+    const at = nowIso();
+    try {
+      transaction(() => {
+        dbRun('UPDATE users SET billing_email = ? WHERE id = ?', [billingEmail, req.user.id]);
+        dbRun('INSERT INTO paymentwall_store_orders (id,user_id,item_id,item_kind,amount_minor,currency,billing_email,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+          [orderId,req.user.id,item.id,itemKind,priceMinor,currency,billingEmail,'pending',at,at]);
+      });
+      const url = buildDigitalGoodsCheckoutUrl({
+        publicKey: settings.publicKey, privateKey: settings.privateKey,
+        userId: req.user.public_id, widgetCode: settings.widgetCode,
+        orderId, amountMinor: priceMinor, currency, productName: item.name,
+        email: billingEmail, paymentSystems: 'all',
+        successUrl: settings.baseUrl + '/?billing=success',
+        failureUrl: settings.baseUrl + '/?billing=cancelled',
+        pingbackUrl: settings.baseUrl + '/api/billing/paymentwall/goods-pingback',
+        registrationTimestamp
+      });
+      res.json({ url });
+    } catch (error) {
+      dbRun("UPDATE paymentwall_store_orders SET status = 'reversed', updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),orderId]);
+      console.error('[BILLING] Paymentwall Digital Goods checkout error:', error.message);
+      res.status(503).json({ error: 'Не удалось создать страницу денежной покупки. Проверь настройки Paymentwall.' });
+    }
+  });
+  app.get('/api/billing/paymentwall/goods-pingback', (req, res) => {
+    const privateKey = String(process.env.PAYMENTWALL_GOODS_PRIVATE_KEY || '').trim();
+    if (!privateKey) return res.status(503).type('text/plain').send('Paymentwall Digital Goods is not configured');
+    const params = Object.fromEntries(Object.entries(req.query || {}).map(([key, value]) => [key, Array.isArray(value) ? (value.length === 1 ? value[0] : '') : value]));
+    if (!verifyPingback(params, privateKey)) return res.status(400).type('text/plain').send('Invalid signature');
+    const type = String(params.type || '');
+    const reference = String(params.ref || '').trim();
+    const orderId = String(params.goodsid || '').trim();
+    const publicId = String(params.uid || '').trim();
+    if (!reference || reference.length > 180 || !orderId.startsWith('solvi_order_')) return res.status(400).type('text/plain').send('Invalid purchase reference');
+    const order = dbGet('SELECT * FROM paymentwall_store_orders WHERE id = ?', [orderId]);
+    if (!order) return res.status(200).type('text/plain').send('OK');
+    const user = getUserById(order.user_id);
+    if (!user || user.public_id !== publicId) return res.status(400).type('text/plain').send('User mismatch');
+    const at = nowIso();
+    if (type === '0') {
+      if (order.status === 'paid' || order.status === 'reversed') return res.status(200).type('text/plain').send('OK');
+      const delivered = [];
+      try {
+        transaction(() => {
+          const item = STORE_CATALOG.find(row => row.id === order.item_id);
+          const membership = MEMBERSHIP_PACKAGES.find(row => row.id === order.item_id);
+          const bundle = STORE_BUNDLES.find(row => row.id === order.item_id);
+          const paidTierProduct = BILLING_PRODUCTS.find(row => row.id === order.item_id);
+          if (order.item_kind === 'catalog' && item) {
+            dbRun('INSERT OR IGNORE INTO store_inventory (user_id,item_id,acquired_at,source) VALUES (?,?,?,?)', [order.user_id,item.id,at,'cash-purchase']);
+            if (Number(dbGet('SELECT changes() AS n').n) > 0) delivered.push(item.id);
+          } else if (order.item_kind === 'bundle' && bundle) {
+            for (const itemId of bundle.itemIds) {
+              dbRun('INSERT OR IGNORE INTO store_inventory (user_id,item_id,acquired_at,source) VALUES (?,?,?,?)', [order.user_id,itemId,at,'cash-purchase']);
+              if (Number(dbGet('SELECT changes() AS n').n) > 0) delivered.push(itemId);
+            }
+          } else if ((order.item_kind === 'membership' && membership) || (order.item_kind === 'paid_tier' && paidTierProduct)) {
+            const tier = membership?.tier || paidTierProduct.tier;
+            const durationMs = membership ? membership.hours * 3600000 : paidTierProduct.days * 86400000;
+            const targetUser = getUserById(order.user_id);
+            const currentExpiry = targetUser.paid_subscription_expires_at && Date.parse(targetUser.paid_subscription_expires_at) > Date.now() ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
+            const currentTier = targetUser.paid_subscription_tier === 'premium' && currentExpiry > Date.now() ? 'premium' : 'vip';
+            const nextTier = currentTier === 'premium' || tier === 'premium' ? 'premium' : 'vip';
+            const expiry = new Date(currentExpiry + durationMs).toISOString();
+            dbRun('UPDATE users SET paid_subscription_tier = ?, paid_subscription_expires_at = ? WHERE id = ?', [nextTier,expiry,order.user_id]);
+          } else throw new Error('The purchased product is no longer available');
+          dbRun("UPDATE paymentwall_store_orders SET provider_reference = ?,status = 'paid',delivered_item_ids = ?,updated_at = ? WHERE id = ? AND status = 'pending'",
+            [reference,JSON.stringify(delivered),at,order.id]);
+        });
+      } catch (error) {
+        if (!dbGet('SELECT id FROM paymentwall_store_orders WHERE provider_reference = ?', [reference])) {
+          console.error('[BILLING] Paymentwall goods delivery failed:', error.message);
+          return res.status(500).type('text/plain').send('Temporary processing error');
+        }
+      }
+      io?.to?.(userRoom(order.user_id))?.emit('billing:store-purchase-completed', { itemId: order.item_id });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    if (type === '2') {
+      const paidOrder = dbGet('SELECT * FROM paymentwall_store_orders WHERE provider_reference = ?', [reference]);
+      if (!paidOrder || paidOrder.status === 'reversed') return res.status(200).type('text/plain').send('OK');
+      transaction(() => {
+        const delivered = safeJsonArray(paidOrder.delivered_item_ids);
+        for (const itemId of delivered) {
+          dbRun('DELETE FROM store_inventory WHERE user_id = ? AND item_id = ?', [paidOrder.user_id,itemId]);
+          dbRun('DELETE FROM store_equipped WHERE user_id = ? AND item_id = ?', [paidOrder.user_id,itemId]);
+        }
+        const membership = MEMBERSHIP_PACKAGES.find(row => row.id === paidOrder.item_id);
+        const paidTierProduct = BILLING_PRODUCTS.find(row => row.id === paidOrder.item_id);
+        if ((paidOrder.item_kind === 'membership' && membership) || (paidOrder.item_kind === 'paid_tier' && paidTierProduct)) {
+          const durationMs = membership ? membership.hours * 3600000 : paidTierProduct.days * 86400000;
+          const targetUser = getUserById(paidOrder.user_id);
+          const currentExpiry = targetUser.paid_subscription_expires_at ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
+          const expiry = new Date(Math.max(Date.now(), (Number.isFinite(currentExpiry) ? currentExpiry : Date.now()) - durationMs)).toISOString();
+          const remainsPremium = Boolean(dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND id <> ? AND status = 'paid' AND item_id IN ('premium-30d','premium-1h','premium-6h','premium-24h') LIMIT 1", [paidOrder.user_id,paidOrder.id]) || dbGet("SELECT id FROM payment_records WHERE user_id = ? AND tier = 'premium' LIMIT 1", [paidOrder.user_id]));
+          const remainsPaid = Boolean(dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND id <> ? AND status = 'paid' AND item_kind IN ('membership','paid_tier') LIMIT 1", [paidOrder.user_id,paidOrder.id]) || dbGet('SELECT id FROM payment_records WHERE user_id = ? LIMIT 1', [paidOrder.user_id]));
+          dbRun('UPDATE users SET paid_subscription_tier = ?, paid_subscription_expires_at = ? WHERE id = ?',
+            [remainsPremium ? 'premium' : (remainsPaid ? 'vip' : 'free'),expiry,paidOrder.user_id]);
+        }
+        dbRun("UPDATE paymentwall_store_orders SET status = 'reversed',updated_at = ? WHERE id = ?", [at,paidOrder.id]);
+      });
+      io?.to?.(userRoom(paidOrder.user_id))?.emit('billing:store-purchase-reversed', { itemId: paidOrder.item_id });
       return res.status(200).type('text/plain').send('OK');
     }
     return res.status(200).type('text/plain').send('OK');
