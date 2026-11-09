@@ -1,8 +1,8 @@
 {
   "name": "solvi-chat",
-  "version": "1.10.4",
+  "version": "1.10.5",
   "private": true,
-  "description": "SOLVI v1.10.4 — Russian-only matching and shop UX fixes",
+  "description": "SOLVI v1.10.5 — AI chat delivery and natural pacing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
