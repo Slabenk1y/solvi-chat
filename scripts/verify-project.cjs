@@ -94,8 +94,10 @@ try {
   else pass('У каждого предмета магазина доступен отдельный предпросмотр');
   if (!html.includes('id="sessionBootScreen"') || !app.includes("classList.remove('session-checking')")) fail('Экран восстановления сессии не настроен');
   else pass('При перезагрузке отображается экран восстановления сессии, а не форма входа');
-  if (!server.includes('Guests may personalize their avatar') || !app.includes('DEFAULT_AVATARS')) fail('Гостевые и стандартные аватары не восстановлены');
+  if (!server.includes('Гостевой профиль может менять только аватар.') || !app.includes('DEFAULT_AVATARS')) fail('Гостевые и стандартные аватары не восстановлены');
   else pass('Стандартные и пользовательские аватары доступны гостям и аккаунтам');
+  if (!server.includes('SELECT u.id, u.username, u.avatar, u.avatar_file') || /publicId: row\.public_id, username: row\.username/.test(server)) fail('Избранное должно возвращать только карточку с аватаром и ником');
+  else pass('Избранное не раскрывает лишние поля профиля и не содержит функций связи');
   if (!html.includes('composer-tool-photo') || !html.includes('composer-tool-sticker') || !html.includes('composer-tool-voice')) fail('Иконки вложений чата отсутствуют');
   else pass('Иконки фото, стикеров и голосовых присутствуют');
 
