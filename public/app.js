@@ -1069,6 +1069,12 @@ function connectSocket() {
   socket.on('queue:waiting', () => {
     if (state.searching) $('#searchStatusText').textContent = 'Подбираем человека с похожими интересами.';
   });
+  socket.on('queue:aiUnavailable', data => {
+    if (!state.searching) return;
+    $('#searchStatusText').textContent = data?.reason === 'api_key'
+      ? 'Людей пока не нашли. ИИ-подбор включится после настройки Gemini API.'
+      : 'Для режимов 18+ автоматический ИИ-подбор отключён. Продолжаем искать человека.';
+  });
   socket.on('queue:cancelled', () => { state.searching = false; clearSearchTimer(); setView('home'); });
   socket.on('match:found', match => activateMatch(match));
   socket.on('chat:restored', payload => {
@@ -1091,6 +1097,11 @@ function connectSocket() {
       if (document.visibilityState === 'visible') markRead();
       else if (state.settings.browserNotifications && 'Notification' in window && Notification.permission === 'granted') new Notification(state.activeMatch?.partner?.username || 'Новое сообщение', { body: (message.content || (message.type === 'voice' ? 'Голосовое сообщение' : 'Вложение')).slice(0, 120), icon: '/favicon.svg', tag: state.activeMatch?.matchId });
     }
+  });
+  socket.on('ai:message', message => {
+    if (!state.activeMatch?.isAi || message.match_id !== state.activeMatch.matchId) return;
+    mergeMessage(message);
+    playUiSound(740);
   });
   socket.on('chat:status', data => {
     const item = state.messages.find(message => message.id === data.messageId);
@@ -1167,14 +1178,14 @@ function activateMatch(match) {
   renderChatHeader();
   renderMessages();
   setView('chat');
-  showToast('Собеседник найден. Хорошего разговора!');
+  showToast(match.isAi ? 'Подключён ИИ-собеседник SOLVI. Это бот-персонаж.' : 'Собеседник найден. Хорошего разговора!');
 }
 function renderChatHeader() {
   const partner = state.activeMatch?.partner;
   if (!partner) return;
   setAvatarContent($('#partnerAvatar'), partner);
   $('#partnerName').textContent = partner.username || 'Собеседник';
-  $('#partnerStateText').textContent = [partner.badge, partner.cosmeticTitle].filter(Boolean).join(' · ') || 'На связи';
+  $('#partnerStateText').textContent = partner.isAi ? 'ИИ-собеседник · бот-персонаж' : ([partner.badge, partner.cosmeticTitle].filter(Boolean).join(' · ') || 'На связи');
   $('#partnerName').title = partner.description || partner.username || '';
   const common = state.activeMatch.commonInterests || [];
   const container = $('#commonInterests');
@@ -1488,6 +1499,7 @@ function sendMessage(content, clientId, extras = {}) {
   if (!state.activeMatch) { showToast('Сначала найди собеседника.'); return; }
   const attachments = Array.isArray(extras.attachments) ? extras.attachments : [];
   const sticker = typeof extras.sticker === 'string' ? extras.sticker : null;
+  if (state.activeMatch.isAi && attachments.length) { showToast('ИИ-собеседник пока поддерживает текст и стикеры, но не фото и голосовые.'); return; }
   const replyToId = extras.replyToId || state.replyTarget?.id || null;
   if (replyToId && state.replyTarget?.sender_id === state.user?.id) {
     showToast('Нельзя отвечать на собственное сообщение.');
@@ -1513,6 +1525,25 @@ function sendMessage(content, clientId, extras = {}) {
 function flushOutbox() {
   if (!state.socket?.connected || !state.activeMatch || !state.outbox.length) return;
   const pending = [...state.outbox];
+  if (state.activeMatch.isAi) {
+    pending.forEach(item => {
+      if (item.matchId !== state.activeMatch?.matchId) return;
+      state.socket.emit('ai:send', { sessionId: item.matchId, clientId: item.clientId, content: item.content, sticker: item.sticker || null, attachments: item.attachments || [] }, result => {
+        const index = state.outbox.findIndex(row => row.clientId === item.clientId);
+        const optimistic = state.messages.find(row => row.client_id === item.clientId);
+        if (!result?.ok) {
+          if (optimistic) { optimistic.status = 'failed'; renderMessages(); }
+          showToast(result?.error || 'Не удалось отправить сообщение ИИ-собеседнику.');
+        } else if (optimistic) {
+          optimistic.status = undefined;
+          renderMessages();
+        }
+        if (index >= 0) state.outbox.splice(index, 1);
+        persistOutbox();
+      });
+    });
+    return;
+  }
   pending.forEach(item => {
     if (item.matchId !== state.activeMatch?.matchId) return;
     state.socket.emit('chat:send', { matchId: item.matchId, clientId: item.clientId, content: item.content, attachments: item.attachments || [], sticker: item.sticker || null, replyToId: item.replyToId || null }, result => {
