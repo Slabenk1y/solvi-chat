@@ -272,7 +272,7 @@ function createLiveStorePreview(item) {
     });
     const play=previewNode('button','store-live-play','▶ Прослушать звук');
     play.type='button';
-    play.addEventListener('click',()=>playUiSound(640));
+    play.addEventListener('click',()=>playStoreSoundPreview(item.value));
     bubbles.append(waveform,play);
   }
   if(effect==='title'){
