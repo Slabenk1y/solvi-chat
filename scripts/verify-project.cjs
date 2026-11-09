@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.10.4') fail(`Ожидалась версия 1.10.4, получена ${pkg.version}`);
+  if (pkg.version !== '1.10.5') fail(`Ожидалась версия 1.10.5, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const matchingHtml = read('public/index.html');
@@ -109,9 +109,9 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v32/.test(sw)) fail('Service Worker cache version не соответствует v1.10.3');
+  if (!/sovli-shell-v33/.test(sw)) fail('Service Worker cache version не соответствует v1.10.3');
   else pass('Service Worker cache version обновлён');
-  if (!html.includes('/styles.css?v=29') || !html.includes('/app.js?v=31')) fail('Версии клиентских CSS/JS assets не обновлены');
+  if (!html.includes('/styles.css?v=30') || !html.includes('/app.js?v=32')) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
