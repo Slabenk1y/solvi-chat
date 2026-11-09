@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $ = s => document.querySelector(s);
-  const state = { token:localStorage.getItem('sovli_admin_token')||localStorage.getItem('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], inspectMatchId:'', matchesTimer:null };
+  const state = { token:localStorage.getItem('sovli_admin_token')||localStorage.getItem('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null };
   const esc = v => String(v==null?'':v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num = v => Number(v||0).toLocaleString('ru-RU');
   const date = v => v ? new Date(v).toLocaleString('ru-RU',{dateStyle:'medium',timeStyle:'short'}) : '—';
@@ -300,6 +300,23 @@
     const note=await confirmDialog({title:b.dataset.decision==='approve'?'Одобрить заявку?':'Отклонить заявку?',message:'Добавь комментарий для журнала и пользователя (необязательно).',input:true,defaultValue:'Проверено'});if(note===null)return;
     try{await api('/api/admin/task-submissions/'+encodeURIComponent(b.dataset.reviewSubmission)+'/review',{method:'POST',body:JSON.stringify({decision:b.dataset.decision,note})});await loadGrowth();toast(b.dataset.decision==='approve'?'Награда выдана.':'Заявка отклонена.');}catch(err){toast(err.message);}
   });
+  async function loadMonetization(){
+    const r=await api('/api/admin/monetization');state.monetization=r;
+    const s=r.stats||{};
+    $('#monetizationStats').innerHTML=stat('Токенов в обороте',num(s.tokenSupply))+stat('Заработано сегодня',num(s.earnedToday)+' ✦')+stat('Всего заработано',num(s.tokensEarned)+' ✦')+stat('Всего потрачено',num(s.tokensSpent)+' ✦')+stat('Покупок в магазине',num(s.storeSales))+stat('Активные VIP / Premium',num(s.activeVip)+' / '+num(s.activePremium))+stat('Денежные VIP / Premium',num(s.paidVip)+' / '+num(s.paidPremium));
+    const names=new Map((r.products||[]).map(p=>[p.id,p.name]));
+    $('#monetizationSales').innerHTML=(r.salesByItem||[]).map(x=>'<div class="detail-row"><span>'+esc(names.get(x.item_id)||x.item_id)+'</span><strong>'+num(x.sales)+' покупок · '+num(x.tokens)+' ✦</strong></div>').join('')||'<p class="hint">Покупок пока нет.</p>';
+    $('#monetizationPayments').innerHTML=(r.payments||[]).map(x=>'<div class="detail-row"><span>'+esc(x.provider)+' · '+esc(x.currency)+'</span><strong>'+num(x.count)+' · '+(Number(x.amount_minor)/100).toFixed(2)+' '+esc(x.currency)+'</strong></div>').join('')||'<p class="hint">Подтверждённых денежных платежей пока нет. Это нормально — платёжную систему подключим отдельно.</p>';
+    $('#monetizationProducts').innerHTML=(r.products||[]).map(p=>'<article class="growth-row" data-product-row="'+esc(p.id)+'"><div><strong>'+esc(p.name)+'</strong><small>'+esc(p.category)+' · базовая цена '+num(p.basePrice)+' ✦'+(p.bundleOnly?' · предмет фирменного набора':'')+'</small><small>'+(p.enabled?'Доступно в магазине':'Временно скрыто')+'</small></div><div class="inline-actions"><label class="hint">Цена ✦ <input class="search-input" type="number" min="0" max="10000000" step="1" data-product-price value="'+num(p.price).replace(/\s/g,'')+'" style="width:112px"></label><label class="hint"><input type="checkbox" data-product-enabled '+(p.enabled?'checked':'')+'> В продаже</label><button class="secondary mini" type="button" data-save-product="'+esc(p.id)+'">Сохранить</button></div></article>').join('')||'<p class="empty-state">Каталог пуст.</p>';
+  }
+  $('#monetizationProducts').addEventListener('click',async e=>{
+    const button=e.target.closest('[data-save-product]');if(!button)return;
+    const row=button.closest('[data-product-row]');const price=Number(row.querySelector('[data-product-price]').value);const enabled=row.querySelector('[data-product-enabled]').checked;
+    if(!Number.isSafeInteger(price)||price<0||price>10000000)return toast('Цена должна быть целым числом от 0 до 10 000 000.');
+    button.disabled=true;
+    try{await api('/api/admin/store/'+encodeURIComponent(button.dataset.saveProduct)+'/price',{method:'PATCH',body:JSON.stringify({price,enabled})});await loadMonetization();toast('Цена и доступность обновлены.');}
+    catch(err){toast(err.message);}finally{button.disabled=false;}
+  });
   async function loadAudit(){const r=await api('/api/admin/audit');$('#auditList').textContent=(r.entries||[]).map(x=>date(x.created_at)+'  '+x.action+'  '+(x.target_id||'')+'\n'+JSON.stringify(x.details||{})).join('\n\n')||'Журнал пока пуст.';}
   function showTab(name,load){
     if(!document.querySelector('[data-page="'+name+'"]'))name='overview';
@@ -307,7 +324,7 @@
     document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
     if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
     if(load===false)return;
-    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),promos:loadPromos,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
+    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),promos:loadPromos,monetization:loadMonetization,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
     Promise.resolve(loaders[name]()).catch(err=>toast(err.message));
     if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(err=>toast(err.message)),15000);
   }
@@ -340,6 +357,7 @@
   $('#ticketAdminSearch').addEventListener('input',()=>{state.ticketQuery=$('#ticketAdminSearch').value.trim().toLowerCase();renderTickets();});
   $('#ticketAdminFilters').addEventListener('click',e=>{const b=e.target.closest('[data-ticket-filter]');if(!b)return;state.ticketFilter=b.dataset.ticketFilter;$('#ticketAdminFilters').querySelectorAll('[data-ticket-filter]').forEach(x=>x.classList.toggle('active',x===b));renderTickets();});
   $('#refreshGrowthButton').addEventListener('click',()=>loadGrowth().catch(err=>toast(err.message)));
+  $('#refreshMonetizationButton').addEventListener('click',()=>loadMonetization().catch(err=>toast(err.message)));
   $('#refreshAuditButton').addEventListener('click',()=>loadAudit().catch(err=>toast(err.message)));
   $('#inspectDialogButton').addEventListener('click',inspectDialog);
   $('#closeDialogInspector').addEventListener('click',()=>{$('#dialogInspector').hidden=true;state.inspectMatchId='';});
