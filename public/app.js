@@ -474,8 +474,8 @@ function renderStore(data) {
     const footer = document.createElement('div'); footer.className = 'bundle-footer';
     const price = document.createElement('strong'); price.textContent = `${Number(bundle.price).toLocaleString('ru-RU')} ✦`;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary';
-    button.textContent = bundle.owned ? 'Уже в коллекции' : (bundle.available ? 'Купить набор' : 'Нужен статус');
-    button.disabled = bundle.owned || !bundle.available;
+    button.textContent = bundle.owned ? 'Уже в коллекции' : (bundle.enabled === false ? 'Временно недоступно' : (bundle.available ? 'Купить набор' : 'Нужен статус'));
+    button.disabled = bundle.owned || !bundle.available || bundle.enabled === false;
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Купить ${bundle.name}?`, description: bundle.description, price: bundle.price, balance: data.balance, confirmLabel: 'Забрать набор' });
       if (!approved) return;
@@ -494,7 +494,7 @@ function renderStore(data) {
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
     previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = pack.enabled === false ? 'Временно недоступно' : 'Оформить'; button.disabled = pack.enabled === false;
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
       if (!approved) return;
