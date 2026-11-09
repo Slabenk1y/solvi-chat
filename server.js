@@ -983,6 +983,26 @@ async function main() {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS paymentwall_token_purchases_user ON paymentwall_token_purchases(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS ad_campaigns (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      sponsor_name TEXT NOT NULL DEFAULT '',
+      target_url TEXT NOT NULL,
+      cta_label TEXT NOT NULL DEFAULT 'Подробнее',
+      placement TEXT NOT NULL DEFAULT 'store',
+      price_minor INTEGER NOT NULL DEFAULT 0 CHECK(price_minor >= 0),
+      currency TEXT NOT NULL DEFAULT 'EUR',
+      payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK(payment_status IN ('unpaid','paid','comped')),
+      status TEXT NOT NULL DEFAULT 'paused' CHECK(status IN ('paused','active','ended')),
+      starts_at TEXT,
+      ends_at TEXT,
+      impressions INTEGER NOT NULL DEFAULT 0,
+      clicks INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS ad_campaigns_live ON ad_campaigns(placement,status,starts_at,ends_at);
     CREATE TABLE IF NOT EXISTS moderation_actions (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, action TEXT NOT NULL, reason TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reports_status (report_id TEXT PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'open', reviewed_by TEXT REFERENCES users(id), reviewed_at TEXT, resolution TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS promo_codes (
@@ -2411,6 +2431,64 @@ async function main() {
     });
     res.json({ ok: true, itemId: item.id, price, enabled: Boolean(enabled) });
   });
+  app.get('/api/ads/slot', authMiddleware, (req, res) => {
+    const placement = String(req.query?.placement || 'store');
+    if (placement !== 'store') return res.json({ ad: null });
+    const now = nowIso();
+    const ad = dbGet("SELECT id,title,body,sponsor_name,target_url,cta_label,impressions FROM ad_campaigns WHERE placement = ? AND status = 'active' AND payment_status IN ('paid','comped') AND (starts_at IS NULL OR starts_at <= ?) AND (ends_at IS NULL OR ends_at > ?) ORDER BY created_at DESC LIMIT 1", [placement, now, now]);
+    if (!ad) return res.json({ ad: null });
+    dbRun('UPDATE ad_campaigns SET impressions = impressions + 1, updated_at = ? WHERE id = ?', [now, ad.id]);
+    res.json({ ad: { ...ad, impressions: Number(ad.impressions || 0) + 1 } });
+  });
+  app.post('/api/ads/:id/click', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    const now = nowIso();
+    const ad = dbGet("SELECT id,target_url FROM ad_campaigns WHERE id = ? AND status = 'active' AND payment_status IN ('paid','comped') AND (starts_at IS NULL OR starts_at <= ?) AND (ends_at IS NULL OR ends_at > ?)", [req.params.id, now, now]);
+    if (!ad) return res.status(404).json({ error: 'Рекламное размещение больше недоступно.' });
+    dbRun('UPDATE ad_campaigns SET clicks = clicks + 1, updated_at = ? WHERE id = ?', [now, ad.id]);
+    res.json({ url: ad.target_url });
+  });
+
+  app.get('/api/admin/ad-campaigns', authMiddleware, ownerOnly, (_req, res) => {
+    res.json({ campaigns: dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100') });
+  });
+  app.post('/api/admin/ad-campaigns', authMiddleware, ownerOnly, (req, res) => {
+    const title = String(req.body?.title || '').trim().slice(0, 100);
+    const body = String(req.body?.body || '').trim().slice(0, 500);
+    const sponsorName = String(req.body?.sponsorName || '').trim().slice(0, 80);
+    const targetUrl = String(req.body?.targetUrl || '').trim().slice(0, 600);
+    const ctaLabel = String(req.body?.ctaLabel || 'Подробнее').trim().slice(0, 32) || 'Подробнее';
+    const priceMinor = Math.trunc(Number(req.body?.priceMinor || 0));
+    const currency = String(req.body?.currency || 'EUR').trim().toUpperCase();
+    let parsed; try { parsed = new URL(targetUrl); } catch { return res.status(400).json({ error: 'Укажи корректную ссылку рекламодателя.' }); }
+    if (!title || !sponsorName || parsed.protocol !== 'https:' || !Number.isSafeInteger(priceMinor) || priceMinor < 0 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Проверь название, рекламодателя, HTTPS-ссылку, цену и валюту.' });
+    const startsAt = req.body?.startsAt ? new Date(req.body.startsAt).toISOString() : null;
+    const endsAt = req.body?.endsAt ? new Date(req.body.endsAt).toISOString() : null;
+    if (startsAt && Number.isNaN(Date.parse(startsAt)) || endsAt && Number.isNaN(Date.parse(endsAt)) || startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) return res.status(400).json({ error: 'Проверь период размещения.' });
+    const id = crypto.randomUUID(), at = nowIso();
+    dbRun('INSERT INTO ad_campaigns (id,title,body,sponsor_name,target_url,cta_label,placement,price_minor,currency,payment_status,status,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [id,title,body,sponsorName,targetUrl,ctaLabel,'store',priceMinor,currency,'unpaid','paused',startsAt,endsAt,at,at]);
+    auditAdmin(req.user.id,'ad_campaign_created',id,{ title,sponsorName,priceMinor,currency });
+    res.status(201).json({ ok: true, campaign: dbGet('SELECT * FROM ad_campaigns WHERE id = ?', [id]) });
+  });
+  app.patch('/api/admin/ad-campaigns/:id', authMiddleware, ownerOnly, (req, res) => {
+    const current = dbGet('SELECT * FROM ad_campaigns WHERE id = ?', [req.params.id]);
+    if (!current) return res.status(404).json({ error: 'Рекламная кампания не найдена.' });
+    const paymentStatus = ['unpaid','paid','comped'].includes(req.body?.paymentStatus) ? req.body.paymentStatus : current.payment_status;
+    let status = ['paused','active','ended'].includes(req.body?.status) ? req.body.status : current.status;
+    if (status === 'active' && paymentStatus === 'unpaid') return res.status(400).json({ error: 'Сначала отметь, что рекламодатель оплатил размещение.' });
+    const at = nowIso();
+    dbRun('UPDATE ad_campaigns SET payment_status = ?, status = ?, updated_at = ? WHERE id = ?', [paymentStatus,status,at,current.id]);
+    auditAdmin(req.user.id,'ad_campaign_status',current.id,{ paymentStatus,status });
+    res.json({ ok:true, campaign:dbGet('SELECT * FROM ad_campaigns WHERE id = ?', [current.id]) });
+  });
+  app.delete('/api/admin/ad-campaigns/:id', authMiddleware, ownerOnly, (req, res) => {
+    const current = dbGet('SELECT id FROM ad_campaigns WHERE id = ?', [req.params.id]);
+    if (!current) return res.status(404).json({ error: 'Рекламная кампания не найдена.' });
+    dbRun('DELETE FROM ad_campaigns WHERE id = ?', [current.id]);
+    auditAdmin(req.user.id,'ad_campaign_deleted',current.id,{});
+    res.json({ ok:true });
+  });
+
   app.get('/api/admin/monetization', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const now = nowIso();
@@ -2426,8 +2504,10 @@ async function main() {
     const payments = dbAll('SELECT provider, currency, COUNT(*) AS count, COALESCE(SUM(amount_minor),0) AS amount_minor FROM payment_records GROUP BY provider, currency ORDER BY provider, currency');
     const paymentwall = dbGet("SELECT COUNT(*) AS topups, COALESCE(SUM(CASE WHEN status = 'credited' THEN token_amount ELSE 0 END),0) AS tokens_credited, COALESCE(SUM(CASE WHEN status = 'reversed' THEN token_amount ELSE 0 END),0) AS tokens_reversed FROM paymentwall_token_purchases");
     const paymentwallRecent = dbAll("SELECT p.provider_reference, p.user_id, u.username, p.token_amount, p.status, p.created_at, p.updated_at FROM paymentwall_token_purchases p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 20");
+    const adStats = dbGet("SELECT COUNT(*) AS campaigns, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(CASE WHEN payment_status IN ('paid','comped') THEN price_minor ELSE 0 END),0) AS booked_minor, currency FROM ad_campaigns GROUP BY currency");
+    const adCampaigns = dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100');
     const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), bundleOnly: Boolean(item.bundleOnly) }));
-    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent });
+    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, adStats: adStats || { campaigns:0, impressions:0, clicks:0, booked_minor:0, currency:'EUR' }, adCampaigns, paymentwallConfigured: paymentwallSettings().configured });
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
