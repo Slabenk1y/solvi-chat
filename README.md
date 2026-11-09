@@ -2,7 +2,7 @@
 
 A random chat for meeting new people through shared languages and interests.
 
-## v1.9.1
+## v1.11.0
 
 - Private idea/bug tickets with owner replies, filters, status handling and close action.
 - 50 ✦ registration bonus.
@@ -10,7 +10,9 @@ A random chat for meeting new people through shared languages and interests.
 - Free/VIP/Premium photo and voice limits.
 - Owner-managed social links displayed as branded footer buttons.
 - Reward tasks and sponsored placements with manual proof review and auditable token payouts.
-- Stripe Checkout for 30-day paid VIP and Premium subscriptions (disabled until Render secrets are configured).
+- Paymentwall Virtual Currency top-ups: signed checkout/pingbacks, duplicate protection, and chargeback reversal (disabled until merchant review and keys are configured).
+- Real-money token top-ups unlock the existing token-priced shop, bundles, and VIP/Premium packages.
+- Direct sponsored store ads with owner-managed booking price, manual payment confirmation, campaign controls, and impression/click statistics.
 - VIP/Premium cosmetic bundles require a verified paid subscription. A membership bought only with tokens does not unlock them.
 - Styled SOLVI dialogs replace native browser confirmation/prompt popups for app actions.
 
@@ -23,15 +25,16 @@ A random chat for meeting new people through shared languages and interests.
 
 The current hostname already matches SOLVI. Keep it for launch; attach a custom domain later if you buy and verify one.
 
-## Payments
+## Payments and advertising
 
-The app uses Stripe Checkout; SOLVI never collects or stores card numbers. Initial suggested monthly prices are VIP €4.99 and Premium €8.99. They are editable in BILLING_PRODUCTS in server.js. Before taking live payments:
-1. Create/verify a Stripe merchant account and confirm your business/tax obligations.
-2. Add STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET and APP_PUBLIC_URL=https://solvi-chat.onrender.com to Render Environment.
-3. Register https://solvi-chat.onrender.com/api/billing/stripe/webhook in Stripe for checkout.session.completed.
-4. Test with Stripe test keys and a successful test card; then switch to live credentials.
+The first real-money gateway is Paymentwall Virtual Currency. Users pay in the provider's hosted checkout and SOLVI credits tokens only after a valid signed server pingback. Duplicate pingbacks are idempotent and a chargeback reverses the matching token credit. The app stays in fail-closed mode until Paymentwall merchant credentials and the public HTTPS URL are configured.
 
-The owner panel also supports manual reconciliation of a payment that has already arrived. This requires an actual amount and unique payment reference; it is not a substitute for a hosted checkout or verified bank transfer.
+Setup instructions: [docs/real-money-monetization.md](docs/real-money-monetization.md). Create the Paymentwall project as Widget API – Virtual Currency, configure token packs of 500 / 1,500 / 5,000, set the pingback URL, add PAYMENTWALL_PUBLIC_KEY, PAYMENTWALL_PRIVATE_KEY, PAYMENTWALL_WIDGET_CODE, PAYMENTWALL_DISPLAY_CURRENCY and APP_PUBLIC_URL to Render, test callbacks, and complete Paymentwall's business/technical review.
+
+Store catalog items and VIP/Premium benefits remain priced in SOLVI tokens. The new top-up flow lets users buy those tokens with real money; per-item card checkout is not enabled separately yet. Paymentwall's Virtual Currency callback returns the token amount rather than the fiat amount, so the owner panel reports credit volumes while gross sales, fees, reserves, and net settlement are reconciled in Paymentwall Merchant Dashboard.
+
+Direct sponsor ads can be created in the owner panel and served in the store. Campaigns stay paused until the advertiser's payment is manually verified and marked paid. This is a direct-sold placement system, not a programmatic ad network. AdSense or another network requires a separate approved publisher account and its own IDs/consent/policy review.
+
 
 ## Tasks and rewards
 
