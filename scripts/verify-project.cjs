@@ -25,7 +25,9 @@ try {
   else pass(`JS: ${selectors.length} прямых id-селекторов найдены в HTML`);
 
   const server = read('server.js');
-  const schemaMatch = server.match(/db\.exec\(`([\s\S]*?)`\);\s*\n\s*(?:await initializePersistentStorage\(\);\s*\n\s*)?\/\/ Backward-compatible migration/);
+  const schemaMatch = server.match(/db\.exec\(`([\s\S]*?)`\);\s*
+\s*(?:await initializePersistentStorage\(\);\s*
+\s*)?\/\/ Backward-compatible migration/);
   if (!schemaMatch) fail('Не удалось найти основную SQLite-схему в server.js');
   else {
     try {
@@ -54,7 +56,9 @@ try {
   const membershipSection = server.slice(server.indexOf('const MEMBERSHIP_PACKAGES'), server.indexOf('const LANGUAGES'));
   if (!membershipSection.includes("id: 'vip-1h', tier: 'vip', hours: 1, price: 180") || !membershipSection.includes("id: 'premium-1h', tier: 'premium', hours: 1, price: 360") || !membershipSection.includes("id: 'vip-24h', tier: 'vip', hours: 24, price: 4320") || !membershipSection.includes("id: 'premium-24h', tier: 'premium', hours: 24, price: 8640") || !membershipSection.includes("id: 'vip-6h', tier: 'vip', hours: 6, price: 1080") || !membershipSection.includes("id: 'premium-6h', tier: 'premium', hours: 6, price: 2160")) fail('Цены VIP/Premium не соответствуют почасовой экономике v1.7.0');
   else pass('Почасовые цены VIP и Premium проверены');
-  if (!server.includes('function membershipLimits') || !server.includes('membership.attachmentLimit') || !app.includes('function createThemeStorePreview') || !app.includes('languageLimit')) fail('Не все дополнительные возможности VIP/Premium и визуальные предпросмотры подключены');\n  else pass('Расширенные лимиты VIP/Premium и визуальные предпросмотры подключены');\n  if (collectionNames.length < 10) fail(`Слишком мало коллекций: ${collectionNames.length}`);
+  if (!server.includes('function membershipLimits') || !server.includes('membership.attachmentLimit') || !app.includes('function createThemeStorePreview') || !app.includes('languageLimit')) fail('Не все дополнительные возможности VIP/Premium и визуальные предпросмотры подключены');
+  else pass('Расширенные лимиты VIP/Premium и визуальные предпросмотры подключены');
+  if (collectionNames.length < 10) fail(`Слишком мало коллекций: ${collectionNames.length}`);
   else pass(`Коллекции: ${collectionNames.length}`);
 
   const clientPacks = [...app.matchAll(/^\s*['"](stickers-[\w-]+)['"]\s*:/gm)].map(match => match[1]).sort();
@@ -120,4 +124,5 @@ try {
 }
 
 if (process.exitCode) process.exit(process.exitCode);
-console.log('\n[SOVLI] Статическая проверка проекта завершена успешно.');
+console.log('
+[SOVLI] Статическая проверка проекта завершена успешно.');
