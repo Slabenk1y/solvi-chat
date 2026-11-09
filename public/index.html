@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20">
+  <link rel="stylesheet" href="/styles.css?v=21">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -247,6 +247,7 @@
                 <button class="modal-close" type="button" data-close-modal aria-label="Закрыть предпросмотр">×</button>
               </div>
               <div id="storePreviewCanvas" class="store-preview-canvas"></div>
+              <p class="store-preview-live-note">Живой макет: здесь показано оформление чата и профиля, а не только иконка предмета. Нажми «Примерить на сайте», чтобы временно увидеть эффект в самом приложении.</p>
               <h2 id="storePreviewTitle">Предмет магазина</h2>
               <p id="storePreviewDescription" class="store-preview-description"></p>
               <div class="store-preview-benefit">
@@ -254,11 +255,11 @@
                 <p id="storePreviewBenefit"></p>
               </div>
               <div class="store-preview-price-row"><span>Стоимость / статус</span><strong id="storePreviewPrice">0 ✦</strong></div>
-              <p class="store-preview-disclaimer">Примерка меняет оформление только в этом браузере. Она не списывает токены и не включает платные лимиты.</p>
+              <p class="store-preview-disclaimer">Примерка меняет оформление только в этом браузере. Она не списывает токены, не покупает статус и не включает платные лимиты.</p>
               <div class="store-preview-actions"><button id="storePreviewTryOnButton" class="button button-secondary" type="button">Примерить на сайте</button><button class="button button-primary" type="button" data-close-modal>Готово</button></div>
             </section>
           </div>
-          <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">1 токен начисляется за минуту активного диалога, когда оба собеседника онлайн: 180 ✦ = 3 часа общения = 1 час VIP; 360 ✦ = 6 часов общения = 1 час Premium. VIP: до 3 000 символов, 4 фото, 5 языков и 8 интересов в фильтрах. Premium: до 5 000 символов, 6 фото, 10 языков и 12 интересов. Premium включает VIP. При повторной покупке срок прибавляется к оставшемуся времени; поиск и правила безопасности для всех одинаковы.</p><div id="membershipOffers" class="membership-grid"></div></section>
+          <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">Каждый участник получает 1 ✦ за минуту активного диалога, пока оба собеседника онлайн. Поэтому 3 часа общения = 180 ✦ = 1 час VIP, а 6 часов = 360 ✦ = 1 час Premium. VIP: 3 000 символов, 5 фото до 8 МБ, голосовые до 2:30, аватар до 4 МБ, 5 языков и 8 интересов. Premium включает VIP и расширяет лимиты: 5 000 символов, 8 фото до 12 МБ, голосовые до 4 минут, аватар до 8 МБ, 10 языков и 12 интересов. Повторная покупка добавляет время к остатку. Приоритетного поиска нет — правила подбора одинаковы для всех.</p><div id="membershipOffers" class="membership-grid"></div></section>
           <details class="token-history" id="tokenHistory"><summary>История токенов</summary><div id="tokenHistoryList" class="token-history-list"></div></details>
           <div id="purchaseConfirmModal" class="purchase-confirm-backdrop" hidden>
             <section class="purchase-confirm-card" role="dialog" aria-modal="true" aria-labelledby="purchaseConfirmTitle">
