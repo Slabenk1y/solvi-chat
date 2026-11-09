@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 const { rateLimit } = require('express-rate-limit');
 const { Server } = require('socket.io');
 const sqlite = require('node:sqlite');
+const { PostgresSnapshotStore } = require('./lib/postgres-snapshot.cjs');
 const SqliteDatabase = sqlite.Database || sqlite.DatabaseSync;
 const APP_VERSION = require('./package.json').version;
 
@@ -220,6 +221,11 @@ const JWT_SECRET = getJwtSecret();
 
 let db;
 let io;
+let persistentStore = null;
+let persistentDirty = false;
+let persistentFlushTimer = null;
+let persistentFlushPromise = null;
+let shuttingDown = false;
 const queue = new Map();
 const disconnectTimers = new Map();
 const guestExpiryTimers = new Map();
@@ -239,7 +245,73 @@ function safeSettings(value) {
   } catch { return { ...DEFAULT_SETTINGS }; }
 }
 function usernameKey(value) { return value.normalize('NFKC').toLocaleLowerCase('ru-RU'); }
-function dbRun(sql, params = []) { return db.prepare(sql).run(...params); }
+function schedulePersistentFlush(delayMs = 2000) {
+  if (!persistentStore?.ready || persistentFlushTimer || shuttingDown) return;
+  persistentFlushTimer = setTimeout(() => {
+    persistentFlushTimer = null;
+    flushPersistentSnapshot().catch(error => console.error('[SOVLI] Не удалось сохранить снимок Neon:', error.message));
+  }, delayMs);
+  persistentFlushTimer.unref?.();
+}
+function markDatabaseChanged() {
+  if (!persistentStore?.ready) return;
+  persistentDirty = true;
+  schedulePersistentFlush();
+}
+async function flushPersistentSnapshot(force = false) {
+  if (!persistentStore?.ready) return;
+  if (persistentFlushTimer) {
+    clearTimeout(persistentFlushTimer);
+    persistentFlushTimer = null;
+  }
+  if (persistentFlushPromise) {
+    try { await persistentFlushPromise; } catch { /* retry below when dirty */ }
+    if (persistentDirty) return flushPersistentSnapshot(force);
+    return;
+  }
+  if (!persistentDirty && !force) return;
+
+  persistentDirty = false;
+  const pending = persistentStore.save(db);
+  persistentFlushPromise = pending;
+  try {
+    const stats = await pending;
+    if (force) console.log(`[SOVLI] Постоянная копия Neon обновлена: ${stats.rowCount} записей в ${stats.tableCount} таблицах.`);
+  } catch (error) {
+    persistentDirty = true;
+    console.error('[SOVLI] Ошибка сохранения в Neon; повторим автоматически:', error.message);
+    if (force) throw error;
+  } finally {
+    if (persistentFlushPromise === pending) persistentFlushPromise = null;
+  }
+  if (persistentDirty && !shuttingDown) schedulePersistentFlush(5000);
+}
+async function initializePersistentStorage() {
+  const connectionString = String(process.env.DATABASE_URL || '').trim();
+  if (!connectionString) {
+    console.warn('[SOVLI] DATABASE_URL не задан: локальная SQLite работает без постоянного облачного хранения.');
+    return;
+  }
+  const store = new PostgresSnapshotStore({
+    connectionString,
+    avatarDir: AVATAR_DIR,
+    appVersion: APP_VERSION
+  });
+  try {
+    const status = await store.initialize(db);
+    persistentStore = store;
+    const verb = status.restored ? 'Восстановлена постоянная копия из Neon' : 'Создана первая постоянная копия в Neon';
+    console.log(`[SOVLI] ${verb}: ${status.rowCount} записей, ${status.tableCount} таблиц, аватаров: ${status.avatarCount}.`);
+  } catch (error) {
+    await store.close().catch(() => {});
+    throw new Error(`Не удалось подключить постоянную базу Neon (DATABASE_URL): ${error.message}`);
+  }
+}
+function dbRun(sql, params = []) {
+  const result = db.prepare(sql).run(...params);
+  markDatabaseChanged();
+  return result;
+}
 function dbGet(sql, params = []) { return db.prepare(sql).get(...params) || null; }
 function dbAll(sql, params = []) { return db.prepare(sql).all(...params); }
 function transaction(fn) {
@@ -247,6 +319,7 @@ function transaction(fn) {
   try {
     const result = fn();
     db.exec('COMMIT');
+    markDatabaseChanged();
     return result;
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* preserve the original error */ }
@@ -640,6 +713,8 @@ async function main() {
     );
   `);
 
+  await initializePersistentStorage();
+
   // Backward-compatible migration: keep legacy accounts, normalize unique nicknames,
   // and add synced preferences without collecting birth dates or age declarations.
   const userColumns = dbAll('PRAGMA table_info(users)').map(column => column.name);
@@ -713,6 +788,10 @@ async function main() {
     if (entry.isFile()) { try { fs.unlinkSync(path.join(UPLOAD_DIR, entry.name)); } catch { /* cleanup is best-effort */ } }
   }
   for (const user of dbAll('SELECT id FROM users')) ensureStarterInventory(user.id);
+  if (persistentStore) {
+    persistentDirty = true;
+    await flushPersistentSnapshot(true);
+  }
   console.log('[SOVLI] Миграции завершены; временные чаты и медиа после перезапуска очищены.');
 
   console.log('[3/5] Поднимаем HTTP API и защитные middleware…');
@@ -749,7 +828,7 @@ async function main() {
   app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много попыток. Попробуйте позже.' } }));
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'sovli-chat', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: 'node:sqlite', online: onlineUserIds().size, publicMode: PUBLIC_MODE }));
+  app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'sovli-chat', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral', persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE }));
   app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, media: { images: true, voice: true, maxImagesPerMessage: 3, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: 90 }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
   function checkPublicInvite(req, res) {
@@ -1749,16 +1828,31 @@ async function main() {
   const economyTicker = setInterval(tickActiveMatches, 5000);
   economyTicker.unref();
   const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     clearInterval(economyTicker);
     stopCloudflareQuickTunnel();
     tickActiveMatches();
     for (const timer of disconnectTimers.values()) clearTimeout(timer);
     for (const timer of guestExpiryTimers.values()) clearTimeout(timer);
-    io.close(() => {
-      try { db.close(); } catch (error) { console.warn('[SOVLI] Ошибка закрытия SQLite:', error.message); }
-      process.exit(0);
+    const hardStop = setTimeout(() => {
+      console.error('[SOVLI] Принудительное завершение после тайм-аута остановки.');
+      process.exit(1);
+    }, 12000);
+    (async () => {
+      try { await flushPersistentSnapshot(true); }
+      catch (error) { console.error('[SOVLI] Последнее сохранение Neon не удалось:', error.message); }
+      io.close(async () => {
+        try { db.close(); } catch (error) { console.warn('[SOVLI] Ошибка закрытия SQLite:', error.message); }
+        try { await persistentStore?.close(); } catch (error) { console.warn('[SOVLI] Ошибка закрытия Neon:', error.message); }
+        clearTimeout(hardStop);
+        process.exit(0);
+      });
+    })().catch(error => {
+      console.error('[SOVLI] Ошибка остановки сервера:', error.message);
+      clearTimeout(hardStop);
+      process.exit(1);
     });
-    setTimeout(() => { try { db.close(); } catch { /* ignore forced shutdown */ } process.exit(1); }, 5000).unref();
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
