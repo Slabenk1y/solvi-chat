@@ -1,41 +1,59 @@
 # SOLVI real-money monetization setup
 
-## 1. Payment gateway: Paymentwall Virtual Currency
+## Overview
 
-The application integration is provider-backed but fail-closed: checkout stays disabled until the project credentials and public HTTPS URL are configured. Tokens are credited only from a signed Paymentwall server pingback. The browser return URL is informational and never changes a balance.
+SOLVI uses two separate Paymentwall projects because each Paymentwall Widget API project is configured for one API type:
 
-1. Create a Paymentwall merchant account and complete the business/KYC review. Use the actual person or legal entity that will own SOLVI and receive settlements.
-2. Create a SOLVI project and choose **Widget API – Virtual Currency**. Set a widget code (the sample/default code is p1_1).
-3. In Virtual Currency Product Inventory, add packs that issue exactly **500**, **1,500**, and **5,000 SOLVI tokens**. Choose and publish the retail prices in the Paymentwall dashboard. The same token amounts are shown in the app; do not publish different amounts in the merchant inventory.
-4. Set the pingback URL to https://solvi-chat-next.onrender.com/api/billing/paymentwall/pingback. Ensure server pingbacks are enabled for the project.
-5. Add these environment variables to the Render service:
-   - PAYMENTWALL_PUBLIC_KEY — project/public key.
-   - PAYMENTWALL_PRIVATE_KEY — project secret; keep it private.
-   - PAYMENTWALL_WIDGET_CODE — the widget code, e.g. p1_1.
-   - PAYMENTWALL_DISPLAY_CURRENCY — currency label shown in the app, e.g. EUR.
+1. **Virtual Currency (VC)** sells SOLVI tokens. Paymentwall sends the purchased virtual-currency amount in a signed pingback. SOLVI credits only that amount.
+2. **Digital Goods (DG)** sells individual store items and 30-day VIP/Premium subscriptions. SOLVI creates a server-priced one-time checkout for the selected item and grants it only after a signed pingback.
+
+The storefront stays fail-closed until the matching project credentials and HTTPS URL are configured. The browser success redirect never credits an account.
+
+## 1. Paymentwall project for token top-ups
+
+1. Create a Paymentwall merchant account and complete merchant/business verification.
+2. Create a project configured as **Widget API – Virtual Currency**.
+3. Set the virtual currency name to SOLVI tokens and configure regional exchange rates.
+4. In Price Points, add the payment methods and amounts you want to sell. Start with price points which credit exactly **500**, **1,500**, and **5,000 SOLVI tokens** (the resulting VC amount, after any bonuses, must match the values you intend to grant).
+5. Set the project's pingback URL to https://solvi-chat-next.onrender.com/api/billing/paymentwall/pingback.
+6. Add these variables to Render:
+   - PAYMENTWALL_VC_PUBLIC_KEY — VC project's public key.
+   - PAYMENTWALL_VC_PRIVATE_KEY — VC project's private key.
+   - PAYMENTWALL_VC_WIDGET_CODE — the VC project's widget code, e.g. p1_1.
+   - PAYMENTWALL_DISPLAY_CURRENCY — label displayed in SOLVI, e.g. EUR.
    - APP_PUBLIC_URL — https://solvi-chat-next.onrender.com.
-6. Test with Paymentwall's Test Payment Method and Test Pingback Tool. Verify one successful credit, duplicate ref delivery, wrong-signature rejection, and type=2 chargeback reversal. Then submit the project for Paymentwall's technical and business review before going live.
 
-The server handles:
-- type=0: credit the virtual-currency amount sent in the signed pingback.
-- Duplicate reference IDs: acknowledge without crediting twice.
-- type=2: reverse the previously credited token amount and add a negative ledger entry. If the user already spent those tokens, the balance can become negative until earned tokens cover the reversal.
-- Guest and owner accounts cannot start a token purchase.
+   For backward compatibility, the VC integration also accepts PAYMENTWALL_PUBLIC_KEY, PAYMENTWALL_PRIVATE_KEY, and PAYMENTWALL_WIDGET_CODE. Do not reuse these generic keys for the Digital Goods project.
 
-**Important:** Paymentwall's Virtual Currency pingback reports the amount of virtual currency to credit, not the exact fiat charge. The owner panel therefore reports paid top-up count and delivered/reversed tokens; exact gross sales, processor fees, reserves, refunds, and net settlement must be reconciled against the Paymentwall Merchant Dashboard until a reporting API is connected.
+The VC webhook uses Paymentwall's Virtual Currency convention: **type=1** is a successful token top-up; **type=2** is a refund/chargeback. It validates the signature, matches the user by public ID, and stores the transaction reference before crediting. Repeated references do not credit twice. A type=2 pingback subtracts the tokens originally credited.
 
-## 2. Store sales
+## 2. Paymentwall project for direct store purchases
 
-Store items, bundles, and VIP/Premium packages continue to use SOLVI tokens. Once the Paymentwall top-up is live, users can buy those tokens with real money and spend them in the existing store. Prices inside the store are still token prices; they are not per-item card prices.
+1. Create a second Paymentwall project configured as **Widget API – Digital Goods**. This project must have its own project keys and widget code; do not point it at the VC project's keys.
+2. Create a widget in the project (e.g. p1).
+3. Set the pingback URL to https://solvi-chat-next.onrender.com/api/billing/paymentwall/goods-pingback.
+4. Add these Render variables:
+   - PAYMENTWALL_GOODS_PUBLIC_KEY — Digital Goods project's public key.
+   - PAYMENTWALL_GOODS_PRIVATE_KEY — Digital Goods project's private key.
+   - PAYMENTWALL_GOODS_WIDGET_CODE — Digital Goods widget code, e.g. p1.
+5. In the SOLVI owner panel → Monetization → Catalog and prices, set a direct cash price and enable **За деньги** for each catalogue item you want to sell. These prices are separate from token prices. Prices for 30-day VIP/Premium are sourced from VIP_PRICE_MINOR and PREMIUM_PRICE_MINOR (default EUR 4.99 / EUR 8.99 when the billing currency is EUR).
+6. Users enter a billing email in the store. SOLVI creates an order with a server-generated reference and passes the exact price, currency, product name, email, and callback URL to Paymentwall.
+7. Paymentwall's signed Digital Goods pingback uses **type=0** for successful delivery and **type=2** for refund/chargeback. SOLVI verifies goodsid, user ID, signature, and unique ref; then it places the item in the user's inventory or extends the paid subscription. A repeated pingback cannot grant the product twice. A type=2 callback revokes delivered store items or reduces the paid subscription.
 
-## 3. Direct sponsor advertising
+The two checkout types use separate pingback endpoints and separate private keys. No card number is collected or stored by SOLVI.
 
-The owner panel now supports sponsored placements in the store. Create a campaign with advertiser, copy, HTTPS destination, booked price, and dates. The campaign starts paused and unpaid. Confirm the advertiser's bank transfer/invoice outside the app, mark the campaign paid in the owner panel, and then activate it. Only paid/comped, active, in-date campaigns are served. Impressions and clicks are counted by SOLVI.
+## 3. Direct sponsored advertising
 
-This is direct-sold advertising, not an automatic ad network. A network such as Google AdSense requires its own approved publisher account, publisher/ad-unit identifiers, site review, consent configuration, and policy checks before its script can be enabled.
+The owner panel supports sponsor placements inside the SOLVI store. Create a campaign with advertiser, copy, HTTPS destination, price, currency, and dates. It starts paused and unpaid. Confirm the advertiser's payment outside the app (invoice/bank transfer), mark it paid, and activate it. Only campaigns marked paid/comped, active, and within their date range are served. SOLVI counts impressions and clicks.
 
-## 4. Payouts and settlement
+This is a direct-sold ad placement, not an automatic advertising network. Google AdSense or another network needs a separate approved publisher account, publisher/ad-unit IDs, consent configuration, and policy review before its script can be enabled.
 
-Paymentwall currently documents international bank transfer and SEPA bank transfer among its payout routes, plus other methods, and says the payout currency depends on the processing currency and the receiving bank account's denomination. Its public payout FAQ describes a USD 100 minimum for automatic payouts and normally one or two payouts per month, subject to compliance approval, reserves, refunds, and chargebacks. Do not assume a RUB payout is available; confirm the account's permitted settlement currencies with Paymentwall before relying on it.
+## 4. Reporting, refunds, and settlement
+
+The owner panel reports token credits/reversals, direct-store orders and their order prices, current catalogue pricing, and direct sponsor campaign totals. Virtual Currency pingbacks contain the number of virtual tokens purchased rather than the fiat amount charged, so exact top-up gross, local currency, provider fees, reserves, refunds, and net proceeds must be reconciled against Paymentwall Merchant Dashboard.
+
+Paymentwall's public payout support page lists international bank transfer and SEPA bank transfer and notes an automatic payout threshold, but the permitted settlement currency depends on the merchant account and receiving bank. Do not assume RUB settlement is available; confirm the exact payout currency and bank route with Paymentwall after merchant approval.
+
+Test both projects using Paymentwall's Test Payment Method and Test Pingback Tool. Verify correct successful callback type (VC type=1, DG type=0), duplicate-reference handling, wrong-signature rejection, and type=2 reversal. Then submit both projects for Paymentwall's technical and business review before accepting live payments.
 
 Do not put bank details, private keys, or merchant credentials in source control, chat messages, or the frontend.
