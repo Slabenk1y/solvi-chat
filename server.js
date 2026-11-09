@@ -1392,8 +1392,6 @@ async function main() {
     if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Пополнение доступно постоянным пользовательским аккаунтам.' });
     const settings = paymentwallSettings();
     if (!settings.configured) return res.status(503).json({ error: 'Платёжный шлюз ещё не настроен. Нужны ключи Paymentwall и публичный HTTPS-адрес проекта.' });
-    const packageId = String(req.body?.packageId || '');
-    if (!PAYMENTWALL_TOKEN_PACKAGES.some(item => item.id === packageId)) return res.status(404).json({ error: 'Пакет токенов не найден.' });
     const email = String(req.body?.email || req.user.billing_email || '').trim().toLowerCase();
     if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(email)) return res.status(400).json({ error: 'Укажи действующий email для платёжного чека.' });
     dbRun('UPDATE users SET billing_email = ? WHERE id = ?', [email, req.user.id]);
