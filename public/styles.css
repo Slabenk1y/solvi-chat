@@ -516,3 +516,6 @@ html.session-checking #sessionBootScreen{display:grid!important}
 :root[data-membership="vip"] #profileRoleBadge{border-color:#c79b48;background:rgba(199,155,72,.12);color:#9a7128}
 :root[data-membership="premium"] #profileRoleBadge{border-color:#9b7be5;background:rgba(155,123,229,.13);color:#7854bf}
 @media(max-width:600px){.theme-context-preview{padding:7px}.theme-mock-shell{min-height:155px}.membership-mock-card{max-width:280px}.membership-mock-footer small{display:none}}
+
+/* v1.7 membership preview feature chips */
+.membership-mock-footer{display:flex;flex-direction:column;gap:5px}.membership-mock-perks{display:flex;flex-wrap:wrap;gap:4px;padding:7px 10px;background:#f4f1fb}.membership-mock-perks span{padding:4px 6px;border:1px solid #e2dcef;border-radius:99px;background:#fff;color:#51466d;font-size:6px;font-weight:800}.membership-context-preview.is-premium .membership-mock-perks span{border-color:#e8d9a9;color:#72521c}
