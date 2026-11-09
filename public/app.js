@@ -200,7 +200,12 @@ function createThemeStorePreview(item) {
   const incoming2=document.createElement('span');incoming2.className='theme-mock-bubble incoming';incoming2.textContent='Теперь ещё лучше :)';
   messages.append(incoming,outgoing,incoming2);
   const composer=document.createElement('div');composer.className='theme-mock-composer';composer.textContent='Написать сообщение…';
-  chat.append(heading,messages,composer);body.append(rail,chat);shell.append(top,body);root.append(shell);
+  const profile=document.createElement('div');profile.className='theme-mock-profile';
+  const profileAvatar=document.createElement('span');profileAvatar.textContent=state.user?.avatar || '🌙';
+  const profileName=document.createElement('strong');profileName.textContent=state.user?.username || 'Твой ник';
+  const profileStatus=document.createElement('small');profileStatus.textContent='ТВОЙ ПРОФИЛЬ';
+  profile.append(profileAvatar,profileName,profileStatus);
+  chat.append(heading,messages,composer,profile);body.append(rail,chat);shell.append(top,body);root.append(shell);
   return root;
 }
 function openStorePreview(item) {
