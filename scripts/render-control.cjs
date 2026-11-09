@@ -12,7 +12,7 @@ const renderYaml = read('render.yaml');
 const workflow = read('.github/workflows/render-control.yml');
 
 must(/type:\s*web/.test(renderYaml), 'Render Blueprint defines a web service');
-must(/plan:\s*starter/.test(renderYaml), 'Render service uses an always-on paid compute plan');
+must(/plan:\s*free/.test(renderYaml), 'Render service uses the Free compute plan');
 must(/mountPath:\s*\/var\/data/.test(renderYaml) && /DATA_DIR[\s\S]*?value:\s*\/var\/data/.test(renderYaml), 'SQLite storage points to persistent disk');
 must(/healthCheckPath:\s*\/api\/health/.test(renderYaml), 'Render health check is configured');
 must(/npm install --omit=dev/.test(renderYaml), 'Render build does not depend on a missing package-lock file');
