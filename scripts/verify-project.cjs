@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.6.0') fail(`Ожидалась версия 1.6.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.7.0') fail(`Ожидалась версия 1.6.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -52,8 +52,10 @@ try {
   if (catalogSection.includes('category: "Обои"') || catalogSection.includes('slot: "wallpaper"')) fail('Каталог всё ещё содержит отдельную категорию обоев');
   else pass('Все бывшие обои переведены в темы интерфейса');
   const membershipSection = server.slice(server.indexOf('const MEMBERSHIP_PACKAGES'), server.indexOf('const LANGUAGES'));
-  if (!membershipSection.includes("id: 'vip-1d', tier: 'vip', days: 1, price: 270") || !membershipSection.includes("id: 'premium-1d', tier: 'premium', days: 1, price: 480")) fail('Цены привилегий не соответствуют экономике v1.5.1');
-  else pass('Новые цены VIP и Premium проверены');
+  if (!membershipSection.includes("id: 'vip-1h', tier: 'vip', hours: 1, price: 180") || !membershipSection.includes("id: 'premium-1h', tier: 'premium', hours: 1, price: 360") || !membershipSection.includes("id: 'vip-6h', tier: 'vip', hours: 6, price: 1080") || !membershipSection.includes("id: 'premium-6h', tier: 'premium', hours: 6, price: 2160")) fail('Почасовые цены VIP/Premium не соответствуют обмену токенов');
+  else pass('Почасовая экономика VIP и Premium проверена');
+  if (!server.includes('function membershipLimits') || !server.includes('content.length > messageLimit')) fail('Лимиты сообщений VIP/Premium не защищены сервером');
+  else pass('Лимиты сообщений Free/VIP/Premium применяются сервером');
   if (collectionNames.length < 10) fail(`Слишком мало коллекций: ${collectionNames.length}`);
   else pass(`Коллекции: ${collectionNames.length}`);
 
@@ -85,13 +87,13 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v17/.test(sw)) fail('Service Worker cache version не соответствует v1.6.0');
+  if (!/sovli-shell-v18/.test(sw)) fail('Service Worker cache version не соответствует v1.6.0');
   else pass('Service Worker cache version обновлён');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
   else pass('Ответы на собственные сообщения блокируются сервером');
-  if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
-  else pass('У каждого предмета магазина доступен отдельный предпросмотр');
+  if (!app.includes('function openStorePreview') || !app.includes('function createThemeStorePreview') || !app.includes('function createMembershipPreview') || !html.includes('id="storePreviewModal"')) fail('Наглядный предпросмотр магазина отсутствует');
+  else pass('Темы и статусы имеют предпросмотр в контексте интерфейса');
   if (!html.includes('id="sessionBootScreen"') || !app.includes("classList.remove('session-checking')")) fail('Экран восстановления сессии не настроен');
   else pass('При перезагрузке отображается экран восстановления сессии, а не форма входа');
   if (!server.includes('Гостевой профиль может менять только аватар.') || !app.includes('DEFAULT_AVATARS')) fail('Гостевые и стандартные аватары не восстановлены');
