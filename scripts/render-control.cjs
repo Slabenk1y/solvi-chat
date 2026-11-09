@@ -12,8 +12,9 @@ const renderYaml = read('render.yaml');
 const workflow = read('.github/workflows/render-control.yml');
 
 must(/type:\s*web/.test(renderYaml), 'Render Blueprint defines a web service');
-must(/plan:\s*starter/.test(renderYaml), 'Render service uses an always-on paid compute plan');
-must(/mountPath:\s*\/var\/data/.test(renderYaml) && /DATA_DIR[\s\S]*?value:\s*\/var\/data/.test(renderYaml), 'SQLite storage points to persistent disk');
+must(/plan:\s*free/.test(renderYaml), 'Render service uses the Free compute plan');
+must(/DATA_DIR[\s\S]*?value:\s*\/tmp\/sovli-data/.test(renderYaml) && !/disk:/.test(renderYaml), 'Render Free uses temporary local storage with Neon persistence');
+must(/DATABASE_URL[\s\S]*?sync:\s*false/.test(renderYaml), 'Neon connection string is configured as a secret');
 must(/healthCheckPath:\s*\/api\/health/.test(renderYaml), 'Render health check is configured');
 must(/npm install --omit=dev/.test(renderYaml), 'Render build does not depend on a missing package-lock file');
 must(/RENDER_API_KEY/.test(renderYaml) && /sync:\s*false/.test(renderYaml), 'Render API key is not hardcoded in the repository');

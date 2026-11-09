@@ -1,3 +1,20 @@
+## v1.3.0 — 2026-11-09
+
+### Persistent storage for Render Free
+- Added a Neon PostgreSQL snapshot store for Render's ephemeral filesystem.
+- The existing synchronous SQLite runtime is retained to avoid rewriting every chat, economy, store and owner route in one risky change.
+- Neon stores all SQLite tables as one JSONB snapshot; snapshots are debounced after database writes and flushed during normal shutdown.
+- User avatar binaries are stored separately in `sovli_avatar_files` and uploaded only when created or changed.
+- Startup restores the Neon snapshot before normal SQLite migrations and temporary-chat cleanup. A first empty Neon project is seeded from the SQLite file available at first boot.
+- Render deployments now require `DATABASE_URL`; the free Blueprint no longer declares a paid persistent disk.
+- Added snapshot restore tests and a GitHub Actions CI workflow.
+
+### Limitations
+- This is a single-instance persistence bridge, not a normalized PostgreSQL migration. Do not scale horizontally.
+- Render Free can sleep and has an ephemeral filesystem; Neon preserves saved data but does not remove Render cold starts.
+- Active chats/messages and temporary media continue to be cleared on server restart by the app's existing retention policy.
+- The latest write can be lost if the process is terminated abruptly during the short snapshot delay or if Neon is unavailable.
+
 # Changelog
 
 ## v1.1.0 — 2026-11-09

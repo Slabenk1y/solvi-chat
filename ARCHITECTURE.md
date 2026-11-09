@@ -1,32 +1,46 @@
-# Architecture — SOVLI v1.1.0
+# Architecture — SOVLI v1.3.0
 
 ## Runtime
 
-A modular monolith: Express HTTP API + Socket.IO realtime server + built-in `node:sqlite` persistence. Node.js >=22.16. The frontend is a responsive static HTML/CSS/JavaScript application served by Express. No Docker or separate database server is required for closed testing.
+Express HTTP API + Socket.IO realtime server + synchronous built-in `node:sqlite` runtime. Node.js >=22.16. Frontend is a responsive static HTML/CSS/JavaScript application served by Express.
+
+## Persistent state
+
+Render's local filesystem is ephemeral, so the SQLite database is treated as a per-process working copy. When `DATABASE_URL` is configured, `lib/postgres-snapshot.cjs` connects to Neon PostgreSQL using `pg`.
+
+The module stores a full JSONB table snapshot in `sovli_persistent_state` and avatar binaries separately in `sovli_avatar_files`:
+- On boot, it restores existing tables and avatar files into the local SQLite database before the usual migrations and restart cleanup.
+- If no snapshot exists, it seeds Neon from the SQLite database available at first boot.
+- Database writes mark the state dirty. A debounced save replaces the JSONB snapshot after writes; SIGINT/SIGTERM attempts a final save.
+- SQLite tables remain the runtime query engine. Neon is a snapshot store, not yet a normalized PostgreSQL schema used by each application query.
+
+This bridge is deliberately single-instance. Do not horizontally scale SOVLI. A future production migration should replace the snapshot bridge with normalized PostgreSQL tables and object storage.
 
 ## Modules
 
-- `server.js`: configuration, SQLite schema/migrations, auth, matching, chat, media, store, moderation and owner-only APIs.
-- `public/index.html`: page structure and application panels.
-- `public/app.js`: client state, navigation, auth, WebSocket lifecycle, chat, media, profile, settings, store and inventory.
-- `public/styles.css`: design system, responsive layouts, store previews and SVG mascot animation.
-- `public/sw.js`: static asset cache with explicit version key.
-- `scripts/doctor.cjs`: preflight diagnostics independent of the app runtime.
-- `scripts/owner-console.cjs`: interactive management CLI over authenticated owner-only APIs.
-- `test/integration.test.js`: two-client and API integration scenarios.
+- `server.js`: configuration, SQLite schema/migrations, auth, matching, chat, media, store, moderation, owner-only APIs and Neon snapshot lifecycle.
+- `lib/postgres-snapshot.cjs`: snapshot capture, restore, avatar file backup and Neon persistence.
+- `public/index.html`, `public/app.js`, `public/styles.css`: responsive client application.
+- `public/owner.html`, `public/owner.js`, `public/owner.css`: owner dashboard.
+- `scripts/doctor.cjs`: preflight diagnostics.
+- `scripts/owner-console.cjs`: management CLI over owner-only APIs.
+- `test/persistence.test.js`: snapshot and restore tests.
+- `test/integration.test.js`: two-client API and Socket.IO integration scenarios.
 
 ## Authentication and authorization
 
-Passwords are stored as password hashes. JWT contains user ID and session JTI; every API and Socket.IO connection checks the corresponding database session. Owner authority comes only from `OWNER_PUBLIC_ID`, which is compared server-side with the account Public ID. Browser state cannot grant owner permissions.
+Passwords are stored as password hashes. JWT contains user ID and session JTI; every API and Socket.IO connection checks the database session. Owner authority comes only from `OWNER_PUBLIC_ID`, checked server-side.
+
+Keep `JWT_SECRET` stable across deploys to preserve existing login sessions.
 
 ## Matching and economy
 
-One active match per user. Queue candidates are checked for blocks and supported preference filters. An active match assigns the match ID to connected sockets. The 5-second server ticker measures elapsed time only if both participants still have a socket connected to the same match. Full minutes are credited to both accounts once and ledgered transactionally. A disconnected pair earns no tokens; time while server is stopped is never inferred or credited.
+One active match per user. Queue candidates are checked for blocks and supported preference filters. The 5-second server ticker measures elapsed time only if both participants remain connected to the same match. Full active minutes are credited transactionally. Disconnected time is never inferred.
 
 ## Data lifecycle
 
-Messages/media belong to a temporary active match and are removed by the existing end-of-match retention workflow. Account/profile/store ownership persists. Backups and secret files are local operator responsibilities.
+Account/profile/store data is persisted in Neon snapshots. Active conversations, messages and temporary media are intentionally removed during server restart cleanup. Avatar image files are stored separately in Neon and uploaded only when created or changed (maximum 2 MB per file).
 
 ## Owner tooling
 
-The CLI calls the same server API as the owner dashboard and does not access SQLite directly. It supports user/economy/promo/store/role/moderation/session functions. It shows only match metadata, not private chat transcripts. All material adjustments are recorded in `admin_audit`.
+The CLI and web panel call the same owner-only server APIs. They do not access SQLite directly or expose private chat transcripts.

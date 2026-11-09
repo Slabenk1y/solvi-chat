@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.2.0') fail(`Ожидалась версия 1.2.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.3.0') fail(`Ожидалась версия 1.3.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -25,7 +25,7 @@ try {
   else pass(`JS: ${selectors.length} прямых id-селекторов найдены в HTML`);
 
   const server = read('server.js');
-  const schemaMatch = server.match(/db\.exec\(`([\s\S]*?)`\);\s*\n\s*\/\/ Backward-compatible migration/);
+  const schemaMatch = server.match(/db\.exec\(`([\s\S]*?)`\);\s*\n\s*(?:await initializePersistentStorage\(\);\s*\n\s*)?\/\/ Backward-compatible migration/);
   if (!schemaMatch) fail('Не удалось найти основную SQLite-схему в server.js');
   else {
     try {
@@ -83,9 +83,13 @@ try {
   if (!/sovli-shell-v12/.test(sw)) fail('Service Worker cache version не соответствует v1.2');
   else pass('Service Worker cache version обновлён');
 
-  for (const file of ['start.bat', 'start-public.bat', 'owner-console.bat', 'owner-panel.bat', 'stop-server.bat', '.env.example', 'README.md', 'PROJECT_PROGRESS.md', 'public/owner.html', 'public/owner.css', 'public/owner.js']) {
+  for (const file of ['start.bat', 'start-public.bat', 'owner-console.bat', 'owner-panel.bat', 'stop-server.bat', '.env.example', 'README.md', 'PROJECT_PROGRESS.md', 'lib/postgres-snapshot.cjs', 'public/owner.html', 'public/owner.css', 'public/owner.js']) {
     if (!fs.existsSync(path.join(root, file))) fail(`Отсутствует обязательный файл ${file}`);
   }
+  const snapshot = read('lib/postgres-snapshot.cjs');
+  if (!server.includes('DATABASE_URL') || !server.includes('PostgresSnapshotStore') || !snapshot.includes('sovli_persistent_state')) fail('Neon persistent snapshot integration is missing');
+  else pass('Neon persistent snapshot storage is connected');
+
   const ownerHtml = read('public/owner.html');
   for (const endpoint of ['/api/admin/runtime', '/api/admin/runtime/public/start', '/api/admin/runtime/public/stop', '/api/admin/users']) if (!read('public/owner.js').includes(endpoint)) fail(`Mobile owner panel does not call ${endpoint}`);
   if (!ownerHtml.includes('id=\"dashboardView\"') || !ownerHtml.includes('id=\"loginView\"')) fail('Mobile owner panel login/dashboard missing');
