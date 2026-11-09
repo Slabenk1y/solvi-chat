@@ -309,6 +309,8 @@
 .reduce-motion-user .sausage-mouse,.reduce-motion-user .sausage-body-group,.reduce-motion-user .sausage-tail,.reduce-motion-user .sausage-legs,.reduce-motion-user .sausage-arms,.reduce-motion-user .sausage-eyes,.reduce-motion-user .sausage-pupil,.reduce-motion-user .sausage-mustard,.reduce-motion-user .sausage-dizzy{animation:none!important}
 
 /* v1.0.0 — full application of collectible styles */
+:root[data-store-theme="theme-dark"]{--bg:#181827;--surface:#232337;--surface-soft:#2b2b40;--ink:#f0efff;--muted:#a2a2ba;--line:#37374d;--primary:#8d86ff;--primary-dark:#7770eb;--primary-soft:#34324f;--shadow:0 22px 70px rgba(0,0,0,.18)}
+:root[data-store-theme="theme-light"]{--bg:#f5f6fb;--surface:#fff;--surface-soft:#f3f2fb;--ink:#29263e;--muted:#88859e;--line:#e9e7f2;--primary:#756ee8;--primary-dark:#5e58ca;--primary-soft:#eeedff}
 :root[data-store-theme="theme-midnight"]{--bg:#151525;--surface:#222139;--surface-soft:#292642;--ink:#f2efff;--muted:#b1a9ca;--line:#3a3556;--primary:#9f88f4;--primary-dark:#7862d3;--primary-soft:#373052;--shadow:0 22px 70px rgba(0,0,0,.28)}
 :root[data-store-theme="theme-candy"]{--primary:#cf62a5;--primary-dark:#ab4787;--primary-soft:#ffe8f5}
 :root[data-store-theme="theme-arcade"]{--primary:#18a7b8;--primary-dark:#087f96;--primary-soft:#e1fbff;--line:#b6e9ed}
@@ -339,7 +341,11 @@
 :root[data-store-frame="frame-neon"] .profile-mini .avatar,:root[data-store-frame="frame-neon"] .avatar-profile,:root[data-store-frame="frame-neon"] #partnerAvatar{outline:2px solid #9d78ff;outline-offset:3px;box-shadow:0 0 16px rgba(157,120,255,.5)}
 :root[data-store-frame="frame-sakura"] .profile-mini .avatar,:root[data-store-frame="frame-sakura"] .avatar-profile,:root[data-store-frame="frame-sakura"] #partnerAvatar{outline:3px solid #e6a4bf;outline-offset:3px;box-shadow:0 0 0 6px rgba(230,164,191,.18)}
 :root[data-store-frame="frame-glass"] .profile-mini .avatar,:root[data-store-frame="frame-glass"] .avatar-profile,:root[data-store-frame="frame-glass"] #partnerAvatar{outline:2px solid rgba(180,220,255,.9);outline-offset:4px;box-shadow:0 0 14px rgba(160,210,255,.4)}
-.preview-theme-midnight{background:linear-gradient(135deg,#161526,#7760b8)}.preview-theme-candy{background:linear-gradient(135deg,#ffd4ea,#ba69a6)}.preview-theme-arcade{background:linear-gradient(135deg,#092f4b,#20b6b0)}.preview-theme-cream{background:linear-gradient(135deg,#fff4d8,#c59b69)}.preview-theme-ice{background:linear-gradient(135deg,#daf5ff,#5eabd1)}.preview-theme-sakura{background:linear-gradient(135deg,#ffe4ef,#cd8baa)}
+.preview-theme-light{background:linear-gradient(135deg,#ffffff,#dcd9f8 55%,#9d96e8)}.preview-theme-dark{background:linear-gradient(135deg,#151525,#383858 55%,#7770eb)}.preview-theme-midnight{background:linear-gradient(135deg,#161526,#7760b8)}.preview-theme-candy{background:linear-gradient(135deg,#ffd4ea,#ba69a6)}.preview-theme-arcade{background:linear-gradient(135deg,#092f4b,#20b6b0)}.preview-theme-cream{background:linear-gradient(135deg,#fff4d8,#c59b69)}.preview-theme-ice{background:linear-gradient(135deg,#daf5ff,#5eabd1)}.preview-theme-sakura{background:linear-gradient(135deg,#ffe4ef,#cd8baa)}
 .preview-wallpaper-cyber{background:linear-gradient(135deg,#11172e,#6133a6 55%,#08a5aa)}.preview-wallpaper-mountain{background:linear-gradient(155deg,#e4f2f2,#96b7b5 55%,#546d79)}.preview-wallpaper-sea{background:linear-gradient(135deg,#b5f1ee,#3c9ab6 55%,#155878)}
 .preview-bubble-citrus{background:linear-gradient(135deg,#f2f7b8,#a9cb5b)}.preview-bubble-graphite{background:linear-gradient(135deg,#7b8090,#383e50)}.preview-frame-sakura{background:linear-gradient(135deg,#fff0f5,#c77ea5)}.preview-frame-glass{background:linear-gradient(135deg,#dff3ff,#6588b0)}
 :root[data-store-theme="theme-midnight"] .store-item-card,:root[data-store-theme="theme-midnight"] .profile-edit-card{background:var(--surface)}
+
+/* SOVLI v1.4 — inventory themes */
+.settings-card .button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.settings-card .button-row .button{min-height:38px}
+:root[data-store-theme="theme-dark"] .store-hero{background:radial-gradient(circle at 85% 15%,rgba(145,120,255,.17),transparent 42%),linear-gradient(125deg,var(--surface),#25223e)}

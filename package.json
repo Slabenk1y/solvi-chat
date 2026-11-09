@@ -1,8 +1,8 @@
 {
   "name": "sovli-random-chat",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
-  "description": "SOVLI v1.3 — free Render deploy with Neon-backed persistent snapshots",
+  "description": "SOVLI v1.4 — owner moderation, inventory themes and persistent guest identities",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

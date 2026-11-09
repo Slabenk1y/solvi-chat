@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.3.0') fail(`Ожидалась версия 1.3.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.4.0') fail(`Ожидалась версия 1.4.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -80,7 +80,7 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v12/.test(sw)) fail('Service Worker cache version не соответствует v1.2');
+  if (!/sovli-shell-v14/.test(sw)) fail('Service Worker cache version не соответствует v1.4');
   else pass('Service Worker cache version обновлён');
 
   for (const file of ['start.bat', 'start-public.bat', 'owner-console.bat', 'owner-panel.bat', 'stop-server.bat', '.env.example', 'README.md', 'PROJECT_PROGRESS.md', 'lib/postgres-snapshot.cjs', 'public/owner.html', 'public/owner.css', 'public/owner.js']) {

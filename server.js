@@ -137,6 +137,8 @@ function stopCloudflareQuickTunnel() {
   return { ok: true };
 }
 const STORE_CATALOG = Object.freeze([
+  { id: "theme-light", name: "Светлая тема", description: "Чистое светлое оформление SOVLI. Всегда доступно бесплатно.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-light", value: "light", collection: "Базовые темы", starter: true },
+  { id: "theme-dark", name: "Тёмная тема", description: "Комфортное тёмное оформление SOVLI. Всегда доступно бесплатно.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-dark", value: "dark", collection: "Базовые темы", starter: true },
   { id: "theme-default", name: "Чистый старт", description: "Спокойное базовое оформление.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-default", value: "default", collection: "Стартовая коллекция" , starter: true },
   { id: "theme-aurora", name: "Северное сияние", description: "Лавандовые и бирюзовые переливы.", category: "Темы", slot: "theme", price: 450, rarity: "Редкий", preview: "theme-aurora", value: "aurora", collection: "Космическая экспедиция" },
   { id: "theme-sunset", name: "Тёплый закат", description: "Персиковый свет и мягкие тени.", category: "Темы", slot: "theme", price: 380, rarity: "Редкий", preview: "theme-sunset", value: "sunset", collection: "Тёплые истории" },
@@ -363,7 +365,17 @@ function getEquippedItems(userId) {
   } catch { return {}; }
 }
 function ensureStarterInventory(userId) {
-  dbRun("INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, 'theme-default', ?, 'starter')", [userId, nowIso()]);
+  const acquiredAt = nowIso();
+  for (const itemId of ['theme-default', 'theme-light', 'theme-dark']) {
+    dbRun("INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, 'starter')", [userId, itemId, acquiredAt]);
+  }
+  const equippedTheme = dbGet("SELECT item_id FROM store_equipped WHERE user_id = ? AND slot = 'theme'", [userId]);
+  if (!equippedTheme) {
+    const row = dbGet('SELECT settings_json FROM users WHERE id = ?', [userId]);
+    const legacyTheme = safeSettings(row?.settings_json).theme;
+    const itemId = legacyTheme === 'dark' ? 'theme-dark' : 'theme-light';
+    dbRun("INSERT OR IGNORE INTO store_equipped (user_id, slot, item_id, updated_at) VALUES (?, 'theme', ?, ?)", [userId, itemId, acquiredAt]);
+  }
 }
 
 function storePrice(itemId, fallbackPrice) {
@@ -544,13 +556,13 @@ function addToQueue(socket, preferences) {
 function issueToken(user) {
   const sessionId = crypto.randomUUID();
   const createdAt = new Date();
-  const lifetimeMs = user.account_type === 'guest' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  const lifetimeMs = user.account_type === 'guest' ? 180 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
   const expiresAt = new Date(createdAt.getTime() + lifetimeMs);
   transaction(() => {
     dbRun('DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?', [user.id, createdAt.toISOString()]);
     dbRun('INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [sessionId, user.id, createdAt.toISOString(), expiresAt.toISOString()]);
   });
-  return jwt.sign({ sub: user.id, publicId: user.public_id, accountType: user.account_type || 'registered' }, JWT_SECRET, { expiresIn: user.account_type === 'guest' ? '24h' : '7d', issuer: 'orbit-chat', jwtid: sessionId }); // issuer kept for existing sessions
+  return jwt.sign({ sub: user.id, publicId: user.public_id, accountType: user.account_type || 'registered' }, JWT_SECRET, { expiresIn: user.account_type === 'guest' ? '180d' : '7d', issuer: 'orbit-chat', jwtid: sessionId }); // issuer kept for existing sessions
 }
 function cleanUsername(value) {
   if (typeof value !== 'string') return null;
@@ -563,10 +575,11 @@ function authMiddleware(req, res, next) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!token) return res.status(401).json({ error: 'Требуется вход в аккаунт.' });
   try {
-    const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat' });
+    const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat', ignoreExpiration: true });
     const user = getUserById(payload.sub);
     const session = dbGet('SELECT id, revoked_at, expires_at FROM sessions WHERE id = ? AND user_id = ?', [payload.jti, payload.sub]);
     if (!user || !session || session.revoked_at || session.expires_at <= nowIso()) return res.status(401).json({ error: 'Сессия недействительна. Войдите снова.' });
+    if (Number(payload.exp || 0) * 1000 <= Date.now() && user.account_type !== 'guest') return res.status(401).json({ error: 'Сессия истекла. Войдите снова.' });
     if (user.account_type === 'guest' && user.guest_expires_at && user.guest_expires_at <= nowIso()) return res.status(401).json({ error: 'Срок гостевого доступа истёк. Создай новый гостевой профиль.' });
     if (user.suspended_until && user.suspended_until > nowIso()) return res.status(403).json({ error: `Доступ временно ограничен до ${new Date(user.suspended_until).toLocaleString('ru-RU')}. Причина: ${user.suspension_reason || 'нарушение правил'}.` });
     req.user = user;
@@ -769,6 +782,9 @@ async function main() {
   db.exec("INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) SELECT user_id, item_id, created_at, 'migration' FROM store_purchases");
   db.exec("UPDATE users SET settings_json = '{}' WHERE settings_json IS NULL OR settings_json = ''");
   db.exec("UPDATE users SET account_type = 'registered' WHERE account_type IS NULL OR account_type = ''");
+  // Extend previously issued guest profiles to the new 180-day retention window.
+  dbRun("UPDATE users SET guest_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0) WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0)");
+  dbRun("UPDATE sessions SET expires_at = (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id) WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL) AND expires_at < (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id)");
   // Expired temporary guests are removed during startup cleanup.
   const expiredGuests = dbAll("SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at <= ?", [nowIso()]).map(row => row.id);
   if (expiredGuests.length) {
@@ -873,6 +889,7 @@ async function main() {
       console.error('Registration failed:', error.message);
       return res.status(500).json({ error: 'Не удалось создать аккаунт. Попробуйте ещё раз.' });
     }
+    ensureStarterInventory(id);
     const user = getUserById(id);
     res.status(201).json({ token: issueToken(user), user: publicUser(user) });
   });
@@ -892,10 +909,11 @@ async function main() {
     const publicId = crypto.randomBytes(5).toString('hex').toUpperCase();
     const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 8);
     const createdAt = nowIso();
-    const guestExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const guestExpiresAt = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
     transaction(() => {
       dbRun('INSERT INTO users (id, public_id, username, username_key, password_hash, avatar, adult_asserted_at, settings_json, account_type, guest_expires_at, tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)', [id, publicId, username, key, passwordHash, AVATARS[crypto.randomInt(AVATARS.length)], 'NOT_COLLECTED', JSON.stringify(DEFAULT_SETTINGS), 'guest', guestExpiresAt, createdAt]);
     });
+    ensureStarterInventory(id);
     const user = getUserById(id);
     res.status(201).json({ token: issueToken(user), user: publicUser(user) });
   });
@@ -922,7 +940,8 @@ async function main() {
     const user = dbGet('SELECT * FROM users WHERE username_key = ? LIMIT 1', [usernameKey(username)]);
     if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Неверный ник или пароль.' });
     if (user.suspended_until && user.suspended_until > nowIso()) return res.status(403).json({ error: `Доступ временно ограничен. Причина: ${user.suspension_reason || 'нарушение правил'}.` });
-    res.json({ token: issueToken(user), user: publicUser(user) });
+    ensureStarterInventory(user.id);
+    res.json({ token: issueToken(user), user: publicUser(getUserById(user.id)) });
   });
 
   app.post('/api/auth/logout', authMiddleware, (req, res) => {
@@ -934,8 +953,9 @@ async function main() {
   });
 
   app.get('/api/me', authMiddleware, (req, res) => {
+    ensureStarterInventory(req.user.id);
     const activeMatch = getActiveMatch(req.user.id);
-    res.json({ user: publicUser(req.user), activeMatch: activeMatch ? matchPayload(activeMatch, req.user.id) : null });
+    res.json({ user: publicUser(getUserById(req.user.id)), activeMatch: activeMatch ? matchPayload(activeMatch, req.user.id) : null });
   });
   app.get('/api/sessions', authMiddleware, (req, res) => {
     const sessions = dbAll('SELECT id, created_at, expires_at FROM sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 30', [req.user.id, nowIso()]);
@@ -1442,9 +1462,10 @@ async function main() {
     const query = String(req.query.q || '').trim().slice(0, 80);
     const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
     const like = `%${query}%`;
+    const projection = "id, public_id, username, account_type, role, subscription_tier, subscription_expires_at, tokens, suspended_until, suspension_reason, created_at, EXISTS(SELECT 1 FROM admin_audit_log l WHERE l.target_id = users.id AND l.action = 'starter_pack') AS starter_gifted";
     const rows = query
-      ? dbAll('SELECT id, public_id, username, account_type, role, subscription_tier, subscription_expires_at, tokens, suspended_until, suspension_reason, created_at FROM users WHERE username LIKE ? OR public_id LIKE ? ORDER BY created_at DESC LIMIT ?', [like, like, limit])
-      : dbAll('SELECT id, public_id, username, account_type, role, subscription_tier, subscription_expires_at, tokens, suspended_until, suspension_reason, created_at FROM users ORDER BY created_at DESC LIMIT ?', [limit]);
+      ? dbAll(`SELECT ${projection} FROM users WHERE username LIKE ? OR public_id LIKE ? ORDER BY created_at DESC LIMIT ?`, [like, like, limit])
+      : dbAll(`SELECT ${projection} FROM users ORDER BY created_at DESC LIMIT ?`, [limit]);
     res.json({ users: rows.map(row => ({ ...row, owner: isOwner(row), online: onlineUserIds().has(row.id) })) });
   });
   app.post('/api/admin/users/:id/logout', authMiddleware, ownerOnly, (req, res) => {
@@ -1478,10 +1499,64 @@ async function main() {
     });
     res.json({ ok: true, balance: Number(getUserById(target.id).tokens) });
   });
+  app.post('/api/admin/users/:id/starter-pack', authMiddleware, ownerOnly, (req, res) => {
+    const target = getUserById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден.' });
+    if (isOwner(target)) return res.status(400).json({ error: 'Подарок предназначен участникам, а не владельцу.' });
+    const tokens = Math.trunc(Number(req.body?.tokens ?? 100));
+    const days = Math.trunc(Number(req.body?.days ?? 7));
+    const requestedTier = req.body?.tier === 'premium' ? 'premium' : 'vip';
+    if (!Number.isInteger(tokens) || tokens < 1 || tokens > 10000 || ![1, 7, 30, 90].includes(days)) return res.status(400).json({ error: 'Проверь сумму токенов и срок награды.' });
+    if (dbGet("SELECT id FROM admin_audit_log WHERE action = 'starter_pack' AND target_id = ? LIMIT 1", [target.id])) return res.status(409).json({ error: 'Стартовый подарок этому пользователю уже выдавался.' });
+    const currentTier = effectiveSubscription(target);
+    const tier = currentTier === 'premium' ? 'premium' : requestedTier;
+    const currentExpiry = target.subscription_expires_at && Date.parse(target.subscription_expires_at) > Date.now() ? Date.parse(target.subscription_expires_at) : Date.now();
+    const expiresAt = new Date(currentExpiry + days * 86400000).toISOString();
+    transaction(() => {
+      dbRun('UPDATE users SET tokens = tokens + ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [tokens, tier, expiresAt, target.id]);
+      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'owner_gift', tokens, 'Стартовый подарок от владельца SOVLI', nowIso()]);
+      auditAdmin(req.user.id, 'starter_pack', target.id, { tokens, tier, days, expiresAt });
+    });
+    res.json({ ok: true, balance: Number(getUserById(target.id).tokens || 0), tier, expiresAt });
+  });
   app.get('/api/admin/matches', authMiddleware, ownerOnly, (_req, res) => {
-    const rows = dbAll(`SELECT m.id, m.created_at, m.active_seconds, m.credited_minutes, a.username AS user1, a.public_id AS user1_public_id, b.username AS user2, b.public_id AS user2_public_id
-      FROM matches m JOIN users a ON a.id = m.user1_id JOIN users b ON b.id = m.user2_id WHERE m.status = 'active' ORDER BY m.created_at DESC LIMIT 200`);
-    res.json({ matches: rows.map(row => ({ ...row, user1Online: onlineUserIds().has(dbGet('SELECT id FROM users WHERE public_id = ?', [row.user1_public_id])?.id), user2Online: onlineUserIds().has(dbGet('SELECT id FROM users WHERE public_id = ?', [row.user2_public_id])?.id) })) });
+    const online = onlineUserIds();
+    const rows = dbAll(`SELECT m.id, m.user1_id, m.user2_id, m.created_at, m.active_seconds, m.credited_minutes,
+      a.username AS user1, a.public_id AS user1_public_id, b.username AS user2, b.public_id AS user2_public_id,
+      (SELECT COUNT(*) FROM messages WHERE match_id = m.id) AS message_count,
+      (SELECT MAX(created_at) FROM messages WHERE match_id = m.id) AS last_message_at
+      FROM matches m JOIN users a ON a.id = m.user1_id JOIN users b ON b.id = m.user2_id
+      WHERE m.status = 'active' ORDER BY m.created_at DESC LIMIT 200`);
+    res.json({ matches: rows.map(row => ({ ...row, user1Online: online.has(row.user1_id), user2Online: online.has(row.user2_id), bothOnline: online.has(row.user1_id) && online.has(row.user2_id) })) });
+  });
+  app.post('/api/admin/matches/:id/inspect', authMiddleware, ownerOnly, (req, res) => {
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 240) : '';
+    if (reason.length < 6) return res.status(400).json({ error: 'Укажи причину просмотра минимум из 6 символов.' });
+    const match = dbGet("SELECT * FROM matches WHERE id = ? AND status = 'active'", [req.params.id]);
+    if (!match) return res.status(404).json({ error: 'Диалог уже завершён или не найден.' });
+    const messages = dbAll(`SELECT m.id, m.sender_id, m.content, m.created_at, m.message_type, m.sticker_code, m.attachments_json, u.username AS sender
+      FROM messages m JOIN users u ON u.id = m.sender_id
+      WHERE m.match_id = ? ORDER BY m.created_at DESC LIMIT 100`, [match.id]).reverse().map(row => ({
+        id: row.id, sender: row.sender, content: String(row.content || '').slice(0, 2000), created_at: row.created_at,
+        messageType: row.message_type || 'text', stickerCode: row.sticker_code || null,
+        hasAttachments: safeJsonArray(row.attachments_json).length > 0
+      }));
+    auditAdmin(req.user.id, 'inspect_active_match', match.id, { reason, messageCount: messages.length });
+    const notice = { message: `Владелец SOVLI открыл активный диалог для проверки. Причина: ${reason}`, sentAt: nowIso() };
+    io.to(userRoom(match.user1_id)).emit('moderation:notice', notice);
+    io.to(userRoom(match.user2_id)).emit('moderation:notice', notice);
+    res.json({ matchId: match.id, messages });
+  });
+  app.post('/api/admin/matches/:id/notice', authMiddleware, ownerOnly, (req, res) => {
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 240) : '';
+    if (message.length < 3) return res.status(400).json({ error: 'Уведомление должно содержать минимум 3 символа.' });
+    const match = dbGet("SELECT * FROM matches WHERE id = ? AND status = 'active'", [req.params.id]);
+    if (!match) return res.status(404).json({ error: 'Активный диалог не найден.' });
+    const payload = { message, sentAt: nowIso() };
+    io.to(userRoom(match.user1_id)).emit('moderation:notice', payload);
+    io.to(userRoom(match.user2_id)).emit('moderation:notice', payload);
+    auditAdmin(req.user.id, 'match_notice', match.id, { message });
+    res.json({ ok: true });
   });
   app.post('/api/admin/matches/:id/end', authMiddleware, ownerOnly, (req, res) => {
     const match = dbGet("SELECT * FROM matches WHERE id = ? AND status = 'active'", [req.params.id]);
@@ -1620,10 +1695,11 @@ async function main() {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('Требуется авторизация.'));
-      const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat' });
+      const payload = jwt.verify(token, JWT_SECRET, { issuer: 'orbit-chat', ignoreExpiration: true });
       const user = getUserById(payload.sub);
       const session = dbGet('SELECT id, revoked_at, expires_at FROM sessions WHERE id = ? AND user_id = ?', [payload.jti, payload.sub]);
       if (!user || !session || session.revoked_at || session.expires_at <= nowIso()) return next(new Error('Сессия недействительна. Войдите снова.'));
+      if (Number(payload.exp || 0) * 1000 <= Date.now() && user.account_type !== 'guest') return next(new Error('Сессия истекла. Войдите снова.'));
       if (user.suspended_until && user.suspended_until > nowIso()) return next(new Error(`Доступ ограничен: ${user.suspension_reason || 'нарушение правил'}.`));
       if (user.account_type === 'guest' && user.guest_expires_at && user.guest_expires_at <= nowIso()) return next(new Error('Срок гостевого доступа истёк.'));
       socket.data.userId = user.id;

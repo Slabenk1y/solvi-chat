@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/owner-manifest.webmanifest">
   <title>SOVLI · Панель владельца</title>
-  <link rel="stylesheet" href="/owner.css?v=12">
+  <link rel="stylesheet" href="/owner.css?v=14">
 </head>
 <body>
   <div class="owner-shell">
@@ -102,16 +102,28 @@
           <article class="card"><div class="card-head"><h3>Созданные промокоды</h3><button id="refreshPromosButton" class="text-button">Обновить</button></div><div id="promoList" class="user-list"></div></article>
         </section>
 
-        <section class="tab-page" data-page="dialogs" hidden><div class="section-intro"><div class="eyebrow">АКТИВНОСТЬ</div><h2>Активные диалоги</h2><p>Показываются только технические метаданные. Содержание личных сообщений владельцу не раскрывается.</p></div><div class="card"><div class="card-head"><h3>Сейчас общаются</h3><button id="refreshMatchesButton" class="text-button">Обновить</button></div><div id="matchList" class="user-list"></div></div></section>
+        <section class="tab-page" data-page="dialogs" hidden><div class="section-intro"><div class="eyebrow">АКТИВНОСТЬ И БЕЗОПАСНОСТЬ</div><h2>Активные диалоги</h2><p>Можно проверить последние сообщения только активного диалога. Для каждого просмотра нужна причина; обе стороны получат уведомление, а действие попадёт в журнал. Медиа и вложения не открываются.</p></div><div class="card"><div class="card-head"><div><h3>Сейчас общаются</h3><p class="hint">Список обновляется по запросу · до 200 активных диалогов</p></div><button id="refreshMatchesButton" class="text-button">↻ Обновить</button></div><div id="matchList" class="user-list"></div></div></section>
 
         <section class="tab-page" data-page="reports" hidden><div class="section-intro"><div class="eyebrow">БЕЗОПАСНОСТЬ</div><h2>Жалобы</h2><p>Проверяй обращения, фиксируй решение и ограничивай доступ при необходимости.</p></div><div class="card"><div class="card-head"><h3>Входящие обращения</h3><button id="refreshReportsButton" class="text-button">Обновить</button></div><div id="reportList" class="user-list"></div></div></section>
 
         <section class="tab-page" data-page="audit" hidden><div class="section-intro"><div class="eyebrow">ПРОЗРАЧНОСТЬ</div><h2>Журнал действий</h2><p>Здесь фиксируются административные изменения, выдача токенов, привилегий и промокодов.</p></div><div class="card"><div class="card-head"><h3>Последние операции</h3><button id="refreshAuditButton" class="text-button">Обновить</button></div><pre id="auditList" class="logs">Загрузка…</pre></div></section>
       </section>
+      <div id="dialogInspector" class="inspector-backdrop" hidden>
+        <section class="inspector-panel" role="dialog" aria-modal="true" aria-labelledby="inspectorTitle">
+          <div class="card-head"><div><div class="eyebrow">ПРОВЕРКА АКТИВНОГО ДИАЛОГА</div><h2 id="inspectorTitle">Диалог пользователей</h2></div><button id="closeDialogInspector" class="ghost" type="button">Закрыть</button></div>
+          <p id="inspectorParticipants" class="hint"></p>
+          <label class="inspector-label" for="inspectReason">Причина просмотра · обязательно<input id="inspectReason" maxlength="240" placeholder="Например: проверка жалобы или безопасности"></label>
+          <button id="inspectDialogButton" class="primary" type="button">Открыть последние сообщения</button>
+          <div id="dialogMessages" class="inspector-messages"><p class="hint">Укажи причину и нажми «Открыть последние сообщения».</p></div>
+          <label class="inspector-label" for="dialogNoticeText">Сообщение обоим участникам<textarea id="dialogNoticeText" rows="3" maxlength="240" placeholder="Короткое уведомление от команды SOVLI"></textarea></label>
+          <div class="button-row"><button id="sendDialogNoticeButton" class="secondary" type="button">Отправить уведомление</button><button id="endInspectedMatch" class="danger" type="button">Завершить диалог</button></div>
+          <p class="hint">Просмотр доступен только пока диалог активен. Каждое открытие регистрируется в журнале владельца и автоматически уведомляет участников.</p>
+        </section>
+      </div>
     </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <footer> SOVLI OWNER · Управление доступно только назначенному владельцу.</footer>
   </div>
-  <script src="/owner.js?v=12" defer></script>
+  <script src="/owner.js?v=14" defer></script>
 </body>
 </html>

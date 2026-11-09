@@ -72,6 +72,7 @@ function applyEquipped(equipped = {}) {
   root.dataset.storeSound = equipped.sound || '';
   root.dataset.storeStickers = equipped.stickers || '';
   root.dataset.storeTitle = equipped.title || '';
+  applyTheme();
 }
 function createStorePreview(item) {
   const preview = document.createElement('div');
@@ -216,6 +217,8 @@ function renderStore(data) {
 async function loadInventory() {
   try {
     const data = await api('/api/inventory');
+    if (state.user) state.user.equipped = data.equipped || {};
+    applyEquipped(data.equipped || {});
     $('#inventoryBalance').textContent = Number(data.balance || 0).toLocaleString('ru-RU');
     $('#inventoryCount').textContent = `${data.items.length} предметов`;
     const root = $('#inventoryItems'); root.replaceChildren();
@@ -499,7 +502,7 @@ function setUser(user) {
   $('#adminNavButton').hidden = user.role !== 'owner';
   const isGuest = user.accountType === 'guest';
   $('#accountTypeBadge').textContent = isGuest ? 'ГОСТЬ' : 'АККАУНТ';
-  $('#profileAccountType').textContent = isGuest ? 'ГОСТЕВОЙ ПРОФИЛЬ · 24 ЧАСА' : 'ПОСТОЯННЫЙ АККАУНТ';
+  $('#profileAccountType').textContent = isGuest ? 'ГОСТЕВОЙ ПРОФИЛЬ · ДО 180 ДНЕЙ' : 'ПОСТОЯННЫЙ АККАУНТ';
   $('#guestClaimCard').hidden = !isGuest;
   $('#claimUsername').value = isGuest ? user.username : '';
   $('#claimPassword').value = '';
@@ -626,6 +629,10 @@ function connectSocket() {
   });
   socket.on('presence:count', data => { $('#onlineCount').textContent = String(data.count ?? 0); });
   socket.on('wallet:updated', data => { if (state.user) state.user.tokens = Number(data.balance || 0); const balance = $('#storeBalance'); if (balance) balance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); const profileBalance = $('#profileTokenBalance'); if (profileBalance) profileBalance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); if (data.earned) showToast(`+${data.earned} токен(ов) за активное общение ✦`, 2200); });
+  socket.on('moderation:notice', payload => {
+    const message = String(payload?.message || '').trim();
+    if (message) showToast(`Сообщение от команды SOVLI: ${message}`, 7500);
+  });
   socket.on('queue:waiting', () => {
     if (state.searching) $('#searchStatusText').textContent = 'Подбираем человека с похожими интересами.';
   });
@@ -1314,22 +1321,15 @@ function logout(showMessage = true, revokeServer = true) {
   showAuth();
   if (showMessage) showToast('Ты вышел из аккаунта.');
 }
-function applyTheme(theme = state.settings.theme) {
-  const selected = ['dark', 'light', 'system'].includes(theme) ? theme : 'system';
-  const resolved = selected === 'system'
-    ? (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : selected;
+function applyTheme() {
+  const themeId = document.documentElement.dataset.storeTheme || state.user?.equipped?.theme || 'theme-light';
+  const resolved = ['theme-dark', 'theme-midnight'].includes(themeId) ? 'dark' : 'light';
   document.documentElement.dataset.theme = resolved;
-  localStorage.setItem('sovli_theme', selected);
-  const themeLabel = selected === 'system' ? 'Авто' : selected === 'dark' ? 'Тёмная' : 'Светлая';
-  $('#themeButton').textContent = resolved === 'dark' ? '☀' : '☾';
-  $('#themeButton').title = `Тема: ${themeLabel}`;
-  $('#themeButton').setAttribute('aria-label', `Тема: ${themeLabel}`);
-  document.querySelector('meta[name="theme-color"]').content = resolved === 'dark' ? '#181827' : '#f5f6fb';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = resolved === 'dark' ? '#181827' : '#f5f6fb';
 }
 function renderSettingsControls() {
   const settings = state.settings;
-  if ($('#settingTheme')) $('#settingTheme').value = settings.theme;
   if ($('#settingSounds')) $('#settingSounds').checked = settings.sounds;
   if ($('#settingSoundVolume')) $('#settingSoundVolume').value = String(settings.soundVolume);
   if ($('#soundVolumeLabel')) $('#soundVolumeLabel').textContent = `${settings.soundVolume}%`;
@@ -1399,7 +1399,7 @@ function playUiSound(frequency = 520) {
 }
 async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  applyTheme(localStorage.getItem('sovli_theme') || localStorage.getItem('orbit_theme') || 'system');
+  applyTheme();
   try { state.config = await api('/api/config'); }
   catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false }; }
   state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, 3);
@@ -1471,7 +1471,7 @@ $('#guestButton').addEventListener('click', async () => {
     showApp();
     connectSocket();
     loadFavorites();
-    showToast(`Привет, ${response.user.username}! Гостевой профиль активен 24 часа.`);
+    showToast(`Привет, ${response.user.username}! Гостевой профиль сохранится в этом браузере до 180 дней.`);
   } catch (error) { setAuthError(error.message); }
   finally { button.disabled = false; button.querySelector('span:first-child').textContent = 'Продолжить гостем'; }
 });
@@ -1497,8 +1497,6 @@ $('#sidePublicId').addEventListener('click', async () => {
   catch { showToast(`Твой ID: ${state.user.publicId}`); }
 });
 $$('[data-view]').forEach(button => button.addEventListener('click', () => { setView(button.dataset.view); if (button.dataset.view === 'store') loadStore(); }));
-$('#themeButton').addEventListener('click', () => scheduleSettingsSave({ theme: document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark' }));
-$('#settingTheme').addEventListener('change', () => scheduleSettingsSave({ theme: $('#settingTheme').value }));
 $('#settingSounds').addEventListener('change', () => scheduleSettingsSave({ sounds: $('#settingSounds').checked }));
 $('#settingSoundVolume').addEventListener('input', () => { $('#soundVolumeLabel').textContent = `${$('#settingSoundVolume').value}%`; });
 $('#settingSoundVolume').addEventListener('change', () => scheduleSettingsSave({ soundVolume: Number($('#settingSoundVolume').value) }));
