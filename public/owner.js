@@ -311,7 +311,30 @@
     const legacy=(r.payments||[]).map(x=>'<div class="detail-row"><span>'+esc(x.provider)+' · '+esc(x.currency)+'</span><strong>'+num(x.count)+' · '+(Number(x.amount_minor)/100).toFixed(2)+' '+esc(x.currency)+'</strong></div>');
     $('#monetizationPayments').innerHTML=recent.concat(legacy).join('')||'<p class="hint">Подтверждённых платежей пока нет. Для запуска кассы подключи Paymentwall и активируй проект после проверки.</p>';
     $('#monetizationProducts').innerHTML=(r.products||[]).map(p=>'<article class="growth-row" data-product-row="'+esc(p.id)+'"><div><strong>'+esc(p.name)+'</strong><small>'+esc(p.category)+' · базовая цена '+num(p.basePrice)+' ✦'+(p.bundleOnly?' · предмет фирменного набора':'')+'</small><small>'+(p.enabled?'Доступно в магазине':'Временно скрыто')+'</small></div><div class="inline-actions"><label class="hint">Цена ✦ <input class="search-input" type="number" min="0" max="10000000" step="1" data-product-price value="'+num(p.price).replace(/\s/g,'')+'" style="width:112px"></label><label class="hint"><input type="checkbox" data-product-enabled '+(p.enabled?'checked':'')+'> В продаже</label><button class="secondary mini" type="button" data-save-product="'+esc(p.id)+'">Сохранить</button></div></article>').join('')||'<p class="empty-state">Каталог пуст.</p>';
+    $('#monetizationAdStats').innerHTML=(r.adStats||[]).map(x=>stat('Рекламные кампании · '+x.currency,num(x.campaigns),num(x.impressions)+' показов · '+num(x.clicks)+' переходов · оплачено '+(Number(x.booked_minor)/100).toFixed(2)+' '+x.currency)).join('')||stat('Рекламные кампании','0','Пока нет размещений');
+    $('#adCampaignList').innerHTML=(r.adCampaigns||[]).map(x=>'<article class="growth-row" data-ad-row="'+esc(x.id)+'"><div><strong>'+esc(x.title)+' · '+esc(x.sponsor_name)+'</strong><small>'+esc(x.payment_status==='paid'?'Оплачено':x.payment_status==='comped'?'Без оплаты':'Ожидает оплаты')+' · '+esc(x.status==='active'?'Показывается':x.status==='ended'?'Завершена':'На паузе')+' · '+(Number(x.price_minor)/100).toFixed(2)+' '+esc(x.currency)+'</small><small>'+num(x.impressions)+' показов · '+num(x.clicks)+' переходов · '+esc(x.target_url)+'</small></div><div class="inline-actions">'+(x.payment_status==='unpaid'?'<button class="secondary mini" type="button" data-ad-pay="'+esc(x.id)+'">Отметить оплату</button>':'<button class="secondary mini" type="button" data-ad-unpay="'+esc(x.id)+'">Снять оплату</button>')+(x.status==='active'?'<button class="secondary mini" type="button" data-ad-toggle="'+esc(x.id)+'" data-active="1">Пауза</button>':'<button class="secondary mini" type="button" data-ad-toggle="'+esc(x.id)+'" data-active="0" '+(x.payment_status==='unpaid'?'disabled':'')+'>Запустить</button>')+'<button class="danger mini" type="button" data-ad-delete="'+esc(x.id)+'">Удалить</button></div></article>').join('')||'<p class="empty-state">Рекламных кампаний пока нет.</p>';
   }
+  $('#adCampaignForm').addEventListener('submit',async e=>{
+    e.preventDefault();const button=e.currentTarget.querySelector('button[type="submit"]');button.disabled=true;$('#adCampaignMessage').textContent='';
+    try{
+      const price=Math.round(Number($('#adPrice').value)*100);
+      if(!Number.isSafeInteger(price)||price<0)return toast('Проверь цену размещения.');
+      const payload={title:$('#adTitle').value.trim(),sponsorName:$('#adSponsor').value.trim(),body:$('#adBody').value.trim(),targetUrl:$('#adTargetUrl').value.trim(),priceMinor:price,currency:$('#adCurrency').value,startsAt:$('#adStartsAt').value?new Date($('#adStartsAt').value).toISOString():undefined,endsAt:$('#adEndsAt').value?new Date($('#adEndsAt').value).toISOString():undefined};
+      await api('/api/admin/ad-campaigns',{method:'POST',body:JSON.stringify(payload)});
+      e.currentTarget.reset();$('#adPrice').value='25.00';await loadMonetization();toast('Рекламная кампания создана. После подтверждения оплаты её можно запустить.');
+    }catch(err){$('#adCampaignMessage').textContent=err.message;}finally{button.disabled=false;}
+  });
+  $('#adCampaignList').addEventListener('click',async e=>{
+    const pay=e.target.closest('[data-ad-pay]'),unpay=e.target.closest('[data-ad-unpay]'),toggle=e.target.closest('[data-ad-toggle]'),del=e.target.closest('[data-ad-delete]');
+    const id=pay?.dataset.adPay||unpay?.dataset.adUnpay||toggle?.dataset.adToggle||del?.dataset.adDelete;if(!id)return;
+    try{
+      if(del){if(!await confirmDialog({title:'Удалить рекламу?',message:'Кампания и её статистика будут удалены.',confirmText:'Удалить',danger:true}))return;await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'DELETE'});}
+      else if(pay)await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({paymentStatus:'paid'})});
+      else if(unpay)await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({paymentStatus:'unpaid'})});
+      else if(toggle)await api('/api/admin/ad-campaigns/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status:toggle.dataset.active==='1'?'paused':'active'})});
+      await loadMonetization();toast(del?'Кампания удалена.':'Статус рекламной кампании обновлён.');
+    }catch(err){toast(err.message);}
+  });
   $('#monetizationProducts').addEventListener('click',async e=>{
     const button=e.target.closest('[data-save-product]');if(!button)return;
     const row=button.closest('[data-product-row]');const price=Number(row.querySelector('[data-product-price]').value);const enabled=row.querySelector('[data-product-enabled]').checked;
