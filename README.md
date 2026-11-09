@@ -75,3 +75,8 @@ npm test
 - `DEPLOY_FROM_PHONE.md` — развёртывание только со смартфона.
 - `DEPLOYMENT.md` — облако, локальный запуск и устройство постоянного хранения.
 - `ARCHITECTURE.md`, `TECH_STACK.md`, `DATABASE_SCHEMA.md`, `API_DOCUMENTATION.md`, `SECURITY.md`, `CHANGELOG.md` — устройство приложения и ограничения.
+
+## SOVLI v1.7.1
+
+- Visual, item-specific store previews for themes and membership.
+- Hourly VIP/Premium pricing with expanded message, media and matching-filter limits.
