@@ -1394,6 +1394,9 @@ async function main() {
     if (!settings.configured) return res.status(503).json({ error: 'Платёжный шлюз ещё не настроен. Нужны ключи Paymentwall и публичный HTTPS-адрес проекта.' });
     const packageId = String(req.body?.packageId || '');
     if (!PAYMENTWALL_TOKEN_PACKAGES.some(item => item.id === packageId)) return res.status(404).json({ error: 'Пакет токенов не найден.' });
+    const email = String(req.body?.email || req.user.billing_email || '').trim().toLowerCase();
+    if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(email)) return res.status(400).json({ error: 'Укажи действующий email для платёжного чека.' });
+    dbRun('UPDATE users SET billing_email = ? WHERE id = ?', [email, req.user.id]);
     const registrationTimestamp = Math.floor(Date.parse(req.user.created_at || '') / 1000);
     try {
       const url = buildVirtualCurrencyWidgetUrl({
@@ -1401,10 +1404,10 @@ async function main() {
         privateKey: settings.privateKey,
         userId: req.user.public_id,
         widgetCode: settings.widgetCode,
+        email,
         paymentSystems: 'all',
         successUrl: settings.baseUrl + '/?billing=success',
         failureUrl: settings.baseUrl + '/?billing=cancelled',
-        pingbackUrl: settings.baseUrl + '/api/billing/paymentwall/pingback',
         registrationTimestamp
       });
       res.json({ url });
@@ -1503,7 +1506,6 @@ async function main() {
         email: billingEmail, paymentSystems: 'all',
         successUrl: settings.baseUrl + '/?billing=success',
         failureUrl: settings.baseUrl + '/?billing=cancelled',
-        pingbackUrl: settings.baseUrl + '/api/billing/paymentwall/goods-pingback',
         registrationTimestamp
       });
       res.json({ url });
