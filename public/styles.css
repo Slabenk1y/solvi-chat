@@ -569,3 +569,15 @@ html.session-checking #sessionBootScreen{display:grid!important}
 /* SOLVI v1.10.0 matching modes */
 .match-mode-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:20px 0 4px;padding:6px;background:var(--surface-soft);border:1px solid var(--line);border-radius:14px}.match-mode-button{min-height:42px;padding:9px 12px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);font-size:12px;font-weight:800;cursor:pointer;transition:all .15s}.match-mode-button:hover{background:var(--surface);color:var(--ink)}.match-mode-button.active{background:var(--surface);border-color:var(--line);color:var(--primary);box-shadow:0 3px 12px rgba(42,38,90,.07)}.gender-filter-block .field{max-width:360px}.adult-consent{display:flex;align-items:flex-start;gap:11px;margin:17px 0 8px;padding:15px 16px;border:1px solid rgba(196,142,75,.35);border-radius:13px;background:rgba(220,169,93,.08);color:var(--ink);font-size:11px;line-height:1.55;cursor:pointer}.adult-consent input{width:18px;height:18px;flex:none;margin:1px 0 0;accent-color:var(--primary)}.adult-consent strong{display:block;margin-bottom:3px}.adult-mode-note{margin:0 2px 12px;color:var(--muted);font-size:9px;line-height:1.5}#flirtSettings[hidden],#roleplaySettings[hidden],#standardInterestBlock[hidden]{display:none!important}
 @media(max-width:620px){.match-mode-picker{grid-template-columns:1fr}.match-mode-button{min-height:38px}.gender-filter-block .field{max-width:none}}
+
+
+/* Store preview: render above the app shell, not inside transformed view containers. */
+body.store-preview-open{overflow:hidden}
+.store-preview-modal{position:fixed;inset:0;z-index:1000;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.store-preview-modal-card{max-height:94vh;max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+/* Prefer the live viewport on mobile browsers while retaining legacy fallbacks above. */
+@supports (height:100dvh){
+  body,.app-view,.auth-layout{min-height:100dvh}
+  .app-shell{min-height:calc(100dvh - 125px)}
+}
