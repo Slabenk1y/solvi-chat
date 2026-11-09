@@ -8,7 +8,7 @@ Express HTTP API + Socket.IO realtime server + synchronous built-in `node:sqlite
 
 Render's local filesystem is ephemeral, so the SQLite database is treated as a per-process working copy. When `DATABASE_URL` is configured, `lib/postgres-snapshot.cjs` connects to Neon PostgreSQL using `pg`.
 
-The module stores a full JSONB snapshot in `sovli_persistent_state`:
+The module stores a full JSONB table snapshot in `sovli_persistent_state` and avatar binaries separately in `sovli_avatar_files`:
 - On boot, it restores existing tables and avatar files into the local SQLite database before the usual migrations and restart cleanup.
 - If no snapshot exists, it seeds Neon from the SQLite database available at first boot.
 - Database writes mark the state dirty. A debounced save replaces the JSONB snapshot after writes; SIGINT/SIGTERM attempts a final save.
