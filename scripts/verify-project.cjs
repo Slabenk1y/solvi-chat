@@ -131,5 +131,4 @@ try {
 }
 
 if (process.exitCode) process.exit(process.exitCode);
-console.log('
-[SOVLI] Статическая проверка проекта завершена успешно.');
+console.log('\\n[SOVLI] Статическая проверка проекта завершена успешно.');
