@@ -406,7 +406,17 @@ function effectiveSubscription(user) {
   if (user.subscription_expires_at && user.subscription_expires_at <= nowIso()) return 'free';
   return tier;
 }
-function membershipLimits(user) {\n  const tier = effectiveSubscription(user);\n  return { tier, messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH), languageLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3), interestLimit: tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5), attachmentLimit: tier === 'premium' ? 6 : (tier === 'vip' ? 4 : 3) };\n}\nfunction mediaPublic(row) {
+function membershipLimits(user) {
+  const tier = effectiveSubscription(user);
+  return {
+    tier,
+    messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH),
+    languageLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
+    interestLimit: tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5),
+    attachmentLimit: tier === 'premium' ? 6 : (tier === 'vip' ? 4 : 3)
+  };
+}
+function mediaPublic(row) {
   return { id: row.id, kind: row.media_kind, mime: row.mime_type, size: row.byte_size, url: `/api/media/${encodeURIComponent(row.id)}` };
 }
 function getMessageReactions(messageId, viewerId = null) {
@@ -552,8 +562,9 @@ function addToQueue(socket, preferences) {
   const userId = socket.data.userId;
   if (PUBLIC_MODE && !PUBLIC_MATCHING) return { ok: false, error: 'Публичный подбор временно отключён в настройках сервера.' };
   if (getActiveMatch(userId)) return { ok: false, error: 'У вас уже есть активный диалог.' };
-  const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(x => LANGUAGES.includes(x)))].slice(0, 3) : [];
-  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => INTERESTS.includes(x)))].slice(0, 5) : [];
+  const limits = membershipLimits(getUserById(userId));
+  const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(x => LANGUAGES.includes(x)))].slice(0, limits.languageLimit) : [];
+  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => INTERESTS.includes(x)))].slice(0, limits.interestLimit) : [];
   const entry = { userId, languages, interests, joinedAt: Date.now() };
   queue.set(userId, entry);
   tryMatch(userId);
@@ -1784,7 +1795,9 @@ async function main() {
       if (window.count >= 12) return ack({ ok: false, error: 'Слишком быстро. Сделай небольшую паузу перед следующим сообщением.' });
       window.count += 1;
       messageWindows.set(userId, window);
-      const membership = membershipLimits(getUserById(userId));\n      const messageLimit = membership.messageLength;\n      const content = typeof payload?.content === 'string' ? payload.content.trim() : '';
+      const membership = membershipLimits(getUserById(userId));
+      const messageLimit = membership.messageLength;
+      const content = typeof payload?.content === 'string' ? payload.content.trim() : '';
       const clientId = typeof payload?.clientId === 'string' && payload.clientId.length <= 80 ? payload.clientId : '';
       const requestedSticker = payload?.sticker;
       const equippedStickerPack = getEquippedItems(userId).stickers;
