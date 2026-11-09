@@ -493,3 +493,25 @@ html.session-checking #sessionBootScreen{display:grid!important}
 .membership-showcase-premium .membership-showcase-perks span{color:#f5eaff;border-color:rgba(220,190,255,.28);background:rgba(255,255,255,.09)}
 .store-preview-duration{margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line);font-size:10px;line-height:1.5;color:var(--ink)}
 @media(prefers-reduced-motion:reduce){:root[data-member-tier="premium"] .profile-mini .avatar,:root[data-member-tier="premium"] .user-chip .avatar,:root[data-member-tier="premium"] #profilePreviewAvatar{animation:none}}
+
+/* SOVLI v1.7.1 — realistic full-workspace theme previews */
+.theme-context-preview{height:100%;min-height:190px;padding:10px;background:var(--mock-bg);color:var(--mock-ink)}
+.theme-mock-shell{height:100%;min-height:170px;overflow:hidden;border:1px solid color-mix(in srgb,var(--mock-muted) 28%,transparent);border-radius:13px;background:var(--mock-surface);box-shadow:0 8px 24px rgba(0,0,0,.16);font-family:Manrope,Inter,system-ui,sans-serif}
+.theme-mock-top{height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid color-mix(in srgb,var(--mock-muted) 20%,transparent);font-size:8px}
+.theme-mock-top strong{font-size:10px;letter-spacing:1.2px;color:var(--mock-accent)}
+.theme-mock-top span{font-size:6px;letter-spacing:1px;color:var(--mock-muted)}
+.theme-mock-body{display:grid;grid-template-columns:30px 1fr;height:calc(100% - 26px);min-height:144px}
+.theme-mock-rail{display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 4px;border-right:1px solid color-mix(in srgb,var(--mock-muted) 18%,transparent);color:var(--mock-muted)}
+.theme-mock-rail i{width:20px;height:20px;display:grid;place-items:center;border-radius:7px;font-size:10px;font-style:normal}
+.theme-mock-rail i.active{background:var(--mock-accent);color:#fff}
+.theme-mock-chat{display:flex;min-width:0;flex-direction:column;padding:7px 9px;gap:7px}
+.theme-mock-heading{display:flex;align-items:center;gap:7px;padding-bottom:6px;border-bottom:1px solid color-mix(in srgb,var(--mock-muted) 18%,transparent)}
+.theme-mock-avatar{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:color-mix(in srgb,var(--mock-accent) 22%,var(--mock-surface));font-size:12px}
+.theme-mock-heading div{display:flex;flex-direction:column;gap:1px}
+.theme-mock-heading strong{font-size:8px;color:var(--mock-ink)}
+.theme-mock-heading small{font-size:6px;color:var(--mock-accent)}
+.theme-mock-messages{display:flex;flex:1;flex-direction:column;justify-content:center;gap:5px}
+.theme-mock-bubble{max-width:82%;padding:5px 8px;border-radius:8px;font-size:7px;line-height:1.35}
+.theme-mock-bubble.incoming{align-self:flex-start;background:color-mix(in srgb,var(--mock-muted) 15%,var(--mock-surface));color:var(--mock-ink);border-bottom-left-radius:3px}
+.theme-mock-bubble.outgoing{align-self:flex-end;background:var(--mock-accent);color:#fff;border-bottom-right-radius:3px}
+.theme-mock-composer{height:21px;display:flex;align-items:center;padding:0 8px;border:1px solid color-mix(in srgb,var(--mock-muted) 25%,transparent);border-radius:8px;color:var(--mock-muted);font-size:7px}
