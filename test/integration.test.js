@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { io: createSocket } = require('socket.io-client');
+const jwt = require('jsonwebtoken');
 const { DatabaseSync } = require('node:sqlite');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -296,6 +297,14 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     assert.ok(Date.parse(guest1.user.guestExpiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest accounts should be kept for 180 days');
     const guestSessions = await fetch(`${baseUrl}/api/sessions`, { headers: { Authorization: `Bearer ${guest1.token}` } }).then(response => response.json());
     assert.ok(Date.parse(guestSessions.sessions[0].expiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest browser session should remain valid for 180 days');
+    const decodedGuestToken = jwt.decode(guest1.token);
+    const expiredLegacyGuestToken = jwt.sign(
+      { sub: decodedGuestToken.sub, publicId: decodedGuestToken.publicId, accountType: 'guest', iat: Math.floor(Date.now() / 1000) - 120, exp: Math.floor(Date.now() / 1000) - 60 },
+      'guest-integration-secret-only-12345678901234567890',
+      { issuer: 'orbit-chat', jwtid: decodedGuestToken.jti }
+    );
+    const legacyGuestSession = await fetch(`${baseUrl}/api/me`, { headers: { Authorization: `Bearer ${expiredLegacyGuestToken}` } });
+    assert.equal(legacyGuestSession.status, 200, 'previous 24-hour guest JWTs should remain usable while their extended session is valid');
     assert.equal(guest2.user.tokens, 0, 'guest accounts start with zero tokens');
     assert.equal(Object.hasOwn(guest1.user, 'birthDate'), false);
     assert.equal(Object.hasOwn(guest1.user, 'age'), false);
