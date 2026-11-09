@@ -575,8 +575,24 @@ async function loadPaidMemberships(){
     else if(billing==='cancelled'){showToast('Оплата отменена. С баланса ничего не списано.');params.delete('billing');history.replaceState({},'',location.pathname+(params.toString()?'?'+params.toString():'')+location.hash);}
   }catch(error){const note=document.createElement('p');note.className='muted';note.textContent='Пополнение токенов временно недоступно.';root.append(note);}
 }
+async function loadStoreSponsoredAd(){
+  const root=$('#storeSponsoredAd');if(!root)return;
+  try{
+    const result=await api('/api/ads/slot?placement=store');const ad=result.ad;root.replaceChildren();
+    if(!ad){root.hidden=true;return;}
+    root.hidden=false;
+    const copy=document.createElement('div');copy.className='store-sponsored-ad-copy';
+    const label=document.createElement('small');label.textContent=ad.sponsor_name?'Реклама · '+ad.sponsor_name:'Реклама';
+    const title=document.createElement('strong');title.textContent=ad.title;
+    const body=document.createElement('p');body.textContent=ad.body||'Партнёрское предложение SOLVI.';
+    copy.append(label,title,body);
+    const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent=ad.cta_label||'Подробнее';
+    button.addEventListener('click',()=>{window.open(ad.target_url,'_blank','noopener,noreferrer');api('/api/ads/'+encodeURIComponent(ad.id)+'/click',{method:'POST',body:'{}'}).catch(()=>{});});
+    root.append(copy,button);
+  }catch{root.hidden=true;}
+}
 async function loadStore() {
-  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadPaidMemberships(); }
+  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadPaidMemberships(); await loadStoreSponsoredAd(); }
   catch (error) { showToast(error.message); }
 }
 async function loadTokenHistory() {
