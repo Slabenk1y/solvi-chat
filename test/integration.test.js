@@ -88,6 +88,13 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.deepEqual(billingCatalog.products.map(product => [product.id, product.amountMinor]), [['vip-30d', 499], ['premium-30d', 899]]);
     const billingCheckout = await fetch(`${baseUrl}/api/billing/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: 'vip-30d' }) });
     assert.equal(billingCheckout.status, 503, 'checkout must remain disabled without Stripe secrets');
+    const tokenTopup = await fetch(`${baseUrl}/api/billing/token-topup`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(tokenTopup.configured, false, 'Paymentwall stays disabled until merchant keys and a public URL are set');
+    assert.deepEqual(tokenTopup.packages.map(pack => pack.tokens), [500, 1500, 5000], 'published top-up packages match the Paymentwall virtual-currency inventory');
+    const tokenCheckout = await fetch(`${baseUrl}/api/billing/token-topup/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId: 'solvi-1500' }) });
+    assert.equal(tokenCheckout.status, 503, 'real-money checkout must remain disabled without Paymentwall merchant credentials');
+    const noAd = await fetch(`${baseUrl}/api/ads/slot?placement=store`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(noAd.ad, null, 'unpaid or absent sponsor campaigns are never served');
     const publicConfig = await fetch(`${baseUrl}/api/config`).then(response => response.json());
     assert.deepEqual(publicConfig.socialLinks.map(link => [link.platform, link.url]), [['Telegram', 'https://t.me/ChatSolvi'], ['TikTok', 'https://www.tiktok.com/@slabenk1y_armagedon']], 'the supplied SOLVI social links are seeded by default');
     const growth = await fetch(`${baseUrl}/api/growth`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
