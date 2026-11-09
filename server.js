@@ -1019,6 +1019,7 @@ async function main() {
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
     res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
+      membershipCurrent: effectiveSubscription(user), membershipExpiresAt: user.subscription_expires_at || null,
       memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, current: effectiveSubscription(user) === item.tier })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
