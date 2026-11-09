@@ -715,16 +715,15 @@ async function startAiFallback(userId) {
     `Интересы пользователя: ${interests.length ? interests.join(', ') : 'пока не указаны'}. Языки: ${languages}. Подхватывай эти темы, но не перечисляй их механически.`,
     'Задавай по одному живому вопросу, не превращай диалог в интервью. Не проси личные данные, контакты, пароли или адреса. Не выдумывай собственные реальные соцсети, встречи или биографию. Если спрашивают, кто ты, честно отвечай, что ты ИИ-персонаж.',
     'Для обычного режима общайся дружелюбно и безопасно. Не переходи к сексуальному или откровенному контенту. Не выдавай медицинские, юридические или финансовые советы как специалист.',
-    'Отвечай на последнем языке пользователя. Максимум 2 коротких предложения.'
+    'Отвечай на русском языке. Максимум 2 коротких предложения. При первом знакомстве отправь 2 коротких отдельных сообщения: раздели их точным маркером <MSG>. Не отправляй больше 3 сообщений подряд без ответа пользователя, затем обязательно жди его реплику.'
   ].join(' ');
-  const session = { id: sessionId, partnerId, persona, interests, systemPrompt, history: [], pending: [], processing: false, createdAt: Date.now() };
+  const partner = { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается на русском языке.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests };
+  const session = { id: sessionId, partnerId, partner, persona, interests, systemPrompt, history: [], messages: [], pending: [], processing: false, createdAt: Date.now() };
   aiSessions.set(userId, session);
   removeFromQueue(userId);
   const commonInterests = interests.slice(0, 3);
   io.to(userRoom(userId)).emit('match:found', {
-    matchId: sessionId, isAi: true, mode: 'chat', startedAt: nowIso(),
-    partner: { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается на русском языке.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests },
-    commonInterests
+    matchId: sessionId, isAi: true, mode: 'chat', startedAt: nowIso(), partner, commonInterests
   });
   queueAiTurn(userId, session, null);
 }
@@ -750,6 +749,10 @@ async function generateAiReply(session, isGreeting = false) {
   const text = payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
   return text ? text.slice(0, 500) : fallbackAiReply(session, isGreeting);
 }
+function aiTypingDelay(text) {
+  const length = String(text || '').trim().length;
+  return Math.min(4600, Math.max(1100, 650 + length * 34 + Math.floor(Math.random() * 750)));
+}
 function queueAiTurn(userId, session, text) {
   session.pending.push(text);
   if (session.processing) return;
@@ -758,26 +761,39 @@ function queueAiTurn(userId, session, text) {
     while (session.pending.length && aiSessions.get(userId) === session) {
       const input = session.pending.shift();
       const userPrompt = input === null
-        ? 'Начни разговор первым: поздоровайся, коротко представься как ИИ-персонаж и предложи естественную тему по интересам пользователя.'
+        ? 'Начни разговор первым. Сформируй ровно 2 коротких естественных сообщения, раздели их точным маркером <MSG>. В первом поздоровайся и представься как ИИ-персонаж, во втором задай один лёгкий вопрос.'
         : input;
       session.history.push({ role: 'user', parts: [{ text: userPrompt }] });
       io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
-      let reply;
-      try { reply = await generateAiReply(session, input === null); }
+      let generated;
+      try { generated = await generateAiReply(session, input === null); }
       catch (error) {
         console.error('[SOLVI] Gemini response failed:', error.message);
-        reply = fallbackAiReply(session, input === null);
+        generated = fallbackAiReply(session, input === null);
       }
       if (aiSessions.get(userId) !== session) break;
-      session.history.push({ role: 'model', parts: [{ text: reply }] });
-      session.history = session.history.slice(-12);
-      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false });
-      io.to(userRoom(userId)).emit('ai:message', {
-        id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
-        client_id: `ai:${crypto.randomUUID()}`, content: reply, created_at: nowIso(),
-        delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
-        sticker: null, attachments: [], reactions: [], replyTo: null
-      });
+      let replies = String(generated || '').split(/\s*<MSG>\s*/i).map(value => value.trim()).filter(Boolean).slice(0, input === null ? 3 : 1);
+      if (!replies.length) replies = [fallbackAiReply(session, input === null)];
+      if (input === null && replies.length === 1) replies.push('а как у тебя сегодня настроение?');
+      for (let index = 0; index < replies.length; index += 1) {
+        if (aiSessions.get(userId) !== session) break;
+        const reply = replies[index].slice(0, 500);
+        io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
+        await new Promise(resolve => setTimeout(resolve, aiTypingDelay(reply)));
+        if (aiSessions.get(userId) !== session) break;
+        const message = {
+          id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
+          client_id: `ai:${crypto.randomUUID()}`, content: reply, created_at: nowIso(),
+          delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
+          sticker: null, attachments: [], reactions: [], replyTo: null
+        };
+        session.messages.push(message);
+        session.history.push({ role: 'model', parts: [{ text: reply }] });
+        session.history = session.history.slice(-12);
+        io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false });
+        io.to(userRoom(userId)).emit('ai:message', message);
+        if (index < replies.length - 1) await new Promise(resolve => setTimeout(resolve, 550 + Math.floor(Math.random() * 650)));
+      }
     }
   })().finally(() => { session.processing = false; });
 }
@@ -2534,8 +2550,17 @@ async function main() {
     if (pendingTimer) { clearTimeout(pendingTimer); disconnectTimers.delete(userId); }
     emitOnlineCount();
 
+    const aiSession = aiSessions.get(userId);
+    const requestedMatchId = socket.handshake.auth?.lastMatchId;
+    if (aiSession && (!requestedMatchId || requestedMatchId === aiSession.id)) {
+      socket.data.activeMatchId = aiSession.id;
+      socket.emit('chat:restored', {
+        matchId: aiSession.id, isAi: true, mode: 'chat', startedAt: new Date(aiSession.createdAt).toISOString(),
+        partner: aiSession.partner, commonInterests: aiSession.interests.slice(0, 3), messages: aiSession.messages || []
+      });
+    }
     const activeMatch = getActiveMatch(userId);
-    if (activeMatch) {
+    if (!aiSession && activeMatch) {
       socket.data.activeMatchId = activeMatch.id;
       const partnerId = otherUserId(activeMatch, userId);
       const messages = dbAll('SELECT * FROM messages WHERE match_id = ? ORDER BY created_at ASC LIMIT 200', [activeMatch.id]).map(row => serializeMessage(row, userId));
@@ -2628,7 +2653,7 @@ async function main() {
 
     socket.on('ai:send', (payload, ack = () => {}) => {
       const session = aiSessions.get(userId);
-      if (!session || session.id !== payload?.sessionId) return ack({ ok: false, error: 'ИИ-диалог уже завершён.' });
+      if (!session || session.id !== payload?.sessionId) return ack({ ok: false, error: 'ИИ-диалог завершился или сервер перезапустился. Начни новый поиск собеседника.' });
       const content = typeof payload?.content === 'string' ? payload.content.trim().slice(0, 1200) : '';
       const sticker = typeof payload?.sticker === 'string' ? payload.sticker.slice(0, 16) : '';
       if (Array.isArray(payload?.attachments) && payload.attachments.length) return ack({ ok: false, error: 'ИИ-собеседник пока поддерживает текст и стикеры, но не фото и голосовые.' });
@@ -2640,6 +2665,8 @@ async function main() {
       window.count += 1;
       messageWindows.set(userId, window);
       const text = content || `Пользователь отправил стикер ${sticker}`;
+      const userMessage = { id: crypto.randomUUID(), match_id: session.id, sender_id: userId, client_id: `user:${payload?.clientId || crypto.randomUUID()}`, content: text, created_at: nowIso(), message_type: sticker ? 'sticker' : 'text', type: sticker ? 'sticker' : 'text', sticker: sticker || null, attachments: [], reactions: [], replyTo: null };
+      session.messages.push(userMessage);
       ack({ ok: true });
       queueAiTurn(userId, session, text);
     });
@@ -2708,11 +2735,11 @@ async function main() {
       if (guestExpiryTimer) { clearTimeout(guestExpiryTimer); guestExpiryTimers.delete(socket.id); }
       if (!io.sockets.adapter.rooms.get(userRoom(userId))?.size) {
         removeFromQueue(userId);
-        aiSessions.delete(userId);
         messageWindows.delete(userId);
         const timer = setTimeout(() => {
           disconnectTimers.delete(userId);
           if (io.sockets.adapter.rooms.get(userRoom(userId))?.size) return;
+          aiSessions.delete(userId);
           const match = getActiveMatch(userId);
           if (match) endMatch(match.id, 'connection_lost', userId);
           emitOnlineCount();
