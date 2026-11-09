@@ -24,10 +24,10 @@ const DB_FILE = path.join(DATA_DIR, 'orbit.sqlite'); // legacy filename retained
 const SECRET_FILE = path.join(DATA_DIR, '.jwt-secret');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const AVATAR_DIR = path.join(DATA_DIR, 'avatars');
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 8 * 1024 * 1024;
 const NATIVE_DB_BACKUP = path.join(DATA_DIR, 'orbit.pre-v5-sqlitejs.backup.sqlite');
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
-const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
 const BASE_STICKERS = Object.freeze(['👋', '😂', '❤️', '🔥', '🥹', '🎉', '☕', '🐈']);
 const STICKER_PACKS = Object.freeze({
   'stickers-night-owl': ['✨', '🌙', '🚀', '🫶', '👀', '🫡', '🤝', '💫'],
@@ -198,12 +198,12 @@ const STORE_CATALOG = Object.freeze([
   { id: "title-night-circuit", name: "Ночной контур", description: "Титул цифрового города.", category: "Титулы", slot: "title", price: 3920, rarity: "Легендарный", preview: "title-circuit", value: "night-circuit", collection: "Цифровой город" },
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
-  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок, сияющая рамка профиля, акцент сообщений, до 3 000 символов, 4 фото, 5 языков и 8 интересов.' },
-  { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Шесть часов VIP по базовому тарифу: 180 ✦ за каждый час.' },
-  { id: 'vip-24h', tier: 'vip', hours: 24, price: 4320, name: 'VIP · 24 часа', description: 'Полные сутки VIP. Срок прибавляется к оставшемуся времени.' },
-  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс Premium-подсветка, до 5 000 символов, 6 фото, 10 языков и 12 интересов.' },
-  { id: 'premium-6h', tier: 'premium', hours: 6, price: 2160, name: 'Premium · 6 часов', description: 'Шесть часов Premium по базовому тарифу: 360 ✦ за каждый час.' },
-  { id: 'premium-24h', tier: 'premium', hours: 24, price: 8640, name: 'Premium · 24 часа', description: 'Полные сутки Premium. Срок прибавляется к оставшемуся времени.' }
+  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 2:30, аватар до 4 МБ, 5 языков и 8 интересов.' },
+  { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Все возможности VIP на 6 часов. 180 ✦ за час статуса — эквивалент 3 часов активного диалога.' },
+  { id: 'vip-24h', tier: 'vip', hours: 24, price: 4320, name: 'VIP · 24 часа', description: 'Полные сутки VIP со всеми расширенными лимитами. Срок прибавляется к оставшемуся времени.' },
+  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс Premium-ореол, до 5 000 символов, 8 фото до 12 МБ, голосовые до 4 минут, аватар до 8 МБ, 10 языков и 12 интересов.' },
+  { id: 'premium-6h', tier: 'premium', hours: 6, price: 2160, name: 'Premium · 6 часов', description: 'Все возможности Premium на 6 часов. 360 ✦ за час статуса — эквивалент 6 часов активного диалога.' },
+  { id: 'premium-24h', tier: 'premium', hours: 24, price: 8640, name: 'Premium · 24 часа', description: 'Полные сутки Premium со всеми максимальными лимитами. Срок прибавляется к оставшемуся времени.' }
 ]);
 const LANGUAGES = ['Русский', 'English', 'Español', 'Deutsch', 'Français', 'Türkçe', 'Português', 'العربية', '中文', '日本語'];
 const INTERESTS = ['Музыка', 'Игры', 'Кино и сериалы', 'Технологии', 'Путешествия', 'Спорт', 'Книги', 'Юмор', 'Наука', 'Искусство', 'Языки', 'Общение'];
@@ -413,7 +413,11 @@ function membershipLimits(user) {
     messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH),
     languageLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
     interestLimit: tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5),
-    attachmentLimit: tier === 'premium' ? 6 : (tier === 'vip' ? 4 : 3)
+    attachmentLimit: tier === 'premium' ? 8 : (tier === 'vip' ? 5 : 3),
+    imageBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 6 * 1024 * 1024),
+    audioBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 5 * 1024 * 1024),
+    avatarBytes: tier === 'premium' ? 8 * 1024 * 1024 : (tier === 'vip' ? 4 * 1024 * 1024 : 2 * 1024 * 1024),
+    voiceSeconds: tier === 'premium' ? 240 : (tier === 'vip' ? 150 : 90)
   };
 }
 function mediaPublic(row) {
@@ -1178,9 +1182,10 @@ async function main() {
   });
 
   const avatarUploadLimiter = rateLimit({ windowMs: 10 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false });
-  app.post('/api/avatar/upload', authMiddleware, avatarUploadLimiter, express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
+  app.post('/api/avatar/upload', authMiddleware, avatarUploadLimiter, express.raw({ type: '*/*', limit: '8mb' }), (req, res) => {
     if (!Buffer.isBuffer(req.body) || req.body.length < 16) return res.status(400).json({ error: 'Файл пустой или слишком маленький.' });
-    if (req.body.length > MAX_AVATAR_BYTES) return res.status(413).json({ error: 'Аватар должен быть не больше 2 МБ.' });
+    const avatarLimit = membershipLimits(req.user).avatarBytes;
+    if (req.body.length > avatarLimit) return res.status(413).json({ error: `Аватар для твоего статуса должен быть не больше ${Math.round(avatarLimit / 1024 / 1024)} МБ.` });
     const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
     const formats = {
       'image/jpeg': { ext: '.jpg', ok: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
@@ -1213,7 +1218,7 @@ async function main() {
   });
 
   const mediaUploadLimiter = rateLimit({ windowMs: 5 * 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много загрузок. Подожди несколько минут.' } });
-  app.post('/api/media/upload', authMiddleware, mediaUploadLimiter, express.raw({ type: '*/*', limit: '6mb' }), (req, res) => {
+  app.post('/api/media/upload', authMiddleware, mediaUploadLimiter, express.raw({ type: '*/*', limit: '12mb' }), (req, res) => {
     const matchId = typeof req.headers['x-match-id'] === 'string' ? req.headers['x-match-id'] : '';
     const kind = typeof req.headers['x-media-kind'] === 'string' ? req.headers['x-media-kind'] : '';
     const match = getActiveMatch(req.user.id);
@@ -1225,7 +1230,8 @@ async function main() {
     let mediaKind = '';
     let signatureOk = false;
     if (kind === 'image') {
-      if (data.length > MAX_IMAGE_BYTES) return res.status(413).json({ error: 'Фото должно быть не больше 6 МБ.' });
+      const imageLimit = membershipLimits(req.user).imageBytes;
+      if (data.length > imageLimit) return res.status(413).json({ error: `Фото для твоего статуса должно быть не больше ${Math.round(imageLimit / 1024 / 1024)} МБ.` });
       const types = {
         'image/jpeg': { ext: '.jpg', ok: b => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
         'image/png': { ext: '.png', ok: b => b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])) },
@@ -1237,7 +1243,8 @@ async function main() {
       signatureOk = definition.ok(data);
       mediaKind = 'image';
     } else if (kind === 'audio') {
-      if (data.length > MAX_AUDIO_BYTES) return res.status(413).json({ error: 'Голосовое сообщение должно быть не больше 5 МБ.' });
+      const audioLimit = membershipLimits(req.user).audioBytes;
+      if (data.length > audioLimit) return res.status(413).json({ error: `Голосовое сообщение для твоего статуса должно быть не больше ${Math.round(audioLimit / 1024 / 1024)} МБ.` });
       const types = {
         'audio/webm': { ext: '.webm', ok: b => b.length >= 4 && b.subarray(0, 4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3])) },
         'audio/ogg': { ext: '.ogg', ok: b => b.length >= 4 && b.toString('ascii', 0, 4) === 'OggS' },
