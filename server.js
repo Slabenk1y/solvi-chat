@@ -423,6 +423,11 @@ function effectiveSubscription(user) {
   if (user.subscription_expires_at && user.subscription_expires_at <= nowIso()) return 'free';
   return tier;
 }
+function effectivePaidSubscription(user) {
+  const tier = ['vip', 'premium'].includes(user?.paid_subscription_tier) ? user.paid_subscription_tier : 'free';
+  if (tier === 'free' || (user.paid_subscription_expires_at && user.paid_subscription_expires_at <= nowIso())) return 'free';
+  return tier;
+}
 function membershipLimits(user) {
   const tier = effectiveSubscription(user);
   return {
@@ -766,6 +771,25 @@ async function main() {
       sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, body TEXT NOT NULL, created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS support_ticket_messages_thread ON support_ticket_messages(ticket_id, created_at);
+    CREATE TABLE IF NOT EXISTS site_social_links (
+      id TEXT PRIMARY KEY, platform TEXT NOT NULL, label TEXT NOT NULL, url TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT '↗', enabled INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS reward_tasks (
+      id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, platform TEXT NOT NULL,
+      url TEXT NOT NULL, reward_tokens INTEGER NOT NULL CHECK(reward_tokens BETWEEN 1 AND 5000),
+      sponsor_name TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1,
+      max_claims INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS reward_task_submissions (
+      id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES reward_tasks(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, proof_url TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+      review_note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, reviewed_at TEXT, reviewed_by TEXT REFERENCES users(id),
+      UNIQUE(task_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS reward_task_submissions_status ON reward_task_submissions(status, created_at DESC);
     CREATE TABLE IF NOT EXISTS moderation_actions (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, action TEXT NOT NULL, reason TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reports_status (report_id TEXT PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'open', reviewed_by TEXT REFERENCES users(id), reviewed_at TEXT, resolution TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS promo_codes (
@@ -836,6 +860,8 @@ async function main() {
   if (!userColumns.includes('subscription_tier')) db.exec("ALTER TABLE users ADD COLUMN subscription_tier TEXT NOT NULL DEFAULT 'free'");
   if (!userColumns.includes('subscription_expires_at')) db.exec('ALTER TABLE users ADD COLUMN subscription_expires_at TEXT');
   if (!userColumns.includes('last_daily_claim_at')) db.exec('ALTER TABLE users ADD COLUMN last_daily_claim_at TEXT');
+  if (!userColumns.includes('paid_subscription_tier')) db.exec("ALTER TABLE users ADD COLUMN paid_subscription_tier TEXT NOT NULL DEFAULT 'free'");
+  if (!userColumns.includes('paid_subscription_expires_at')) db.exec('ALTER TABLE users ADD COLUMN paid_subscription_expires_at TEXT');
   const matchColumns = dbAll('PRAGMA table_info(matches)').map(column => column.name);
   if (!matchColumns.includes('active_seconds')) db.exec('ALTER TABLE matches ADD COLUMN active_seconds INTEGER NOT NULL DEFAULT 0');
   if (!matchColumns.includes('credited_minutes')) db.exec('ALTER TABLE matches ADD COLUMN credited_minutes INTEGER NOT NULL DEFAULT 0');
@@ -988,7 +1014,7 @@ async function main() {
     const resetCompleted = Boolean(dbGet("SELECT id FROM admin_audit_log WHERE action = 'solvi_initial_user_reset' LIMIT 1"));
     res.json({ ok: true, service: 'solvi-chat', brand: 'SOLVI', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral', persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE, ownerConfigured, ownerAccountPresent, resetCompleted, users: Number(dbGet('SELECT COUNT(*) AS n FROM users').n) });
   });
-  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
+  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
   function checkPublicInvite(req, res) {
     if (!PUBLIC_MODE) return true;
@@ -1153,7 +1179,7 @@ async function main() {
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
     res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
       memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, current: effectiveSubscription(user) === item.tier })),
-      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectiveSubscription(user)) : effectiveSubscription(user) === 'premium' })) });
+      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
@@ -1191,8 +1217,8 @@ async function main() {
   app.post('/api/store/bundle', authMiddleware, (req, res) => {
     const bundle = STORE_BUNDLES.find(item => item.id === req.body?.bundleId);
     if (!bundle) return res.status(404).json({ error: 'Фирменный набор не найден.' });
-    const tier = effectiveSubscription(req.user);
-    if (bundle.tier === 'premium' ? tier !== 'premium' : !['vip', 'premium'].includes(tier)) return res.status(403).json({ error: 'Для покупки этого набора нужна активная соответствующая привилегия.' });
+    const paidTier = effectivePaidSubscription(req.user);
+    if (bundle.tier === 'premium' ? paidTier !== 'premium' : !['vip', 'premium'].includes(paidTier)) return res.status(403).json({ error: 'Наборы доступны только при активной VIP/Premium-привилегии, оплаченной реальными деньгами. Покупка статуса за токены не подходит.' });
     try {
       transaction(() => {
         if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])) throw new Error('Этот набор уже приобретён.');
@@ -1471,6 +1497,29 @@ async function main() {
   });
 
   const ticketCreateLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много новых обращений. Попробуй позже.' } });
+  const ticketReplyLimiter = rateLimit({ windowMs: 10 * 60 * 1000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много сообщений в тикетах. Подожди немного.' } });
+  const taskSubmitLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много заявок на награду. Попробуй позже.' } });
+  app.get('/api/growth', authMiddleware, (req, res) => {
+    const tasks = dbAll(`SELECT t.id, t.title, t.description, t.platform, t.url, t.reward_tokens, t.sponsor_name,
+      s.status AS submission_status, s.review_note, s.created_at AS submitted_at
+      FROM reward_tasks t LEFT JOIN reward_task_submissions s ON s.task_id = t.id AND s.user_id = ?
+      WHERE t.active = 1 ORDER BY t.created_at DESC LIMIT 100`, [req.user.id]);
+    res.json({ tasks, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at') });
+  });
+  app.post('/api/tasks/:id/submit', authMiddleware, taskSubmitLimiter, (req, res) => {
+    if (req.user.account_type === 'guest') return res.status(403).json({ error: 'Для заданий нужен постоянный аккаунт.' });
+    const task = dbGet('SELECT * FROM reward_tasks WHERE id = ? AND active = 1', [req.params.id]);
+    if (!task) return res.status(404).json({ error: 'Задание больше недоступно.' });
+    if (Number(task.max_claims)>0 && Number(dbGet('SELECT COUNT(*) AS n FROM reward_task_submissions WHERE task_id=?',[task.id]).n)>=Number(task.max_claims)) return res.status(409).json({error:'Лимит участников для этого задания уже достигнут.'});
+    const proofUrl = typeof req.body?.proofUrl === 'string' ? req.body.proofUrl.trim().slice(0, 500) : '';
+    let parsed; try { parsed = new URL(proofUrl); } catch { return res.status(400).json({ error: 'Добавь ссылку на подтверждение (например, скриншот).' }); }
+    if (parsed.protocol !== 'https:') return res.status(400).json({ error: 'Ссылка подтверждения должна начинаться с https://.' });
+    const existing = dbGet('SELECT status FROM reward_task_submissions WHERE task_id = ? AND user_id = ?', [task.id, req.user.id]);
+    if (existing) return res.status(409).json({ error: existing.status === 'pending' ? 'Заявка уже ожидает проверки.' : 'Это задание уже было отправлено.' });
+    const id = crypto.randomUUID(), createdAt = nowIso();
+    dbRun('INSERT INTO reward_task_submissions (id, task_id, user_id, proof_url, status, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, task.id, req.user.id, proofUrl, 'pending', createdAt]);
+    res.status(201).json({ ok: true, id, status: 'pending' });
+  });
   app.get('/api/tickets', authMiddleware, (req, res) => {
     const rows = dbAll(`SELECT t.id, t.category, t.title, t.status, t.created_at, t.updated_at,
       (SELECT COUNT(*) FROM support_ticket_messages m WHERE m.ticket_id = t.id) AS message_count,
@@ -1485,12 +1534,22 @@ async function main() {
     if (!category) return res.status(400).json({ error: 'Выбери идею или сообщение об ошибке.' });
     if (title.length < 5) return res.status(400).json({ error: 'Заголовок должен содержать хотя бы 5 символов.' });
     if (body.length < 15) return res.status(400).json({ error: 'Опиши обращение подробнее (минимум 15 символов).' });
+    const openCount = Number(dbGet("SELECT COUNT(*) AS n FROM support_tickets WHERE user_id = ? AND status != 'closed'", [req.user.id]).n);
+    if (openCount >= 5) return res.status(429).json({ error: 'У тебя уже 5 открытых обращений. Дождись ответа или закрой завершённый тикет.' });
     const id = crypto.randomUUID(), createdAt = nowIso();
     transaction(() => {
       dbRun('INSERT INTO support_tickets (id, user_id, category, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, req.user.id, category, title, 'open', createdAt, createdAt]);
       dbRun('INSERT INTO support_ticket_messages (id, ticket_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), id, req.user.id, body, createdAt]);
     });
     res.status(201).json({ ok: true, id });
+  });
+  app.post('/api/tickets/:id/close', authMiddleware, (req,res)=>{
+    const ticket=dbGet('SELECT id,status FROM support_tickets WHERE id=? AND user_id=?',[req.params.id,req.user.id]);
+    if(!ticket)return res.status(404).json({error:'Обращение не найдено.'});
+    if(ticket.status==='closed')return res.json({ok:true});
+    const at=nowIso();dbRun("UPDATE support_tickets SET status='closed',updated_at=? WHERE id=?",[at,ticket.id]);
+    dbRun('INSERT INTO support_ticket_messages (id,ticket_id,sender_id,body,created_at) VALUES (?,?,?,?,?)',[crypto.randomUUID(),ticket.id,req.user.id,'Пользователь закрыл обращение.',at]);
+    res.json({ok:true});
   });
   app.get('/api/tickets/:id', authMiddleware, (req, res) => {
     const ticket = dbGet('SELECT id, category, title, status, created_at, updated_at FROM support_tickets WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
@@ -1499,7 +1558,7 @@ async function main() {
       .map(m => ({ id: m.id, senderId: m.sender_id, senderName: m.sender_name, fromOwner: isOwner(getUserById(m.sender_id)), body: m.body, createdAt: m.created_at }));
     res.json({ ticket, messages });
   });
-  app.post('/api/tickets/:id/messages', authMiddleware, (req, res) => {
+  app.post('/api/tickets/:id/messages', authMiddleware, ticketReplyLimiter, (req, res) => {
     const ticket = dbGet('SELECT id, status FROM support_tickets WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
     if (!ticket) return res.status(404).json({ error: 'Обращение не найдено.' });
     if (ticket.status === 'closed') return res.status(409).json({ error: 'Обращение закрыто. Создай новое, чтобы продолжить.' });
@@ -1881,6 +1940,64 @@ async function main() {
     const tokenTotal = Number(dbGet('SELECT COALESCE(SUM(tokens),0) AS n FROM users').n);
     res.json({ users, guests, activeMatches, openReports, tokenTotal, recentUsers: dbAll("SELECT id, public_id, username, account_type, CASE WHEN public_id = ? THEN 'owner' ELSE role END AS role, subscription_tier, subscription_expires_at, created_at FROM users ORDER BY created_at DESC LIMIT 12", [process.env.OWNER_PUBLIC_ID || '']) });
   });
+  app.post('/api/admin/users/:id/paid-membership', authMiddleware, ownerOnly, (req,res)=>{
+    const target=getUserById(req.params.id);if(!target||target.account_type==='guest')return res.status(404).json({error:'Постоянный аккаунт не найден.'});
+    const tier=['vip','premium'].includes(req.body?.tier)?req.body.tier:'';
+    const days=Number(req.body?.days);
+    const paymentReference=String(req.body?.paymentReference||'').trim().slice(0,120);
+    if(!tier||!Number.isInteger(days)||days<1||days>365||paymentReference.length<4)return res.status(400).json({error:'Укажи тариф, срок и подтверждённый номер платежа.'});
+    const current=target.paid_subscription_expires_at&&Date.parse(target.paid_subscription_expires_at)>Date.now()?Date.parse(target.paid_subscription_expires_at):Date.now();
+    const expires=new Date(current+days*86400000).toISOString();
+    dbRun('UPDATE users SET paid_subscription_tier=?,paid_subscription_expires_at=? WHERE id=?',[tier,expires,target.id]);
+    auditAdmin(req.user.id,'paid_membership_verified',target.id,{tier,days,paymentReference,expires});
+    res.json({ok:true,expiresAt:expires});
+  });
+  app.get('/api/admin/growth', authMiddleware, ownerOnly, (_req, res) => {
+    res.json({
+      socialLinks: dbAll('SELECT * FROM site_social_links ORDER BY sort_order, created_at DESC'),
+      tasks: dbAll(`SELECT t.*, (SELECT COUNT(*) FROM reward_task_submissions s WHERE s.task_id = t.id) AS submissions,
+        (SELECT COUNT(*) FROM reward_task_submissions s WHERE s.task_id = t.id AND s.status = 'approved') AS approved
+        FROM reward_tasks t ORDER BY t.created_at DESC`),
+      submissions: dbAll(`SELECT s.*, t.title AS task_title, t.reward_tokens, u.username, u.public_id
+        FROM reward_task_submissions s JOIN reward_tasks t ON t.id = s.task_id JOIN users u ON u.id = s.user_id
+        ORDER BY CASE s.status WHEN 'pending' THEN 0 ELSE 1 END, s.created_at DESC LIMIT 300`)
+    });
+  });
+  app.post('/api/admin/social-links', authMiddleware, ownerOnly, (req, res) => {
+    const platform=String(req.body?.platform||'').trim().slice(0,40),label=String(req.body?.label||'').trim().slice(0,60),url=String(req.body?.url||'').trim().slice(0,500),icon=String(req.body?.icon||'↗').trim().slice(0,8);
+    let parsed;try{parsed=new URL(url)}catch{return res.status(400).json({error:'Укажи корректную ссылку.'})}
+    if(!platform||!label||parsed.protocol!=='https:')return res.status(400).json({error:'Нужны название сети, подпись и HTTPS-ссылка.'});
+    const id=crypto.randomUUID(),at=nowIso();dbRun('INSERT INTO site_social_links (id,platform,label,url,icon,enabled,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?,?)',[id,platform,label,url,icon,Number(req.body?.sortOrder)||0,at,at]);auditAdmin(req.user.id,'social_link_create',id,{platform,label,url});res.status(201).json({ok:true,id});
+  });
+  app.patch('/api/admin/social-links/:id', authMiddleware, ownerOnly, (req,res)=>{
+    const old=dbGet('SELECT * FROM site_social_links WHERE id=?',[req.params.id]);if(!old)return res.status(404).json({error:'Ссылка не найдена.'});
+    const enabled=req.body?.enabled===undefined?old.enabled:(req.body.enabled?1:0),label=typeof req.body?.label==='string'?req.body.label.trim().slice(0,60):old.label,url=typeof req.body?.url==='string'?req.body.url.trim().slice(0,500):old.url;
+    let parsed;try{parsed=new URL(url)}catch{return res.status(400).json({error:'Некорректная ссылка.'})}
+    if(parsed.protocol!=='https:'||!label)return res.status(400).json({error:'Нужны подпись и HTTPS-ссылка.'});
+    dbRun('UPDATE site_social_links SET label=?,url=?,enabled=?,updated_at=? WHERE id=?',[label,url,enabled,nowIso(),old.id]);auditAdmin(req.user.id,'social_link_update',old.id,{enabled,label,url});res.json({ok:true});
+  });
+  app.delete('/api/admin/social-links/:id', authMiddleware, ownerOnly, (req,res)=>{
+    const old=dbGet('SELECT id FROM site_social_links WHERE id=?',[req.params.id]);if(!old)return res.status(404).json({error:'Ссылка не найдена.'});
+    dbRun('DELETE FROM site_social_links WHERE id=?',[old.id]);auditAdmin(req.user.id,'social_link_delete',old.id,{});res.json({ok:true});
+  });
+  app.post('/api/admin/tasks', authMiddleware, ownerOnly, (req,res)=>{
+    const title=String(req.body?.title||'').trim().slice(0,100),description=String(req.body?.description||'').trim().slice(0,500),platform=String(req.body?.platform||'').trim().slice(0,40),url=String(req.body?.url||'').trim().slice(0,500),sponsor=String(req.body?.sponsorName||'').trim().slice(0,80),reward=Number(req.body?.rewardTokens),maxClaims=Math.max(0,Math.min(100000,Number(req.body?.maxClaims)||0));
+    let parsed;try{parsed=new URL(url)}catch{return res.status(400).json({error:'Укажи ссылку на канал или рекламную страницу.'})}
+    if(title.length<4||description.length<10||!platform||parsed.protocol!=='https:'||!Number.isInteger(reward)||reward<1||reward>5000)return res.status(400).json({error:'Проверь заголовок, описание, HTTPS-ссылку и награду от 1 до 5000 токенов.'});
+    const id=crypto.randomUUID(),at=nowIso();dbRun('INSERT INTO reward_tasks (id,title,description,platform,url,reward_tokens,sponsor_name,active,max_claims,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,?,?,?)',[id,title,description,platform,url,reward,sponsor,maxClaims,at,at]);auditAdmin(req.user.id,'reward_task_create',id,{title,reward,sponsor});res.status(201).json({ok:true,id});
+  });
+  app.patch('/api/admin/tasks/:id', authMiddleware, ownerOnly, (req,res)=>{
+    const task=dbGet('SELECT * FROM reward_tasks WHERE id=?',[req.params.id]);if(!task)return res.status(404).json({error:'Задание не найдено.'});
+    const active=req.body?.active===undefined?task.active:(req.body.active?1:0);dbRun('UPDATE reward_tasks SET active=?,updated_at=? WHERE id=?',[active,nowIso(),task.id]);auditAdmin(req.user.id,'reward_task_toggle',task.id,{active});res.json({ok:true});
+  });
+  app.post('/api/admin/task-submissions/:id/review', authMiddleware, ownerOnly, (req,res)=>{
+    const submission=dbGet(`SELECT s.*,t.title,t.reward_tokens FROM reward_task_submissions s JOIN reward_tasks t ON t.id=s.task_id WHERE s.id=?`,[req.params.id]);
+    if(!submission)return res.status(404).json({error:'Заявка не найдена.'});if(submission.status!=='pending')return res.status(409).json({error:'Заявка уже проверена.'});
+    const decision=req.body?.decision==='approve'?'approved':req.body?.decision==='reject'?'rejected':'';if(!decision)return res.status(400).json({error:'Выбери решение.'});
+    const note=String(req.body?.note||'').trim().slice(0,300),at=nowIso();
+    transaction(()=>{dbRun("UPDATE reward_task_submissions SET status=?,review_note=?,reviewed_at=?,reviewed_by=? WHERE id=? AND status='pending'",[decision,note,at,req.user.id,submission.id]);if(decision==='approved'){dbRun('UPDATE users SET tokens=tokens+? WHERE id=?',[submission.reward_tokens,submission.user_id]);dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)',[crypto.randomUUID(),submission.user_id,'task_reward',submission.reward_tokens,`Награда за задание: ${submission.title}`,at]);}auditAdmin(req.user.id,'task_submission_'+decision,submission.id,{taskId:submission.task_id,userId:submission.user_id,reward:decision==='approved'?submission.reward_tokens:0,note});});
+    res.json({ok:true,status:decision});
+  });
   app.get('/api/admin/tickets', authMiddleware, ownerOnly, (_req, res) => {
     const tickets = dbAll(`SELECT t.id, t.category, t.title, t.status, t.created_at, t.updated_at, u.username, u.public_id,
       (SELECT COUNT(*) FROM support_ticket_messages m WHERE m.ticket_id = t.id) AS message_count,
@@ -1906,6 +2023,8 @@ async function main() {
       dbRun('UPDATE support_tickets SET status = ?, updated_at = ? WHERE id = ?', [status, createdAt, ticket.id]);
       auditAdmin(req.user.id, 'support_ticket_reply', ticket.id, { status });
     });
+    const ticketOwner=dbGet('SELECT user_id FROM support_tickets WHERE id=?',[ticket.id]);
+    if(ticketOwner)io.to(userRoom(ticketOwner.user_id)).emit('ticket:updated',{ticketId:ticket.id});
     res.json({ ok: true });
   });
 

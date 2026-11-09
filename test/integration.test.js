@@ -83,6 +83,18 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.match(user2.user.publicId, /^[A-F0-9]{10}$/);
     assert.equal(user1.user.tokens, 50, 'new accounts receive the 50-token registration bonus');
     assert.equal(user2.user.tokens, 50, 'new accounts receive the 50-token registration bonus');
+    const publicConfig = await fetch(`${baseUrl}/api/config`).then(response => response.json());
+    assert.deepEqual(publicConfig.socialLinks, [], 'social links are owner-configured and empty by default');
+    const growth = await fetch(`${baseUrl}/api/growth`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.deepEqual(growth.tasks, [], 'reward tasks are empty until configured by the owner');
+    assert.deepEqual(growth.socialLinks, []);
+    const initialTicket = await postJson(baseUrl, '/api/tickets', { category: 'idea', title: 'Интеграционный тикет', body: 'Проверка приватного тикета и корректного закрытия обращения.' }, user1.token);
+    const privateTicket = await fetch(`${baseUrl}/api/tickets/${initialTicket.id}`, { headers: { Authorization: `Bearer ${user2.token}` } });
+    assert.equal(privateTicket.status, 404, 'users cannot read another account ticket');
+    const ticketClose = await fetch(`${baseUrl}/api/tickets/${initialTicket.id}/close`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(ticketClose.status, 200, 'users can close their own tickets');
+    const closedTicketReply = await fetch(`${baseUrl}/api/tickets/${initialTicket.id}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: 'Ответ после закрытия тикета' }) });
+    assert.equal(closedTicketReply.status, 409, 'closed tickets cannot receive replies');
     testDb = new DatabaseSync(path.join(dataDir, 'orbit.sqlite'));
     testDb.prepare('UPDATE users SET tokens = 1000 WHERE id IN (?, ?)').run(user1.user.id, user2.user.id);
     testDb.prepare("INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, 'wallpaper-deep-space', ?, 'purchase')").run(user1.user.id, new Date().toISOString());

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/owner-manifest.webmanifest">
   <title>SOLVI · Панель владельца</title>
-  <link rel="stylesheet" href="/owner.css?v=18">
+  <link rel="stylesheet" href="/owner.css?v=19">
 </head>
 <body>
   <div class="owner-shell">
@@ -48,6 +48,7 @@
           <button class="tab" data-tab="dialogs">Диалоги</button>
           <button class="tab" data-tab="reports">Жалобы</button>
           <button class="tab" data-tab="tickets">Идеи и баги</button>
+          <button class="tab" data-tab="growth">Соцсети и задания</button>
           <button class="tab" data-tab="audit">Журнал</button>
         </nav>
 
@@ -122,6 +123,33 @@
           </div>
         </section>
 
+        <section class="tab-page" data-page="growth" hidden>
+          <div class="section-intro"><div class="eyebrow">РОСТ И МОНЕТИЗАЦИЯ</div><h2>Соцсети, задания и реклама</h2><p>Управляй публичными ссылками и заданиями. Награды за подписку выдаются только после ручной проверки доказательства — платформа не позволяет надёжно проверить подписку по одной ссылке.</p></div>
+          <div class="grid-two">
+            <form id="socialLinkForm" class="card growth-form">
+              <div class="card-head"><h3>Добавить соцсеть</h3></div>
+              <label>Платформа<input id="socialPlatform" maxlength="40" placeholder="Telegram / TikTok / YouTube" required></label>
+              <label>Подпись кнопки<input id="socialLabel" maxlength="60" placeholder="Наш Telegram-канал" required></label>
+              <label>Ссылка<input id="socialUrl" type="url" maxlength="500" placeholder="https://t.me/..." required></label>
+              <label>Иконка / эмодзи<input id="socialIcon" maxlength="8" value="↗"></label>
+              <button class="primary" type="submit">Добавить ссылку</button>
+              <div id="socialLinkList" class="growth-list"></div>
+            </form>
+            <form id="rewardTaskForm" class="card growth-form">
+              <div class="card-head"><h3>Создать задание</h3></div>
+              <label>Название<input id="taskTitle" maxlength="100" placeholder="Подпишись на Telegram SOLVI" required></label>
+              <label>Описание<textarea id="taskDescription" maxlength="500" rows="3" placeholder="Подпишись и приложи ссылку на скриншот подтверждения." required></textarea></label>
+              <label>Платформа<input id="taskPlatform" maxlength="40" placeholder="Telegram" required></label>
+              <label>Ссылка на канал / рекламодателя<input id="taskUrl" type="url" maxlength="500" placeholder="https://t.me/..." required></label>
+              <label>Награда в токенах<input id="taskReward" type="number" min="1" max="5000" value="50" required></label>
+              <label>Рекламодатель (необязательно)<input id="taskSponsor" maxlength="80" placeholder="Название бренда"></label>
+              <label>Лимит наград, 0 = без лимита<input id="taskMaxClaims" type="number" min="0" max="100000" value="0"></label>
+              <button class="primary" type="submit">Опубликовать задание</button>
+              <div id="rewardTaskList" class="growth-list"></div>
+            </form>
+          </div>
+          <article class="card growth-submissions"><div class="card-head"><h3>Проверка заявок на награду</h3><button id="refreshGrowthButton" class="text-button">Обновить</button></div><div id="taskSubmissionList" class="growth-list"></div></article>
+        </section>
         <section class="tab-page" data-page="audit" hidden><div class="section-intro"><div class="eyebrow">ПРОЗРАЧНОСТЬ</div><h2>Журнал действий</h2><p>Здесь фиксируются административные изменения, выдача токенов, привилегий и промокодов.</p></div><div class="card"><div class="card-head"><h3>Последние операции</h3><button id="refreshAuditButton" class="text-button">Обновить</button></div><pre id="auditList" class="logs">Загрузка…</pre></div></section>
       </section>
       <div id="ownerActionModal" class="owner-action-backdrop" hidden>
@@ -153,6 +181,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <footer> SOLVI OWNER · Управление доступно только назначенному владельцу.</footer>
   </div>
-  <script src="/owner.js?v=18" defer></script>
+  <script src="/owner.js?v=19" defer></script>
 </body>
 </html>

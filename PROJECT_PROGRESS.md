@@ -1,25 +1,22 @@
-# PROJECT_PROGRESS — SOLVI v1.8.0
+# PROJECT_PROGRESS — SOLVI v1.9.0
 
 Последнее обновление: 2026-11-09.
 
-## v1.8.0 — подготовка к публичному запуску
+## Growth / monetization foundation
 
-- Единый бренд SOLVI в приложении, мобильной панели и PWA manifest. Домен `solvi-chat.onrender.com` уже совпадает с SOLVI, поэтому сохраняем текущий адрес.
-- Пользовательские тикеты для идей и баг-репортов: создание, приватная переписка, ответы владельца, статусы «Открыт / В работе / Закрыт».
-- 50 ✦ за регистрацию постоянного аккаунта; начисление записывается в историю токенов.
-- Избранное теперь для завершённых чатов. После завершения пользователь сам подтверждает сохранение. Текст и стикеры архивируются; временные медиа удаляются по прежней политике.
-- Медиалимиты: Free — 3 фото и 30 секунд голосового; VIP — 5 фото и 45 секунд; Premium — 10 фото и 60 секунд.
-- Голосовая запись использует mono capture, 48 kHz, шумоподавление, эхоподавление, автоматическую регулировку усиления и компактный Opus bitrate.
-- Добавлены VIP-пак «Звёздный след» и Premium-пак «Квантовый портал», по 5 предметов в каждом.
-- Server-side проверки: число вложений, право доступа к тикетам и соответствие статуса для покупки наборов.
-- Перед сбросом создан Neon snapshot. Сброс пользователей выполняется отдельным одноразовым запуском, который проверяет OWNER_PUBLIC_ID и не удаляет аккаунт владельца.
+- Управляемые ссылки соцсетей: владелец добавляет Telegram, TikTok, YouTube и другие HTTPS-ссылки в панели; активные ссылки появляются внизу приложения.
+- Задания на подписку/переходы: владелец задаёт название, платформу, ссылку, описание, награду, рекламодателя и общий лимит наград.
+- Пользователь прикладывает ссылку на доказательство; владелец вручную проверяет и одобряет/отклоняет заявку. Награда начисляется только один раз и попадает в историю токенов.
+- В owner console есть отдельная вкладка «Соцсети и задания».
+- Наборы кастомизаций VIP/Premium доступны только при активной платной подписке, отмеченной после проверки реального платежа. Токеновая подписка не открывает наборы.
+- Владелец может вручную зафиксировать проверенную оплату и ID транзакции. Автоматический checkout ещё не подключён: нужен выбор платёжного провайдера, страны/валюты и merchant credentials.
+- Тикеты: ограничение количества открытых обращений, возможность закрыть тикет, уведомления о новых ответах.
+- Браузерные confirm/prompt заменены на фирменные модальные диалоги. Системные разрешения браузера для микрофона/уведомлений остаются под контролем ОС и браузера.
 
-## Launch checklist
+## Existing launch preparation
 
-- [ ] Verify production `ownerAccountPresent=true` before enabling purge.
-- [ ] Reset non-owner accounts only; verify a single owner remains.
-- [ ] Confirm GitHub CI and Render deployment are successful.
-- [ ] Verify `/api/health` and sign in to `/owner`.
-- [ ] Run smoke tests for registration reward, tickets, archive, photo and voice caps.
-- [ ] Review public privacy/rules copy, favicon and official domain.
-- [ ] Prepare launch copy, screenshots and first feedback cycle.
+- SOLVI branding; existing solvi-chat.onrender.com URL retained.
+- 50 ✦ welcome credit.
+- Favorites for completed conversations.
+- Media caps: Free 3 photos/30s voice; VIP 5 photos/45s; Premium 10 photos/60s.
+- Neon snapshot before any user reset; destructive reset remains a separate guarded operation and requires explicit confirmation.

@@ -62,6 +62,16 @@ const state = {
 function escapeText(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
+async function appDialog({title='Подтверждение',message='',input=false,defaultValue='',confirmText='Продолжить',danger=false}={}) {
+  return new Promise(resolve=>{
+    const backdrop=document.createElement('div');backdrop.className='solvi-dialog-backdrop';
+    const card=document.createElement('section');card.className='solvi-dialog-card';card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');
+    const heading=document.createElement('h2');heading.textContent=title;const copy=document.createElement('p');copy.textContent=message;card.append(heading,copy);
+    let field=null;if(input){field=document.createElement('textarea');field.className='solvi-dialog-input';field.rows=3;field.maxLength=500;field.value=defaultValue;card.append(field);}
+    const actions=document.createElement('div');actions.className='solvi-dialog-actions';const cancel=document.createElement('button');cancel.type='button';cancel.className='button button-secondary';cancel.textContent='Отмена';const ok=document.createElement('button');ok.type='button';ok.className='button '+(danger?'button-danger':'button-primary');ok.textContent=confirmText;actions.append(cancel,ok);card.append(actions);backdrop.append(card);document.body.append(backdrop);
+    const finish=value=>{backdrop.remove();window.removeEventListener('keydown',key);resolve(value);};const key=e=>{if(e.key==='Escape')finish(null);if(e.key==='Enter'&&!input)finish(true);};cancel.onclick=()=>finish(null);ok.onclick=()=>finish(input?field.value.trim():true);backdrop.onclick=e=>{if(e.target===backdrop)finish(null);};window.addEventListener('keydown',key);if(field)field.focus();
+  });
+}
 function showToast(message, duration = 2800) {
   const toast = $('#toast');
   toast.textContent = message;
@@ -552,9 +562,9 @@ async function loadAdmin() {
       report.context.forEach(message => { const line = document.createElement('p'); line.textContent = `${message.sender_id === report.reportedId ? report.reported : report.reporter}: ${message.content || 'Вложение'}`; context.append(line); });
       const actions = document.createElement('div'); actions.className = 'admin-report-actions';
       const resolve = document.createElement('button'); resolve.type = 'button'; resolve.className = 'button button-secondary'; resolve.textContent = report.status === 'resolved' ? 'Обновить решение' : 'Отметить рассмотренной';
-      resolve.addEventListener('click', async () => { const resolution = window.prompt('Краткое решение по жалобе:', 'Проверено'); if (resolution === null) return; try { await api(`/api/admin/reports/${encodeURIComponent(report.id)}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }); await loadAdmin(); showToast('Жалоба отмечена рассмотренной.'); } catch (error) { showToast(error.message); } });
+      resolve.addEventListener('click', async () => { const resolution = await appDialog({title:'Решение по жалобе',message:'Кратко опиши результат проверки.',input:true,defaultValue:'Проверено',confirmText:'Сохранить'}); if (resolution === null) return; try { await api(`/api/admin/reports/${encodeURIComponent(report.id)}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }); await loadAdmin(); showToast('Жалоба отмечена рассмотренной.'); } catch (error) { showToast(error.message); } });
       const suspend = document.createElement('button'); suspend.type = 'button'; suspend.className = 'button button-danger'; suspend.textContent = 'Ограничить на 1 час';
-      suspend.addEventListener('click', async () => { if (!window.confirm(`Ограничить доступ пользователю ${report.reported} на 1 час?`)) return; try { await api(`/api/admin/users/${encodeURIComponent(report.reportedId)}/suspend`, { method: 'POST', body: JSON.stringify({ minutes: 60, reason: `Жалоба: ${report.category}` }) }); await loadAdmin(); showToast('Доступ пользователя ограничен.'); } catch (error) { showToast(error.message); } });
+      suspend.addEventListener('click', async () => { if (!await appDialog({title:'Ограничить пользователя?',message:`Доступ для ${report.reported} будет ограничен на 1 час.`,confirmText:'Ограничить',danger:true})) return; try { await api(`/api/admin/users/${encodeURIComponent(report.reportedId)}/suspend`, { method: 'POST', body: JSON.stringify({ minutes: 60, reason: `Жалоба: ${report.category}` }) }); await loadAdmin(); showToast('Доступ пользователя ограничен.'); } catch (error) { showToast(error.message); } });
       actions.append(resolve, suspend); card.append(heading, reason, context, actions); list.append(card);
     });
   } catch (error) { showToast(error.message); }
@@ -601,7 +611,7 @@ function renderFavorites() {
     details.append(name, note);
     const open = document.createElement('button'); open.type = 'button'; open.className = 'button button-primary'; open.textContent = 'Открыть'; open.addEventListener('click', () => openFavoriteChat(chat.id));
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button button-secondary'; remove.textContent = 'Удалить';
-    remove.addEventListener('click', async () => { if (!window.confirm('Удалить сохранённую переписку?')) return; remove.disabled = true; try { await api(`/api/favorite-chats/${encodeURIComponent(chat.id)}`, { method: 'DELETE' }); state.favoriteChats = state.favoriteChats.filter(row => row.id !== chat.id); renderFavorites(); } catch (error) { showToast(error.message); remove.disabled = false; } });
+    remove.addEventListener('click', async () => { if (!await appDialog({title:'Удалить переписку?',message:'Эта копия исчезнет из твоего Избранного.',confirmText:'Удалить',danger:true})) return; remove.disabled = true; try { await api(`/api/favorite-chats/${encodeURIComponent(chat.id)}`, { method: 'DELETE' }); state.favoriteChats = state.favoriteChats.filter(row => row.id !== chat.id); renderFavorites(); } catch (error) { showToast(error.message); remove.disabled = false; } });
     card.append(avatar, details, open, remove); root.append(card);
   });
 }
@@ -625,6 +635,36 @@ async function openFavoriteChat(id) {
     if (!root.children.length) { const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'В этой переписке нет сообщений.'; root.append(empty); }
     $('#favoriteChatModal').hidden = false;
   } catch (error) { showToast(error.message); }
+}
+async function loadGrowthTasks(){
+  const root=$('#growthTaskList');if(!root)return;
+  try{
+    const data=await api('/api/growth');root.replaceChildren();
+    if(!(data.tasks||[]).length){const empty=document.createElement('div');empty.className='favorites-empty';empty.textContent='Сейчас нет активных заданий. Загляни позже — здесь появятся бонусы за полезные действия.';root.append(empty);}
+    (data.tasks||[]).forEach(task=>{
+      const card=document.createElement('article');card.className='growth-task-card';
+      const head=document.createElement('div');head.className='growth-task-head';const kicker=document.createElement('span');kicker.className='eyebrow';kicker.textContent=task.sponsor_name?('ПАРТНЁР · '+task.sponsor_name):'ЗАДАНИЕ SOLVI';
+      const reward=document.createElement('strong');reward.className='growth-task-reward';reward.textContent='+'+Number(task.reward_tokens)+' ✦';head.append(kicker,reward);
+      const title=document.createElement('h3');title.textContent=task.title;const desc=document.createElement('p');desc.textContent=task.description;
+      const platform=document.createElement('small');platform.textContent=task.platform;
+      const open=document.createElement('a');open.className='button button-secondary';open.href=task.url;open.target='_blank';open.rel='noopener noreferrer';open.textContent='Открыть площадку ↗';
+      card.append(head,title,desc,platform,open);
+      if(task.submission_status==='pending'){const status=document.createElement('span');status.className='growth-task-status';status.textContent='Заявка на проверке';card.append(status);}
+      else if(task.submission_status==='approved'){const status=document.createElement('span');status.className='growth-task-status approved';status.textContent='Награда начислена';card.append(status);}
+      else if(task.submission_status==='rejected'){const status=document.createElement('span');status.className='growth-task-status rejected';status.textContent=task.review_note||'Заявка отклонена';card.append(status);}
+      else{
+        const submit=document.createElement('button');submit.type='button';submit.className='button button-primary';submit.textContent='Я выполнил · отправить доказательство';
+        submit.addEventListener('click',async()=>{const proof=await appDialog({title:'Подтверждение выполнения',message:'Вставь HTTPS-ссылку на скриншот или другое доказательство. Токены начислятся после ручной проверки владельцем.',input:true,defaultValue:'https://',confirmText:'Отправить'});if(!proof)return;submit.disabled=true;try{await api('/api/tasks/'+encodeURIComponent(task.id)+'/submit',{method:'POST',body:JSON.stringify({proofUrl:proof})});showToast('Заявка отправлена на проверку.');await loadGrowthTasks();}catch(error){showToast(error.message);submit.disabled=false;}});
+        card.append(submit);
+      }
+      root.append(card);
+    });
+  }catch(error){showToast(error.message);}
+}
+function renderSocialLinks(){
+  const root=$('#socialLinksFooter');if(!root)return;root.replaceChildren();
+  (state.config?.socialLinks||[]).forEach(link=>{const a=document.createElement('a');a.className='footer-social-link';a.href=link.url;a.target='_blank';a.rel='noopener noreferrer';a.title=link.label;a.setAttribute('aria-label',link.label);const icon=document.createElement('span');icon.textContent=link.icon||'↗';const label=document.createElement('span');label.textContent=link.label;a.append(icon,label);root.append(a);});
+  root.hidden=!root.children.length;
 }
 async function loadTickets() {
   try { const data = await api('/api/tickets'); state.tickets = data.tickets || []; renderTicketList(); }
@@ -663,6 +703,7 @@ async function openTicket(id) {
       row.append(head, body, time); root.append(row);
     });
     $('#ticketReplyForm').hidden = data.ticket.status === 'closed';
+    $('#ticketCloseButton').hidden = data.ticket.status === 'closed';
     $('#ticketReplyInput').value = '';
     $('#ticketThread').hidden = false;
     renderTicketList(); root.scrollTop = root.scrollHeight;
@@ -729,7 +770,7 @@ async function loadSessions() {
 
 function setAuthError(message = '') { $('#authError').textContent = message; }
 function currentView() {
-  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'blocked', 'admin'].find(name => !$(`#${name}Panel`).hidden) || 'home';
+  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked', 'admin'].find(name => !$(`#${name}Panel`).hidden) || 'home';
 }
 function setView(view) {
   if (view === 'home' && state.activeMatch) view = 'chat';
@@ -749,6 +790,7 @@ function setView(view) {
   if (view === 'inventory') loadInventory();
   if (view === 'favorites') loadFavorites();
   if (view === 'feedback') loadTickets();
+  if (view === 'growth') loadGrowthTasks();
   if (view === 'blocked') loadBlockedUsers();
 }
 function setAvatarContent(element, user) {
@@ -991,6 +1033,7 @@ function connectSocket() {
   socket.on('chat:recording', data => {
     if (data.userId === state.activeMatch?.partner?.id) $('#recordingIndicator').hidden = !data.recording;
   });
+  socket.on('ticket:updated', () => { if (!$('#feedbackPanel')?.hidden) { loadTickets(); if (state.activeTicketId) openTicket(state.activeTicketId); } });
   socket.on('chat:ended', async data => {
     if (state.activeMatch?.matchId !== data.matchId) return;
     state.activeMatch = null;
@@ -1004,7 +1047,7 @@ function connectSocket() {
     stopVoiceRecording(true);
     if (!state.searching) setView('home');
     if (data.reason !== 'user_next') showToast(endReasonText(data.reason));
-    if (data.canFavorite && window.confirm('Сохранить текст этой переписки в Избранное? Фото и аудио после завершения чата удаляются.')) {
+    if (data.canFavorite && await appDialog({title:'Сохранить переписку?',message:'Текст и стикеры останутся в Избранном. Фото и голосовые удаляются вместе с чатом.',confirmText:'Сохранить'})) {
       try { await api('/api/favorite-chats', { method: 'POST', body: JSON.stringify({ matchId: data.matchId }) }); await loadFavorites(); showToast('Переписка сохранена в Избранное.'); }
       catch (error) { showToast(error.message); }
     }
@@ -1619,7 +1662,7 @@ async function submitReport() {
   } catch (error) { $('#reportError').textContent = error.message; }
 }
 async function blockPartner() {
-  if (!window.confirm('Заблокировать собеседника? Диалог завершится, и вы больше не попадёте друг к другу в подбор.')) return;
+  if (!await appDialog({title:'Заблокировать собеседника?',message:'Диалог завершится, и вы больше не попадёте друг к другу в подбор.',confirmText:'Заблокировать',danger:true})) return;
   try {
     await api('/api/block', { method: 'POST', body: '{}' });
     showToast('Пользователь заблокирован.');
@@ -1738,7 +1781,8 @@ async function boot() {
   }
   bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
   try { state.config = await api('/api/config'); }
-  catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false }; }
+  catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] }; }
+  renderSocialLinks();
   const tier = state.user?.subscriptionTier || 'free';
   const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
   const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
@@ -1877,9 +1921,9 @@ $$('[data-close-modal]').forEach(button => button.addEventListener('click', clos
 $('#storePreviewTryOnButton')?.addEventListener('click', startStorePreview);
 $('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePreview(true));
 $$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; }));
-$('#endChatButton').addEventListener('click', () => {
+$('#endChatButton').addEventListener('click', async () => {
   if (!state.activeMatch) return;
-  if (!window.confirm('Завершить диалог? После этого можно будет сохранить текст переписки в Избранное.')) return;
+  if (!await appDialog({title:'Завершить диалог?',message:'После завершения ты сможешь сохранить текст переписки в Избранное.',confirmText:'Завершить',danger:true})) return;
   state.socket?.emit('chat:end', { matchId: state.activeMatch.matchId }, result => {
     if (!result?.ok) showToast(result?.error || 'Не удалось завершить диалог.');
   });
@@ -1916,6 +1960,8 @@ $('#ticketReplyForm')?.addEventListener('submit', async event => {
   finally { button.disabled = false; }
 });
 $('#favoriteChatClose')?.addEventListener('click', () => { $('#favoriteChatModal').hidden = true; });
+$('#ticketCloseButton')?.addEventListener('click',async()=>{if(!state.activeTicketId)return;if(!await appDialog({title:'Закрыть обращение?',message:'Если проблема вернётся, можно будет создать новый тикет.',confirmText:'Закрыть'}))return;try{await api('/api/tickets/'+encodeURIComponent(state.activeTicketId)+'/close',{method:'POST',body:'{}'});await openTicket(state.activeTicketId);await loadTickets();showToast('Тикет закрыт.');}catch(error){showToast(error.message);}});
+
 
 
 $('#messageForm').addEventListener('submit', event => {
@@ -2000,8 +2046,9 @@ $('#avatarFileInput').addEventListener('change', async () => {
 });
 
 $('#deleteAccountButton').addEventListener('click', async () => {
-  if (!window.confirm('Удалить аккаунт без возможности восстановления?')) return;
-  if (!window.confirm('Подтверди ещё раз: аккаунт и все связанные данные будут удалены.')) return;
+  if (!await appDialog({title:'Удалить аккаунт?',message:'Аккаунт и связанные данные будут удалены без возможности восстановления.',confirmText:'Продолжить',danger:true})) return;
+  const confirmation=await appDialog({title:'Последнее подтверждение',message:'Это действие нельзя отменить. Ты действительно хочешь удалить аккаунт?',confirmText:'Удалить аккаунт',danger:true});
+  if (!confirmation) return;
   try {
     await api('/api/account', { method: 'DELETE' });
     logout(false);

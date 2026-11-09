@@ -1,14 +1,20 @@
 # Changelog
 
-## v1.8.0 — SOLVI community launch preparation (2026-11-09)
+## v1.9.0 — SOLVI growth and monetization foundation (2026-11-09)
 
-- Standardized public-facing branding to **SOLVI** across the main app, owner console, page titles and PWA manifests. Existing `solvi-chat` hostname already matches and is retained.
-- Added private support tickets for ideas and bug reports, with user threads and an owner-only inbox, replies and status changes.
-- Added a 50 ✦ registration welcome credit with a ledger entry.
-- Completed-chat favorites now require explicit user confirmation and preserve transcript text/stickers. Temporary photo and audio media is still deleted when a chat ends.
+- Added owner-managed social links; enabled links appear as branded buttons in the app footer.
+- Added owner-managed reward tasks for creator channels and sponsored placements. Users submit HTTPS proof links; owners approve or reject. Token rewards are recorded in the ledger only after approval.
+- Added per-task reward caps, submission rate limits, one submission per account and owner audit events.
+- Added a growth workspace in the owner console for social profiles, campaign tasks and pending proof reviews.
+- Added a separate paid-membership entitlement. VIP/Premium cosmetic bundles are now locked unless a paid subscription has been explicitly verified and recorded; token-only membership does not qualify.
+- Added owner payment-verification controls with a required payment reference. This is a manual reconciliation step, not an automated card checkout.
+- Improved ticket workflow: max five open tickets per user, close action, rate-limited replies and live owner-reply notifications.
+- Replaced native browser confirm/prompt dialogs used by app and owner actions with SOLVI-styled dialogs.
+- Updated asset cache to v23 and application version to 1.9.0.
+
+## v1.8.0 — SOLVI community launch preparation
+
+- Standardized public-facing branding to SOLVI. Existing solvi-chat.onrender.com hostname already matches and is retained.
+- Added private support tickets, a 50 ✦ registration bonus and completed-chat favorites.
 - Updated media limits: Free 3 photos / 30 seconds voice; VIP 5 photos / 45 seconds; Premium 10 photos / 60 seconds.
-- Tuned voice capture for speech: mono, noise suppression, echo cancellation, automatic gain control and compact Opus recording bitrate.
-- Added two themed cosmetic sets: VIP “Звёздный след” (five collectible items) and Premium “Квантовый портал” (five mythic items). Each set is a tier-gated one-time purchase.
-- Added server-side enforcement for attachment counts, ticket ownership and bundle eligibility.
-- Added a guarded one-time user reset that keeps the verified permanent owner account and writes an audit marker. Run only after verifying the production owner.
-- Neon snapshot created before reset; existing owner account, password and owner identifier are preserved. No manual destructive Neon SQL is required.
+- Added speech-focused microphone capture settings and signature VIP/Premium cosmetic collections.

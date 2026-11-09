@@ -5,6 +5,24 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),2800); }
 
+  function ownerDialog({title='Подтверждение',message='',input=false,defaultValue='',confirmText='Продолжить',danger=false}={}) {
+    return new Promise(resolve=>{
+      const backdrop=document.createElement('div');backdrop.className='owner-dialog-backdrop';
+      const card=document.createElement('section');card.className='owner-dialog-card';card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');
+      const heading=document.createElement('h2');heading.textContent=title;
+      const copy=document.createElement('p');copy.textContent=message;
+      card.append(heading,copy);
+      let field=null;if(input){field=document.createElement('textarea');field.rows=3;field.value=defaultValue;field.maxLength=300;field.className='owner-dialog-input';card.append(field);}
+      const actions=document.createElement('div');actions.className='owner-dialog-actions';
+      const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.textContent='Отмена';
+      const ok=document.createElement('button');ok.type='button';ok.className=danger?'danger':'primary';ok.textContent=confirmText;
+      actions.append(cancel,ok);card.append(actions);backdrop.append(card);document.body.append(backdrop);
+      const finish=value=>{backdrop.remove();window.removeEventListener('keydown',key);resolve(value);};
+      const key=e=>{if(e.key==='Escape')finish(null);if(e.key==='Enter'&&!input)finish(true);};
+      cancel.onclick=()=>finish(null);ok.onclick=()=>finish(input?field.value.trim():true);
+      backdrop.onclick=e=>{if(e.target===backdrop)finish(null);};window.addEventListener('keydown',key);if(field)field.focus();
+    });
+  }
   function openOwnerActionDialog(action, userId) {
     const modal = $('#ownerActionModal');
     const title = $('#ownerActionTitle');
@@ -15,6 +33,7 @@
       starterPack: { title: 'Стартовый подарок', description: `Аккаунт ${userId}. Разовая награда: 100 токенов и 7 дней VIP.`, submit: 'Выдать подарок', fields: '<div class="grant-reward-preview"><strong>🎁 100 ✦ + 7 дней VIP</strong><span>Повторная выдача заблокирована сервером.</span></div>' },
       tokens: { title: 'Изменить баланс', description: `Аккаунт ${userId}. Положительное число начисляет токены, отрицательное — списывает.`, submit: 'Сохранить баланс', fields: '<label class="grant-field">Количество токенов<input name="amount" type="number" min="-1000000" max="1000000" step="1" value="100" required></label><label class="grant-field">Причина для журнала<input name="reason" maxlength="180" value="Бонус от владельца" required></label>' },
       vip: { title: 'Выдать привилегию', description: `Выбери статус и срок для аккаунта ${userId}.`, submit: 'Применить статус', fields: '<label class="grant-field">Статус<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option><option value="free">Обычный аккаунт</option></select></label><label class="grant-field">Срок в днях<input name="days" type="number" min="1" max="365" value="7" required></label>' },
+      paidMembership: { title: 'Подтвердить реальную оплату', description: `Используй только после проверки поступления денег от аккаунта ${userId}. Это откроет соответствующий косметический набор.`, submit: 'Зафиксировать оплату', fields: '<label class="grant-field">Оплаченный тариф<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option></select></label><label class="grant-field">Срок в днях<input name="days" type="number" min="1" max="365" value="30" required></label><label class="grant-field">ID платежа / квитанции<input name="paymentReference" maxlength="120" minlength="4" required placeholder="payment_12345"></label>' },
       role: { title: 'Изменить роль', description: `Роль определяет доступ к инструментам модерации для аккаунта ${userId}.`, submit: 'Сохранить роль', fields: '<label class="grant-field">Новая роль<select name="role"><option value="member">Участник</option><option value="moderator">Модератор</option><option value="developer">Разработчик</option></select></label>' },
       suspend: { title: 'Ограничить аккаунт', description: `Выбери срок ограничения и укажи причину для аккаунта ${userId}.`, submit: 'Применить ограничение', fields: '<label class="grant-field">Срок<select name="minutes"><option value="10">10 минут</option><option value="60" selected>1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option></select></label><label class="grant-field">Причина<input name="reason" maxlength="180" value="Нарушение правил" required></label>' },
       logout: { title: 'Завершить сессии', description: `Все активные сессии аккаунта ${userId} будут отозваны. Пользователю потребуется войти снова.`, submit: 'Завершить сессии', fields: '<div class="grant-reward-preview"><strong>🔐 Отозвать все устройства</strong><span>Это действие немедленно завершит текущие сессии.</span></div>' }
@@ -46,7 +65,8 @@
         const form = new FormData(event.currentTarget);
         const result = Object.fromEntries(form.entries());
         if (action === 'tokens') { result.amount = Number(result.amount); if (!Number.isInteger(result.amount) || result.amount === 0) return toast('Укажи целое ненулевое число токенов.'); }
-        if (action === 'vip') { result.days = Number(result.days); if (!Number.isInteger(result.days) || result.days < 1 || result.days > 365) return toast('Срок должен быть от 1 до 365 дней.'); }
+        if (action === 'vip' || action === 'paidMembership') { result.days = Number(result.days); if (!Number.isInteger(result.days) || result.days < 1 || result.days > 365) return toast('Срок должен быть от 1 до 365 дней.'); }
+        if (action === 'paidMembership' && result.paymentReference.trim().length < 4) return toast('Укажи проверенный ID платежа.');
         if (action === 'suspend') result.minutes = Number(result.minutes);
         if (action === 'starterPack') Object.assign(result, { tokens: 100, tier: 'vip', days: 7 });
         finish(result);
@@ -135,14 +155,14 @@
   }
   $('#renderRefreshButton').addEventListener('click',()=>loadRenderPlatform());
   $('#renderRestartButton').addEventListener('click',async()=>{
-    if(!confirm('Перезапустить облачный SOLVI? Текущие звонки/сокеты оборвутся, временные чаты могут завершиться.'))return;
+    if(!await ownerDialog({title:'Перезапустить SOLVI?',message:'Текущие WebSocket-соединения будут разорваны, активные временные чаты могут завершиться.',confirmText:'Перезапустить',danger:true}))return;
     $('#renderRestartButton').disabled=true;
     try{const r=await api('/api/admin/platform/render/restart',{method:'POST',body:'{}'});toast(r.message||'Команда перезапуска отправлена.');setTimeout(()=>loadRenderPlatform(),8000);}
     catch(error){toast(error.message);$('#renderRestartButton').disabled=false;}
   });
   $('#renderDashboardButton').addEventListener('click',()=>{const url=$('#renderDashboardButton').dataset.url;if(url && /^https:\/\/dashboard\.render\.com\//.test(url))window.open(url,'_blank','noopener,noreferrer');else toast('Ссылка Render Dashboard пока не настроена.');});
   $('#renderSuspendButton').addEventListener('click',async()=>{
-    if(!confirm('Приостановить SOLVI? Сайт, чат и эта панель станут недоступны до возобновления через Render или GitHub Actions.'))return;
+    if(!await ownerDialog({title:'Приостановить SOLVI?',message:'Сайт, чат и панель станут недоступны до ручного возобновления.',confirmText:'Приостановить',danger:true}))return;
     $('#renderSuspendButton').disabled=true;
     try{const r=await api('/api/admin/platform/render/suspend',{method:'POST',body:'{}'});toast(r.message||'Команда остановки отправлена.');}
     catch(error){toast(error.message);$('#renderSuspendButton').disabled=false;}
@@ -152,19 +172,20 @@
     const result=await api(`/api/admin/users?limit=80${q?`&q=${encodeURIComponent(q)}`:''}`);
     $('#userResults').innerHTML=(result.users||[]).map(u=>{
       const suspended=u.suspended_until && new Date(u.suspended_until)>new Date();
-      return `<article class="user-card"><div class="user-main"><strong>${esc(u.username)} ${u.owner?'👑':''}</strong><small>Public ID: ${esc(u.public_id)} · ${esc(u.account_type)} · ${esc(u.role)} · ${u.online?'онлайн':'не в сети'}</small><small>Баланс: ${Number(u.tokens||0).toLocaleString('ru-RU')} ✦ · Статус: ${esc(u.subscription_tier||'free')} · ${suspended?'ОГРАНИЧЕН':'активен'}</small>${suspended?`<small>До: ${esc(u.suspended_until)} · ${esc(u.suspension_reason||'')}</small>`:''}</div><div class="user-actions">${u.owner?'<span class="tag">👑 Владелец проекта</span>':u.starter_gifted?'<span class="tag">🎁 Подарок уже выдан</span>':'<button class="primary mini" data-action="starterPack" data-id="'+esc(u.id)+'">🎁 Подарок первому участнику</button>'}<button class="secondary mini" data-action="tokens" data-id="${esc(u.id)}">± Токены</button><button class="secondary mini" data-action="vip" data-id="${esc(u.id)}">VIP/Premium</button><button class="secondary mini" data-action="role" data-id="${esc(u.id)}">Роль</button>${suspended?`<button class="primary mini" data-action="unsuspend" data-id="${esc(u.id)}">Снять блок</button>`:`<button class="danger mini" data-action="suspend" data-id="${esc(u.id)}">Ограничить</button>`}<button class="secondary mini" data-action="logout" data-id="${esc(u.id)}">Завершить сессии</button></div></article>`;
+      return `<article class="user-card"><div class="user-main"><strong>${esc(u.username)} ${u.owner?'👑':''}</strong><small>Public ID: ${esc(u.public_id)} · ${esc(u.account_type)} · ${esc(u.role)} · ${u.online?'онлайн':'не в сети'}</small><small>Баланс: ${Number(u.tokens||0).toLocaleString('ru-RU')} ✦ · Статус: ${esc(u.subscription_tier||'free')} · ${suspended?'ОГРАНИЧЕН':'активен'}</small>${suspended?`<small>До: ${esc(u.suspended_until)} · ${esc(u.suspension_reason||'')}</small>`:''}</div><div class="user-actions">${u.owner?'<span class="tag">👑 Владелец проекта</span>':u.starter_gifted?'<span class="tag">🎁 Подарок уже выдан</span>':'<button class="primary mini" data-action="starterPack" data-id="'+esc(u.id)+'">🎁 Подарок первому участнику</button>'}<button class="secondary mini" data-action="tokens" data-id="${esc(u.id)}">± Токены</button><button class="secondary mini" data-action="vip" data-id="${esc(u.id)}">VIP/Premium</button><button class="secondary mini" data-action="paidMembership" data-id="${esc(u.id)}">Подтвердить оплату</button><button class="secondary mini" data-action="role" data-id="${esc(u.id)}">Роль</button>${suspended?`<button class="primary mini" data-action="unsuspend" data-id="${esc(u.id)}">Снять блок</button>`:`<button class="danger mini" data-action="suspend" data-id="${esc(u.id)}">Ограничить</button>`}<button class="secondary mini" data-action="logout" data-id="${esc(u.id)}">Завершить сессии</button></div></article>`;
     }).join('')||'<p class="hint">Ничего не найдено.</p>';
   }
   $('#userSearchForm').addEventListener('submit',event=>{event.preventDefault();loadUsers($('#userSearchInput').value.trim()).catch(e=>toast(e.message));});
   $('#userResults').addEventListener('click',async event=>{
     const b=event.target.closest('button[data-action]'); if(!b)return; const id=b.dataset.id; const action=b.dataset.action;
     try{
-      if(['starterPack','tokens','vip','role','suspend','logout'].includes(action)){
+      if(['starterPack','tokens','vip','paidMembership','role','suspend','logout'].includes(action)){
         const payload=await openOwnerActionDialog(action,id);
         if(!payload)return;
         if(action==='starterPack') await api(`/api/admin/users/${encodeURIComponent(id)}/starter-pack`,{method:'POST',body:JSON.stringify(payload)});
         if(action==='tokens') await api(`/api/admin/users/${encodeURIComponent(id)}/tokens`,{method:'POST',body:JSON.stringify(payload)});
         if(action==='vip') await api(`/api/admin/users/${encodeURIComponent(id)}/membership`,{method:'POST',body:JSON.stringify(payload)});
+        if(action==='paidMembership') await api(`/api/admin/users/${encodeURIComponent(id)}/paid-membership`,{method:'POST',body:JSON.stringify(payload)});
         if(action==='role') await api(`/api/admin/users/${encodeURIComponent(id)}/role`,{method:'POST',body:JSON.stringify(payload)});
         if(action==='suspend') await api(`/api/admin/users/${encodeURIComponent(id)}/suspend`,{method:'POST',body:JSON.stringify(payload)});
         if(action==='logout') await api(`/api/admin/users/${encodeURIComponent(id)}/logout`,{method:'POST',body:'{}'});
@@ -199,7 +220,7 @@
     const end=e.target.closest('[data-end-match]');
     if(open){openDialogInspector(open.dataset.openMatch);return;}
     if(!end)return;
-    if(!confirm('Завершить этот диалог?'))return;
+    if(!await ownerDialog({title:'Завершить диалог?',message:'Оба участника будут отключены от текущего чата.',confirmText:'Завершить',danger:true}))return;
     try{await api(`/api/admin/matches/${encodeURIComponent(end.dataset.endMatch)}/end`,{method:'POST',body:JSON.stringify({reason:'owner_mobile_panel'})});await loadMatches();toast('Диалог завершён.');}
     catch(err){toast(err.message);}
   });
@@ -225,13 +246,13 @@
     catch(error){toast(error.message);}
   });
   $('#endInspectedMatch').addEventListener('click',async()=>{
-    if(!state.inspectMatchId||!confirm('Завершить этот активный диалог?'))return;
+    if(!state.inspectMatchId||!await ownerDialog({title:'Завершить активный диалог?',message:'Оба участника будут отключены.',confirmText:'Завершить',danger:true}))return;
     try{await api(`/api/admin/matches/${encodeURIComponent(state.inspectMatchId)}/end`,{method:'POST',body:JSON.stringify({reason:'owner_inspector'})});closeDialogInspector();await loadMatches();toast('Диалог завершён.');}
     catch(error){toast(error.message);}
   });
   window.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#dialogInspector').hidden)closeDialogInspector();});
   async function loadReports(){const r=await api('/api/admin/reports');$('#reportList').innerHTML=(r.reports||[]).map(p=>`<div class="user-card"><div class="user-main"><strong>${esc(p.category)} · ${esc(p.status)}</strong><small>${esc(p.reporter)} → ${esc(p.reported)} · ${esc(p.createdAt)}</small><small>${esc(p.details||'Без описания')}</small>${p.context?.length?`<small>Приложенный контекст: ${p.context.length} элемента(ов)</small>`:''}</div><div class="user-actions"><button class="secondary mini" data-resolve-report="${esc(p.id)}">Закрыть</button><button class="danger mini" data-suspend-reported="${esc(p.reportedId)}">Ограничить</button></div></div>`).join('')||'<p class="hint">Жалоб нет.</p>';}
-  $('#reportList').addEventListener('click',async e=>{const r=e.target.closest('[data-resolve-report]');const s=e.target.closest('[data-suspend-reported]');try{if(r){const resolution=prompt('Решение по жалобе:','Проверено');if(resolution===null)return;await api(`/api/admin/reports/${encodeURIComponent(r.dataset.resolveReport)}/resolve`,{method:'POST',body:JSON.stringify({resolution})});}else if(s){if(!confirm('Ограничить пользователя на 1 час?'))return;await api(`/api/admin/users/${encodeURIComponent(s.dataset.suspendReported)}/suspend`,{method:'POST',body:JSON.stringify({minutes:60,reason:'Решение по жалобе'})});}else return;await loadReports();toast('Готово.');}catch(err){toast(err.message);}});
+  $('#reportList').addEventListener('click',async e=>{const r=e.target.closest('[data-resolve-report]');const s=e.target.closest('[data-suspend-reported]');try{if(r){const resolution=await ownerDialog({title:'Решение по жалобе',message:'Кратко опиши результат проверки.',input:true,defaultValue:'Проверено',confirmText:'Сохранить'});if(resolution===null)return;await api(`/api/admin/reports/${encodeURIComponent(r.dataset.resolveReport)}/resolve`,{method:'POST',body:JSON.stringify({resolution})});}else if(s){if(!await ownerDialog({title:'Ограничить пользователя?',message:'Доступ будет ограничен на 1 час. Действие попадёт в журнал.',confirmText:'Ограничить',danger:true}))return;await api(`/api/admin/users/${encodeURIComponent(s.dataset.suspendReported)}/suspend`,{method:'POST',body:JSON.stringify({minutes:60,reason:'Решение по жалобе'})});}else return;await loadReports();toast('Готово.');}catch(err){toast(err.message);}});
   let activeSupportTicketId = null;
   async function loadTickets(){
     const result = await api('/api/admin/tickets');
@@ -261,9 +282,21 @@
     try{await api(`/api/admin/tickets/${encodeURIComponent(activeSupportTicketId)}/reply`,{method:'POST',body:JSON.stringify({body:$('#adminTicketReply').value,status:$('#adminTicketStatus').value})});await openSupportTicket(activeSupportTicketId);toast('Ответ отправлен.');}
     catch(error){toast(error.message);}finally{button.disabled=false;}
   });
+  async function loadGrowth(){
+    const data=await api('/api/admin/growth');
+    $('#socialLinkList').innerHTML=(data.socialLinks||[]).map(link=>`<div class="growth-row"><div><strong>${esc(link.icon)} ${esc(link.label)}</strong><small>${esc(link.platform)} · ${esc(link.url)}</small></div><div class="growth-actions"><button class="secondary mini" data-toggle-social="${esc(link.id)}" data-enabled="${link.enabled}">${link.enabled?'Скрыть':'Показать'}</button><button class="danger mini" data-delete-social="${esc(link.id)}">Удалить</button></div></div>`).join('')||'<p class="hint">Пока нет ссылок. Добавь Telegram, TikTok, YouTube или другие площадки.</p>';
+    $('#rewardTaskList').innerHTML=(data.tasks||[]).map(task=>`<div class="growth-row"><div><strong>${esc(task.title)}</strong><small>${esc(task.platform)} · ${Number(task.reward_tokens)} ✦ · заявок: ${Number(task.submissions)} · одобрено: ${Number(task.approved)} ${task.sponsor_name?'· '+esc(task.sponsor_name):''}</small></div><button class="secondary mini" data-toggle-task="${esc(task.id)}" data-active="${task.active}">${task.active?'Выключить':'Включить'}</button></div>`).join('')||'<p class="hint">Заданий пока нет.</p>';
+    $('#taskSubmissionList').innerHTML=(data.submissions||[]).map(item=>`<div class="growth-row"><div><strong>${esc(item.task_title)} · ${esc(item.username)}</strong><small>${esc(item.public_id)} · ${esc(item.status)} · ${Number(item.reward_tokens)} ✦</small><a href="${esc(item.proof_url)}" target="_blank" rel="noopener noreferrer">Открыть доказательство ↗</a></div>${item.status==='pending'?'<div class="growth-actions"><button class="primary mini" data-approve-task="'+esc(item.id)+'">Одобрить</button><button class="danger mini" data-reject-task="'+esc(item.id)+'">Отклонить</button></div>':''}</div>`).join('')||'<p class="hint">Заявок пока нет.</p>';
+  }
+  $('#socialLinkForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{await api('/api/admin/social-links',{method:'POST',body:JSON.stringify({platform:$('#socialPlatform').value,label:$('#socialLabel').value,url:$('#socialUrl').value,icon:$('#socialIcon').value})});event.currentTarget.reset();$('#socialIcon').value='↗';await loadGrowth();toast('Социальная ссылка добавлена.');}catch(error){toast(error.message);}finally{button.disabled=false;}});
+  $('#rewardTaskForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button[type=submit]');button.disabled=true;try{await api('/api/admin/tasks',{method:'POST',body:JSON.stringify({title:$('#taskTitle').value,description:$('#taskDescription').value,platform:$('#taskPlatform').value,url:$('#taskUrl').value,rewardTokens:Number($('#taskReward').value),sponsorName:$('#taskSponsor').value,maxClaims:Number($('#taskMaxClaims').value)})});event.currentTarget.reset();$('#taskReward').value=50;$('#taskMaxClaims').value=0;await loadGrowth();toast('Задание опубликовано.');}catch(error){toast(error.message);}finally{button.disabled=false;}});
+  $('#socialLinkList').addEventListener('click',async event=>{const toggle=event.target.closest('[data-toggle-social]'),del=event.target.closest('[data-delete-social]');try{if(toggle)await api('/api/admin/social-links/'+encodeURIComponent(toggle.dataset.toggleSocial),{method:'PATCH',body:JSON.stringify({enabled:toggle.dataset.enabled!=='1'})});else if(del){if(!await ownerDialog({title:'Удалить ссылку?',message:'Она исчезнет из подвала сайта.',confirmText:'Удалить',danger:true}))return;await api('/api/admin/social-links/'+encodeURIComponent(del.dataset.deleteSocial),{method:'DELETE'});}else return;await loadGrowth();}catch(error){toast(error.message);}});
+  $('#rewardTaskList').addEventListener('click',async event=>{const button=event.target.closest('[data-toggle-task]');if(!button)return;try{await api('/api/admin/tasks/'+encodeURIComponent(button.dataset.toggleTask),{method:'PATCH',body:JSON.stringify({active:button.dataset.active!=='1'})});await loadGrowth();}catch(error){toast(error.message);}});
+  $('#taskSubmissionList').addEventListener('click',async event=>{const approve=event.target.closest('[data-approve-task]'),reject=event.target.closest('[data-reject-task]');const button=approve||reject;if(!button)return;try{const accepted=approve!==null;if(!await ownerDialog({title:accepted?'Начислить награду?':'Отклонить заявку?',message:accepted?'Проверил ссылку и подтверждаешь выполнение? Токены будут начислены один раз.':'Заявка будет отклонена без начисления токенов.',confirmText:accepted?'Начислить':'Отклонить',danger:!accepted}))return;await api('/api/admin/task-submissions/'+encodeURIComponent(button.dataset[accepted?'approveTask':'rejectTask'])+'/review',{method:'POST',body:JSON.stringify({decision:accepted?'approve':'reject'})});await loadGrowth();toast(accepted?'Награда начислена.':'Заявка отклонена.');}catch(error){toast(error.message);}});
+  $('#refreshGrowthButton').addEventListener('click',()=>loadGrowth().catch(error=>toast(error.message)));
   async function loadAudit(){const r=await api('/api/admin/audit');$('#auditList').textContent=(r.entries||[]).map(e=>`${e.created_at}  ${e.action}\n target: ${e.target_id||'—'}\n ${JSON.stringify(e.details||{})}`).join('\n\n')||'Записей пока нет.';}
   $('#startTunnelButton').addEventListener('click',async()=>{try{const r=await api('/api/admin/runtime/public/start',{method:'POST',body:JSON.stringify({protocol:$('#tunnelProtocol').value,matching:$('#matchingToggle').checked})});$('#inviteCode').textContent=r.inviteCode||'—';toast('Запрос на запуск туннеля отправлен.');await loadRuntime();clearInterval(state.poll);state.poll=setInterval(()=>loadRuntime().catch(()=>{}),2500);}catch(error){toast(error.message);$('#tunnelError').textContent=error.message;}});
-  $('#stopTunnelButton').addEventListener('click',async()=>{if(!confirm('Остановить публичный доступ?'))return;try{await api('/api/admin/runtime/public/stop',{method:'POST',body:'{}'});clearInterval(state.poll);await loadRuntime();toast('Публичный туннель остановлен.');}catch(e){toast(e.message);}});
+  $('#stopTunnelButton').addEventListener('click',async()=>{if(!await ownerDialog({title:'Остановить публичный доступ?',message:'Новые пользователи не смогут подключиться по публичной ссылке.',confirmText:'Остановить',danger:true}))return;try{await api('/api/admin/runtime/public/stop',{method:'POST',body:'{}'});clearInterval(state.poll);await loadRuntime();toast('Публичный туннель остановлен.');}catch(e){toast(e.message);}});
   $('#matchingToggle').addEventListener('change',async()=>{try{await api('/api/admin/runtime/matching',{method:'PATCH',body:JSON.stringify({enabled:$('#matchingToggle').checked})});toast('Настройка поиска сохранена.');}catch(e){toast(e.message);}});
   $('#copyUrlButton').addEventListener('click',()=>navigator.clipboard?.writeText(state.runtime?.tunnel?.url||'').then(()=>toast('Ссылка скопирована.')).catch(()=>toast('Не удалось скопировать ссылку.')));
   $('#copyInviteButton').addEventListener('click',()=>navigator.clipboard?.writeText(state.runtime?.inviteCode||'').then(()=>toast('Код скопирован.')).catch(()=>toast('Не удалось скопировать код.')));
@@ -278,7 +311,7 @@
     document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
     document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
     if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
-    const loaders={overview:refreshAll,public:loadRuntime,cloud:loadRenderPlatform,users:()=>loadUsers($('#userSearchInput').value.trim()),promos:loadPromos,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,audit:loadAudit};
+    const loaders={overview:refreshAll,public:loadRuntime,cloud:loadRenderPlatform,users:()=>loadUsers($('#userSearchInput').value.trim()),promos:loadPromos,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
     loaders[name]?.().catch?.(e=>toast(e.message));
     if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(e=>toast(e.message)),12000);
   }

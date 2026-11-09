@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.8.0') fail(`Ожидалась версия 1.8.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.9.0') fail(`Ожидалась версия 1.9.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -96,16 +96,25 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v22/.test(sw)) fail('Service Worker cache version не соответствует v1.8.0');
+  if (!/sovli-shell-v23/.test(sw)) fail('Service Worker cache version не соответствует v1.9.0');
   else pass('Service Worker cache version обновлён');
-  if (!html.includes('/styles.css?v=22') || !html.includes('/app.js?v=22')) fail('Версии клиентских CSS/JS assets не обновлены');
+  if (!html.includes('/styles.css?v=23') || !html.includes('/app.js?v=23')) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
   else pass('Ответы на собственные сообщения блокируются сервером');
   if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
   else pass('У каждого предмета магазина доступен отдельный предпросмотр');
-  if (!server.includes('support_tickets') || !server.includes("app.post('/api/tickets'") || !server.includes("app.get('/api/admin/tickets'") || !html.includes('id="ticketCreateForm"') || !ownerPublicHtml.includes('data-page="tickets"') || !ownerPanel.includes("api('/api/admin/tickets')")) fail('Система тикетов не подключена ко всем слоям');
+  if (!server.includes('support_tickets') || !server.includes("app.post('/api/tickets'") || !server.includes("app.get('/api/admin/tickets'") || !server.includes("app.post('/api/tickets/:id/close'") || !html.includes('id="ticketCreateForm"') || !html.includes('id="ticketCloseButton"') || !ownerPublicHtml.includes('data-page="tickets"') || !ownerPanel.includes("api('/api/admin/tickets')")) fail('Система тикетов не подключена ко всем слоям');
+  else pass('Тикеты: приватные треды, ответы, закрытие и owner inbox подключены');
+  if (!server.includes('site_social_links') || !server.includes("app.post('/api/admin/social-links'") || !html.includes('socialLinksFooter') || !ownerPublicHtml.includes('data-page="growth"')) fail('Управление соцсетями не подключено');
+  else pass('Социальные ссылки настраиваются владельцем и показываются в подвале');
+  if (!server.includes('reward_task_submissions') || !server.includes("app.post('/api/tasks/:id/submit'") || !server.includes("app.post('/api/admin/task-submissions/:id/review'") || !ownerPanel.includes('loadGrowth')) fail('Задания с ручной проверкой награды не подключены');
+  else pass('Задания, заявки и ручное начисление токенов подключены');
+  if (!server.includes('effectivePaidSubscription') || !server.includes('paid-membership') || !server.includes('оплаченной реальными деньгами')) fail('Косметические наборы не ограничены реальной оплаченной подпиской');
+  else pass('VIP/Premium наборы закрыты для подписок, купленных только за токены');
+  if (/\b(confirm|prompt|alert)\(/.test(app) || /\b(confirm|prompt|alert)\(/.test(ownerPanel)) fail('В интерфейсе остались нативные диалоги браузера');
+  else pass('Подтверждения и текстовые запросы используют фирменные диалоги');
   else pass('Идеи и баг-репорты подключены к пользовательской и owner-панели');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
   else pass('Новый зарегистрированный аккаунт получает 50 ✦');

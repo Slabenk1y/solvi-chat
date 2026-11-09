@@ -1,44 +1,42 @@
 # SOLVI
 
-SOLVI is a lightweight random chat for meeting new people and having conversations by shared languages and interests.
+A random chat for meeting new people through shared languages and interests.
 
-## v1.8.0 highlights
+## v1.9.0
 
-- Ideas and bug reports through private support tickets, with an owner inbox and threaded replies.
-- 50 ✦ welcome credit for every new registered account.
-- Completed conversations can be saved to Favorites after the user confirms. Transcript text and stickers are retained; temporary image/audio files are deleted when a chat ends.
-- Media limits: Free — 3 photos and 30-second voice notes; VIP — 5 photos and 45 seconds; Premium — 10 photos and 60 seconds.
-- Speech recording uses mono input, echo cancellation, noise suppression, auto gain control and compact Opus encoding.
-- VIP and Premium members can buy exclusive five-piece cosmetic sets: “Звёздный след” and “Квантовый портал”.
-- The owner console includes a private ticket inbox.
+- Private idea/bug tickets with owner replies and close status.
+- 50 ✦ registration bonus.
+- Completed chat archives in Favorites.
+- Free/VIP/Premium photo and voice limits.
+- Owner-managed social links displayed in the app footer.
+- Reward tasks and sponsored actions with manual proof review and auditable token payouts.
+- VIP/Premium cosmetic collections require an explicitly verified real-money subscription.
+- Branded app/owner confirmation dialogs.
 
-## Run locally
-
-Requirements: Node.js 22.16 or newer.
-
-```bash
-yarn install
-yarn start
-```
-
-Copy `.env.example` to `.env` and configure the settings that apply to your deployment. Set `OWNER_PUBLIC_ID` to the permanent account's public ID so the owner console can identify it.
-
-## Production services
+## Production
 
 - App: https://solvi-chat.onrender.com
 - Repository: https://github.com/Slabenk1y/solvi-chat
 - Hosting: Render
 - Persistent snapshot: Neon
 
-The current hostname already matches the SOLVI brand. Keep it for launch; a custom domain can be added later after it is purchased and verified.
+The current hostname matches the SOLVI brand and should remain in use. A custom domain can be attached after purchasing and verifying it.
 
-## Data safety and reset
+## Payments
 
-A Neon snapshot was created before the v1.8.0 user reset. The reset is guarded by `SOLVI_PURGE_NON_OWNER_USERS=1` and proceeds only when `OWNER_PUBLIC_ID` matches a permanent registered account. It preserves that owner's account, password and public identifier, deletes other user accounts and user data, then writes an audit marker so later restarts do not repeat it. Enable this flag only after checking the production health fields `ownerConfigured` and `ownerAccountPresent`; turn it back off after the reset has completed.
+The app currently supports manually reconciling a real payment in the owner panel; it does not yet process cards automatically. Before enabling automated checkout, choose a payment provider, supported country/currency, legal merchant details and configure its secret keys/webhook. Never collect card data directly in SOLVI.
 
-## Quality checks
+## Tasks and rewards
+
+Owners can configure links and campaigns. Users submit an HTTPS proof link; the owner reviews it and approves/rejects. Tokens are credited only after approval. A platform's public link alone cannot prove that someone subscribed, so automated instant rewards are intentionally not used.
+
+## Run locally
+
+Node.js 22.16 or newer.
 
 ```bash
+yarn install
+yarn start
 yarn check
 yarn test
 yarn verify

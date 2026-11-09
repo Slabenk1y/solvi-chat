@@ -1,8 +1,8 @@
 {
-  "name": "sovli-random-chat",
-  "version": "1.8.0",
+  "name": "solvi-chat",
+  "version": "1.9.0",
   "private": true,
-  "description": "SOLVI v1.8.0 — community tickets, saved chats and signature memberships",
+  "description": "SOLVI v1.9.0 — growth campaigns, social links, reward tasks and owner tools",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

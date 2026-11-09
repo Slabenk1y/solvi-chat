@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=22">
+  <link rel="stylesheet" href="/styles.css?v=23">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -106,6 +106,7 @@
         <button class="side-link" type="button" data-view="inventory"><span class="side-icon">▣</span> Инвентарь</button>
         <button class="side-link" type="button" data-view="favorites"><span class="side-icon">♡</span> Избранное</button>
         <button class="side-link" type="button" data-view="feedback"><span class="side-icon">✉</span> Идеи и баги</button>
+        <button class="side-link" type="button" data-view="growth"><span class="side-icon">✧</span> Задания и бонусы</button>
         <button class="side-link" type="button" data-view="settings"><span class="side-icon">⚙</span> Настройки</button>
         <button id="adminNavButton" class="side-link owner-nav" type="button" data-view="admin" hidden><span class="side-icon">⌘</span> Управление</button>
         <div class="sidebar-bottom">
@@ -291,6 +292,11 @@
           <div class="panel-heading"><div><div class="eyebrow">АРХИВ ЗАВЕРШЁННЫХ РАЗГОВОРОВ</div><h1>Избранное</h1><p>Сохраняй переписки после завершения диалога. Текст, стикеры и даты останутся доступны; временные фото и голосовые удаляются вместе с чатом.</p></div><div class="panel-heading-icon">♡</div></div>
           <div id="favoritesList" class="favorites-list"></div>
         </section>
+        <section id="growthPanel" class="settings-panel" hidden>
+          <div class="panel-heading"><div><div class="eyebrow">БОНУСЫ И ПАРТНЁРСТВА</div><h1>Задания и бонусы</h1><p>Выполняй задания, отправляй подтверждение и получай токены после проверки. Рекламные задания помечаются именем партнёра.</p></div><div class="panel-heading-icon">✧</div></div>
+          <div class="growth-intro-card"><strong>Как это работает</strong><p>Открой канал или страницу, выполни условие и приложи ссылку на подтверждение. Владелец проверит заявку вручную — автоматического начисления за один клик нет.</p></div>
+          <div id="growthTaskList" class="growth-task-grid"><p class="muted">Загрузка заданий…</p></div>
+        </section>
         <section id="feedbackPanel" class="settings-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">ПОМОГИ СДЕЛАТЬ SOLVI ЛУЧШЕ</div><h1>Идеи и сообщения об ошибках</h1><p>Создай обращение. Владелец сможет ответить прямо здесь, а история сохранится в твоём аккаунте.</p></div><div class="panel-heading-icon">✉</div></div>
           <form id="ticketCreateForm" class="settings-card ticket-create-form">
@@ -305,7 +311,7 @@
           <div class="ticket-workspace">
             <div><h2>Мои обращения</h2><div id="ticketList" class="ticket-list"></div></div>
             <section id="ticketThread" class="ticket-thread" hidden>
-              <div class="ticket-thread-head"><div><h3 id="ticketThreadTitle">Обращение</h3><p id="ticketThreadMeta"></p></div></div>
+              <div class="ticket-thread-head"><div><h3 id="ticketThreadTitle">Обращение</h3><p id="ticketThreadMeta"></p></div><button id="ticketCloseButton" class="button button-secondary" type="button" hidden>Закрыть тикет</button></div>
               <div id="ticketThreadMessages" class="ticket-thread-messages"></div>
               <form id="ticketReplyForm" class="ticket-reply-form">
                 <label class="field-label" for="ticketReplyInput">Ответить</label>
@@ -345,7 +351,7 @@
         </section>
       </section>
     </main>
-    <footer class="app-footer"><span>SOLVI — разговоры без границ</span><span>SOLVI v1.8.0 · <button id="rulesFooterButton" class="footer-policy-link" type="button">Безопасность и правила</button></span></footer>
+    <footer class="app-footer"><span>SOLVI — разговоры без границ</span><div id="socialLinksFooter" class="footer-social-links" hidden></div><span>SOLVI v1.9.0 · <button id="rulesFooterButton" class="footer-policy-link" type="button">Безопасность и правила</button></span></footer>
   </div>
 
   <div id="rulesModal" class="modal-backdrop" hidden>
@@ -357,6 +363,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=22" defer></script>
+  <script src="/app.js?v=23" defer></script>
 </body>
 </html>
