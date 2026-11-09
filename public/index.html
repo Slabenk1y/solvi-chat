@@ -105,14 +105,14 @@
         <button class="side-link" type="button" data-view="store"><span class="side-icon">✦</span> Магазин</button>
         <button class="side-link" type="button" data-view="inventory"><span class="side-icon">▣</span> Инвентарь</button>
         <button class="side-link" type="button" data-view="favorites"><span class="side-icon">♡</span> Избранное</button>
-        <button class="side-link" type="button" data-view="feedback"><span class="side-icon">✉</span> Идеи и баги</button>
+        <button class="side-link" type="button" data-view="feedback"><span class="side-icon">✉</span> Тикеты</button>
         <button class="side-link" type="button" data-view="growth"><span class="side-icon">✧</span> Задания и бонусы</button>
         <button class="side-link" type="button" data-view="settings"><span class="side-icon">⚙</span> Настройки</button>
         <button id="adminNavButton" class="side-link owner-nav" type="button" data-view="admin" hidden><span class="side-icon">⌘</span> Управление</button>
         <div class="sidebar-bottom">
           <div class="privacy-card"><span class="privacy-icon">⌁</span><div><strong>Без лишнего следа</strong><p>Переписка удаляется после завершения диалога.</p></div></div>
           <button id="logoutButton" class="logout-button" type="button"><span>↗</span> Выйти</button>
-          <div class="sidebar-version">SOLVI <span>v1.10.0</span></div>
+          <div class="sidebar-version">SOLVI <span>v1.10.2</span></div>
         </div>
       </aside>
 
@@ -296,20 +296,20 @@
           <div id="growthTaskList" class="growth-task-grid"><p class="muted">Загрузка заданий…</p></div>
         </section>
         <section id="feedbackPanel" class="settings-panel" hidden>
-          <div class="panel-heading"><div><div class="eyebrow">ПОМОГИ СДЕЛАТЬ SOLVI ЛУЧШЕ</div><h1>Идеи и сообщения об ошибках</h1><p>Создай обращение. Владелец сможет ответить прямо здесь, а история сохранится в твоём аккаунте.</p></div><div class="panel-heading-icon">✉</div></div>
+          <div class="panel-heading"><div><div class="eyebrow">ПОМОГИ СДЕЛАТЬ SOLVI ЛУЧШЕ</div><h1>Тикеты</h1><p>Создавай тикеты по идеям, вопросам и ошибкам. Владелец ответит прямо здесь, а вся переписка и статус останутся в твоём аккаунте.</p></div><div class="panel-heading-icon">✉</div></div>
           <form id="ticketCreateForm" class="settings-card ticket-create-form">
-            <label class="field-label" for="ticketCategory">Тип обращения</label>
+            <label class="field-label" for="ticketCategory">Тип тикета</label>
             <select id="ticketCategory" class="field"><option value="idea">Идея или предложение</option><option value="bug">Сообщить об ошибке</option></select>
             <label class="field-label" for="ticketTitle">Короткий заголовок</label>
             <input id="ticketTitle" class="field" maxlength="100" minlength="5" required placeholder="Например: добавить фильтр по интересам">
             <label class="field-label" for="ticketBody">Подробности</label>
             <textarea id="ticketBody" class="field field-textarea" maxlength="1500" minlength="15" required rows="4" placeholder="Опиши идею или шаги, после которых появилась ошибка…"></textarea>
-            <button id="ticketCreateButton" class="button button-primary" type="submit">Отправить обращение ↗</button>
+            <button id="ticketCreateButton" class="button button-primary" type="submit">Создать тикет ↗</button>
           </form>
           <div class="ticket-workspace">
-            <div><h2>Мои обращения</h2><div id="ticketList" class="ticket-list"></div></div>
+            <div><h2>Мои тикеты</h2><div id="ticketList" class="ticket-list"></div></div>
             <section id="ticketThread" class="ticket-thread" hidden>
-              <div class="ticket-thread-head"><div><h3 id="ticketThreadTitle">Обращение</h3><p id="ticketThreadMeta"></p></div><button id="ticketCloseButton" class="button button-secondary" type="button" hidden>Закрыть тикет</button></div>
+              <div class="ticket-thread-head"><div><h3 id="ticketThreadTitle">Тикет</h3><p id="ticketThreadMeta"></p></div><button id="ticketCloseButton" class="button button-secondary" type="button" hidden>Закрыть тикет</button></div>
               <div id="ticketThreadMessages" class="ticket-thread-messages"></div>
               <form id="ticketReplyForm" class="ticket-reply-form">
                 <label class="field-label" for="ticketReplyInput">Ответить</label>
