@@ -25,7 +25,7 @@ The storefront stays fail-closed until the matching project credentials and HTTP
 
    For backward compatibility, the VC integration also accepts PAYMENTWALL_PUBLIC_KEY, PAYMENTWALL_PRIVATE_KEY, and PAYMENTWALL_WIDGET_CODE. Do not reuse these generic keys for the Digital Goods project.
 
-The VC webhook uses Paymentwall's Virtual Currency convention: **type=1** is a successful token top-up; **type=2** is a refund/chargeback. It validates the signature, matches the user by public ID, and stores the transaction reference before crediting. Repeated references do not credit twice. A type=2 pingback subtracts the tokens originally credited.
+The VC webhook uses Paymentwall's Virtual Currency convention: **type=0** is a successful token top-up; **type=2** is a refund/chargeback. It validates the signature, matches the user by public ID, and stores the transaction reference before crediting. Repeated references do not credit twice. A type=2 pingback subtracts the tokens originally credited.
 
 ## 2. Paymentwall project for direct store purchases
 
@@ -54,6 +54,6 @@ The owner panel reports token credits/reversals, direct-store orders and their o
 
 Paymentwall's public payout support page lists international bank transfer and SEPA bank transfer and notes an automatic payout threshold, but the permitted settlement currency depends on the merchant account and receiving bank. Do not assume RUB settlement is available; confirm the exact payout currency and bank route with Paymentwall after merchant approval.
 
-Test both projects using Paymentwall's Test Payment Method and Test Pingback Tool. Verify correct successful callback type (VC type=1, DG type=0), duplicate-reference handling, wrong-signature rejection, and type=2 reversal. Then submit both projects for Paymentwall's technical and business review before accepting live payments.
+Test both projects using Paymentwall's Test Payment Method and Test Pingback Tool. Verify correct successful callback type (VC type=0, DG type=0), duplicate-reference handling, wrong-signature rejection, and type=2 reversal. Then submit both projects for Paymentwall's technical and business review before accepting live payments.
 
 Do not put bank details, private keys, or merchant credentials in source control, chat messages, or the frontend.
