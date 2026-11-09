@@ -26,10 +26,10 @@ const state = {
   activeMatch: null,
   messages: [],
   outbox: [],
-  selectedLanguages: readStoredList('sovli_languages'),
-  selectedInterests: readStoredList('sovli_interests'),
-  selectedFlirtInterests: readStoredList('solvi_flirt_interests'),
-  selectedRoleplayInterests: readStoredList('solvi_roleplay_interests'),
+  selectedLanguages: ['Русский'],
+  selectedInterests: [],
+  selectedFlirtInterests: [],
+  selectedRoleplayInterests: [],
   matchingMode: ['chat','flirt','roleplay'].includes(localStorage.getItem('solvi_match_mode')) ? localStorage.getItem('solvi_match_mode') : 'chat',
   desiredGender: ['any','male','female','other'].includes(localStorage.getItem('solvi_desired_gender')) ? localStorage.getItem('solvi_desired_gender') : 'any',
   roleplayIntent: localStorage.getItem('solvi_roleplay_intent') === 'offering' ? 'offering' : 'seeking',
@@ -96,6 +96,8 @@ function confirmStorePurchase({ title, description, price, balance, confirmLabel
   $('#purchaseConfirmBalance').textContent = `${wallet.toLocaleString('ru-RU')} ✦`;
   $('#purchaseConfirmShortfall').hidden = enough;
   $('#purchaseConfirmShortfall').textContent = `Не хватает ${(cost - wallet).toLocaleString('ru-RU')} токенов. Продолжай общаться, чтобы заработать их.`;
+  if (modal.parentElement !== document.body) document.body.append(modal);
+  document.body.classList.add('purchase-confirm-open');
   const confirm = $('#purchaseConfirmButton');
   confirm.disabled = !enough;
   confirm.textContent = enough ? confirmLabel : 'Не хватает токенов';
@@ -106,6 +108,7 @@ function confirmStorePurchase({ title, description, price, balance, confirmLabel
       if (settled) return;
       settled = true;
       modal.hidden = true;
+      document.body.classList.remove('purchase-confirm-open');
       $('#purchaseCancelButton').onclick = null;
       confirm.onclick = null;
       modal.onclick = null;
@@ -247,7 +250,7 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 8 МБ', '10 языков · 12 интересов', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 4 МБ', '5 языков · 8 интересов', 'Набор «Звёздный след»'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 12 МБ', 'Русский язык', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 8 МБ', 'Русский язык', 'Набор «Звёздный след»'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
@@ -946,8 +949,12 @@ function toggleChoice(listName, value, container, values, limit) {
 }
 function renderFilters() {
   const tier = state.user?.subscriptionTier || 'free';
-  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
-  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+  const languageLimit = 1;
+  const interestLimit = 0;
+  state.selectedLanguages = ['Русский'];
+  state.selectedInterests = [];
+  state.selectedFlirtInterests = [];
+  state.selectedRoleplayInterests = [];
   if (!['chat', 'flirt', 'roleplay'].includes(state.matchingMode)) state.matchingMode = 'chat';
   state.selectedLanguages = state.selectedLanguages.slice(0, languageLimit);
   state.selectedInterests = state.selectedInterests.slice(0, interestLimit);
@@ -988,11 +995,10 @@ function renderFilters() {
 }
 
 function buildMatchingPreferences() {
-  const interests = state.matchingMode === 'flirt' ? state.selectedFlirtInterests : (state.matchingMode === 'roleplay' ? state.selectedRoleplayInterests : state.selectedInterests);
   return {
     mode: state.matchingMode, desiredGender: state.desiredGender, roleplayIntent: state.roleplayIntent,
     adultConfirmed: state.matchingMode === 'flirt' ? $('#flirtAdultConsent').checked : (state.matchingMode === 'roleplay' ? $('#roleplayAdultConsent').checked : false),
-    languages: state.selectedLanguages, interests
+    languages: ['Русский'], interests: []
   };
 }
 
@@ -1779,7 +1785,12 @@ async function blockPartner() {
     showToast('Пользователь заблокирован.');
   } catch (error) { showToast(error.message); }
 }
-function closeModals() { $('.modal-backdrop').forEach(modal => { modal.hidden = true; }); document.body.classList.remove('store-preview-open'); }
+function closeModals() {
+  if (state.storePreviewSnapshot) restoreStorePreview(false);
+  state.storePreviewItem = null;
+  $('.modal-backdrop').forEach(modal => { modal.hidden = true; });
+  document.body.classList.remove('store-preview-open', 'purchase-confirm-open');
+}
 function logout(showMessage = true, revokeServer = true) {
   restoreStorePreview(false);
   const oldToken = state.token;
@@ -2045,7 +2056,7 @@ $('#authRulesButton').addEventListener('click', () => { $('#rulesModal').hidden 
 $$('[data-close-modal]').forEach(button => button.addEventListener('click', closeModals));
 $('#storePreviewTryOnButton')?.addEventListener('click', startStorePreview);
 $('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePreview(true));
-$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) { modal.hidden = true; if (modal.id === 'storePreviewModal') document.body.classList.remove('store-preview-open'); } }));
+$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeModals(); }));
 $('#endChatButton').addEventListener('click', async () => {
   if (!state.activeMatch) return;
   if (!await appDialog({title:'Завершить диалог?',message:'После завершения ты сможешь сохранить текст переписки в Избранное.',confirmText:'Завершить',danger:true})) return;
@@ -2144,7 +2155,7 @@ $('#avatarFileInput').addEventListener('change', async () => {
   const button = $('#avatarUploadButton');
   if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { showToast('Поддерживаются JPG, PNG и WebP.'); $('#avatarFileInput').value = ''; return; }
   const tier = state.user?.subscriptionTier || 'free';
-  const avatarLimit = tier === 'premium' ? 8 : (tier === 'vip' ? 4 : 2);
+  const avatarLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 4);
   if (file.size > avatarLimit * 1024 * 1024) { showToast(`Аватар должен быть не больше ${avatarLimit} МБ для твоего статуса.`); $('#avatarFileInput').value = ''; return; }
   button.disabled = true; button.textContent = 'Загружаем…';
   try {
