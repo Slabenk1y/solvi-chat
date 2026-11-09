@@ -80,7 +80,7 @@ try {
 
   const owner = read('scripts/owner-console.cjs');
   const ownerPanel = read('public/owner.js');
-  const ownerHtml = read('public/owner.html');
+  const ownerPublicHtml = read('public/owner.html');
   const ownerRoutes = [
     '/api/admin/overview', '/api/admin/users', '/api/admin/users/:id/tokens',
     '/api/admin/promos', '/api/admin/matches', '/api/admin/matches/:id/end',
@@ -105,7 +105,7 @@ try {
   else pass('Ответы на собственные сообщения блокируются сервером');
   if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
   else pass('У каждого предмета магазина доступен отдельный предпросмотр');
-  if (!server.includes('support_tickets') || !server.includes("app.post('/api/tickets'") || !server.includes("app.get('/api/admin/tickets'") || !html.includes('id="ticketCreateForm"') || !ownerHtml.includes('data-page="tickets"') || !ownerPanel.includes("api('/api/admin/tickets')")) fail('Система тикетов не подключена ко всем слоям');
+  if (!server.includes('support_tickets') || !server.includes("app.post('/api/tickets'") || !server.includes("app.get('/api/admin/tickets'") || !html.includes('id="ticketCreateForm"') || !ownerPublicHtml.includes('data-page="tickets"') || !ownerPanel.includes("api('/api/admin/tickets')")) fail('Система тикетов не подключена ко всем слоям');
   else pass('Идеи и баг-репорты подключены к пользовательской и owner-панели');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
   else pass('Новый зарегистрированный аккаунт получает 50 ✦');
