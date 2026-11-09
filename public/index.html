@@ -198,13 +198,13 @@
             <div class="composer-tools">
               <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
               <button id="photoButton" class="composer-tool composer-tool-photo" type="button" title="Отправить фото">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.4-2h7.2l1.4 2h3A1.5 1.5 0 0 1 21.5 9v9A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V9A1.5 1.5 0 0 1 4 7.5Z"/><circle cx="12" cy="13" r="3.5"/><path d="M18 10h.01"/></svg><span>Фото</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.4-2h7.2l1.4 2h3A1.5 1.5 0 0 1 21.5 9v9A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V9A1.5 1.5 0 0 1 4 7.5Z"/><circle cx="12" cy="13" r="3.5"/><path d="M18 10h.01"/></svg><span class="composer-label">Фото</span>
               </button>
               <button id="stickerButton" class="composer-tool composer-tool-sticker" type="button" title="Открыть стикеры">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10.5L20.5 8v10A2.5 2.5 0 0 1 18 20.5H5A2.5 2.5 0 0 1 2.5 18V6A2.5 2.5 0 0 1 5 3.5Z"/><path d="M15.5 3.8V8h4.2M8 12h.01M15 12h.01M8.5 15.5q3.5 3 7 0"/></svg><span>Стикеры</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10.5L20.5 8v10A2.5 2.5 0 0 1 18 20.5H5A2.5 2.5 0 0 1 2.5 18V6A2.5 2.5 0 0 1 5 3.5Z"/><path d="M15.5 3.8V8h4.2M8 12h.01M15 12h.01M8.5 15.5q3.5 3 7 0"/></svg><span class="composer-label">Стикеры</span>
               </button>
               <button id="voiceButton" class="composer-tool composer-tool-voice" type="button" title="Записать голосовое">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6"/></svg><span>Голосовое</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6"/></svg><span class="composer-label">Голосовое</span>
               </button>
               <span id="uploadStatus" class="upload-status" aria-live="polite"></span>
             </div>
@@ -274,6 +274,17 @@
                 <button id="purchaseConfirmButton" class="button button-primary" type="button">Купить</button>
               </div>
               <small>Покупка спишет токены и добавит предмет в инвентарь.</small>
+            </section>
+          </div>
+          <div id="storePreviewModal" class="store-preview-backdrop" hidden>
+            <section class="store-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="storePreviewTitle">
+              <button id="storePreviewClose" class="modal-close" type="button" aria-label="Закрыть">×</button>
+              <span id="storePreviewCategory" class="eyebrow">ПРЕДМЕТ SOVLI</span>
+              <h2 id="storePreviewTitle">Предпросмотр</h2>
+              <div id="storePreviewVisual" class="store-preview-modal-visual"></div>
+              <p id="storePreviewDescription" class="modal-description"></p>
+              <div class="store-preview-modal-price"><span>Стоимость</span><strong id="storePreviewPrice">0 ✦</strong></div>
+              <button id="storePreviewCloseBottom" class="button button-primary button-wide" type="button">Понятно</button>
             </section>
           </div>
         </section>
