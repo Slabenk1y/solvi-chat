@@ -2461,9 +2461,11 @@ async function main() {
     const currency = String(req.body?.currency || 'EUR').trim().toUpperCase();
     let parsed; try { parsed = new URL(targetUrl); } catch { return res.status(400).json({ error: 'Укажи корректную ссылку рекламодателя.' }); }
     if (!title || !sponsorName || parsed.protocol !== 'https:' || !Number.isSafeInteger(priceMinor) || priceMinor < 0 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Проверь название, рекламодателя, HTTPS-ссылку, цену и валюту.' });
-    const startsAt = req.body?.startsAt ? new Date(req.body.startsAt).toISOString() : null;
-    const endsAt = req.body?.endsAt ? new Date(req.body.endsAt).toISOString() : null;
-    if (startsAt && Number.isNaN(Date.parse(startsAt)) || endsAt && Number.isNaN(Date.parse(endsAt)) || startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) return res.status(400).json({ error: 'Проверь период размещения.' });
+    const startsMs = req.body?.startsAt ? Date.parse(req.body.startsAt) : null;
+    const endsMs = req.body?.endsAt ? Date.parse(req.body.endsAt) : null;
+    if (startsMs !== null && !Number.isFinite(startsMs) || endsMs !== null && !Number.isFinite(endsMs) || startsMs !== null && endsMs !== null && endsMs <= startsMs) return res.status(400).json({ error: 'Проверь период размещения.' });
+    const startsAt = startsMs === null ? null : new Date(startsMs).toISOString();
+    const endsAt = endsMs === null ? null : new Date(endsMs).toISOString();
     const id = crypto.randomUUID(), at = nowIso();
     dbRun('INSERT INTO ad_campaigns (id,title,body,sponsor_name,target_url,cta_label,placement,price_minor,currency,payment_status,status,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [id,title,body,sponsorName,targetUrl,ctaLabel,'store',priceMinor,currency,'unpaid','paused',startsAt,endsAt,at,at]);
@@ -2504,10 +2506,10 @@ async function main() {
     const payments = dbAll('SELECT provider, currency, COUNT(*) AS count, COALESCE(SUM(amount_minor),0) AS amount_minor FROM payment_records GROUP BY provider, currency ORDER BY provider, currency');
     const paymentwall = dbGet("SELECT COUNT(*) AS topups, COALESCE(SUM(CASE WHEN status = 'credited' THEN token_amount ELSE 0 END),0) AS tokens_credited, COALESCE(SUM(CASE WHEN status = 'reversed' THEN token_amount ELSE 0 END),0) AS tokens_reversed FROM paymentwall_token_purchases");
     const paymentwallRecent = dbAll("SELECT p.provider_reference, p.user_id, u.username, p.token_amount, p.status, p.created_at, p.updated_at FROM paymentwall_token_purchases p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 20");
-    const adStats = dbGet("SELECT COUNT(*) AS campaigns, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(CASE WHEN payment_status IN ('paid','comped') THEN price_minor ELSE 0 END),0) AS booked_minor, currency FROM ad_campaigns GROUP BY currency");
+    const adStats = dbAll("SELECT currency, COUNT(*) AS campaigns, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(CASE WHEN payment_status IN ('paid','comped') THEN price_minor ELSE 0 END),0) AS booked_minor FROM ad_campaigns GROUP BY currency");
     const adCampaigns = dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100');
     const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), bundleOnly: Boolean(item.bundleOnly) }));
-    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, adStats: adStats || { campaigns:0, impressions:0, clicks:0, booked_minor:0, currency:'EUR' }, adCampaigns, paymentwallConfigured: paymentwallSettings().configured });
+    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured });
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
