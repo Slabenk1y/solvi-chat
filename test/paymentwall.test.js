@@ -30,10 +30,9 @@ test('Paymentwall pingback signature validates and rejects tampering', () => {
 
 test('Paymentwall widget URL contains a verifiable server signature and safe user identity', () => {
   const url = new URL(buildVirtualCurrencyWidgetUrl({
-    publicKey: 'public', privateKey: 'private', userId: 'ABCDEF1234', widgetCode: 'p1_1',
+    publicKey: 'public', privateKey: 'private', userId: 'ABCDEF1234', widgetCode: 'p1_1', email: 'buyer@example.com',
     successUrl: 'https://solvi.example/?billing=success',
     failureUrl: 'https://solvi.example/?billing=cancelled',
-    pingbackUrl: 'https://solvi.example/api/billing/paymentwall/pingback',
     registrationTimestamp: 1760000000
   }));
   assert.equal(url.hostname, 'api.paymentwall.com');
@@ -53,8 +52,7 @@ test('Paymentwall Digital Goods creates a one-time checkout for one server-price
     productName: 'SOLVI · Северное сияние', email: 'buyer@example.com',
     successUrl: 'https://solvi.example/?billing=success',
     failureUrl: 'https://solvi.example/?billing=cancelled',
-    pingbackUrl: 'https://solvi.example/api/billing/paymentwall/goods-pingback',
-    registrationTimestamp: 1760000000
+        registrationTimestamp: 1760000000
   }));
   assert.equal(url.pathname, '/api/subscription');
   const params = Object.fromEntries(url.searchParams.entries());
