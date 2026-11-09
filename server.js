@@ -29,6 +29,8 @@ const NATIVE_DB_BACKUP = path.join(DATA_DIR, 'orbit.pre-v5-sqlitejs.backup.sqlit
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 const BASE_STICKERS = Object.freeze(['👋', '😂', '❤️', '🔥', '🥹', '🎉', '☕', '🐈']);
+const VIP_STICKERS = Object.freeze(['👑','💎','🪄','🌟','🫶','🚀','🦋','✨']);
+const PREMIUM_STICKERS = Object.freeze(['🪩','🌌','🦄','🪽','🌠','🔮','💫','🪐']);
 const STICKER_PACKS = Object.freeze({
   'stickers-night-owl': ['✨', '🌙', '🚀', '🫶', '👀', '🫡', '🤝', '💫'],
   'stickers-sausage': ['🌭', '🐭', '🧀', '😵‍💫', '🥨', '💨'],
@@ -1803,7 +1805,10 @@ async function main() {
       const clientId = typeof payload?.clientId === 'string' && payload.clientId.length <= 80 ? payload.clientId : '';
       const requestedSticker = payload?.sticker;
       const equippedStickerPack = getEquippedItems(userId).stickers;
-      const allowedStickers = new Set([...BASE_STICKERS, ...(STICKER_PACKS[equippedStickerPack] || [])]);
+      const memberStickers = membership.tier === 'premium'
+        ? [...VIP_STICKERS, ...PREMIUM_STICKERS]
+        : (membership.tier === 'vip' ? VIP_STICKERS : []);
+      const allowedStickers = new Set([...BASE_STICKERS, ...memberStickers, ...(STICKER_PACKS[equippedStickerPack] || [])]);
       const sticker = allowedStickers.has(requestedSticker) ? requestedSticker : null;
       const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, membership.attachmentLimit) : [];
       if (!clientId || content.length > messageLimit || (!content && !sticker && !attachmentIds.length)) {
