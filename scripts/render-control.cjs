@@ -20,12 +20,11 @@ must(/npm install --omit=dev/.test(renderYaml), 'Render build does not depend on
 must(/RENDER_API_KEY/.test(renderYaml) && /sync:\s*false/.test(renderYaml), 'Render API key is not hardcoded in the repository');
 must(/RENDER_SERVICE_ID/.test(server) && /api\/admin\/platform\/render/.test(server), 'Server exposes owner-guarded Render controls');
 must(/Authorization:\s*`Bearer \$\{cfg\.apiKey\}`/.test(server), 'Render API credentials are used server-side only');
-must(/data-tab="cloud"/.test(ownerHtml) && /renderRestartButton/.test(ownerHtml), 'Mobile owner panel includes cloud controls');
-must(ownerJs.includes('/api/admin/platform/render/restart'), 'Mobile owner panel can request a Render restart');
+must(!/data-tab="cloud"/.test(ownerHtml) && !/renderRestartButton|renderSuspendButton/.test(ownerHtml) && !/api\/admin\/platform\/render\/(restart|suspend)/.test(ownerJs), 'Unused cloud-management controls are omitted from the owner panel');
 must(ownerManifest.start_url === '/owner' && ownerManifest.display === 'standalone', 'Owner panel has an installable mobile app manifest');
 must(/authInviteCode[\s\S]*?maxlength=\"80\"/.test(read('public/index.html')), 'Invite form accepts generated cloud invite values');
 must(/workflow_dispatch/.test(workflow) && /resume/.test(workflow) && /restart/.test(workflow) && /suspend/.test(workflow), 'GitHub Actions provides phone-accessible resume/restart/suspend controls');
 must(/api\/admin\/platform\/render\/suspend/.test(server), 'Owner-only server endpoint supports safe service suspension');
-must(ownerJs.includes('/api/admin/platform/render/suspend') && ownerHtml.includes('renderSuspendButton'), 'Mobile owner panel exposes confirmed service suspension control');
+
 if (process.exitCode) process.exit(1);
 console.log('[SOVLI] Cloud hosting checks passed.');
