@@ -661,13 +661,13 @@ function addToQueue(socket, preferences) {
 function issueToken(user) {
   const sessionId = crypto.randomUUID();
   const createdAt = new Date();
-  const lifetimeMs = user.account_type === 'guest' ? 180 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  const lifetimeMs = user.account_type === 'guest' ? 3 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
   const expiresAt = new Date(createdAt.getTime() + lifetimeMs);
   transaction(() => {
     dbRun('DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?', [user.id, createdAt.toISOString()]);
     dbRun('INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [sessionId, user.id, createdAt.toISOString(), expiresAt.toISOString()]);
   });
-  return jwt.sign({ sub: user.id, publicId: user.public_id, accountType: user.account_type || 'registered' }, JWT_SECRET, { expiresIn: user.account_type === 'guest' ? '180d' : '7d', issuer: 'orbit-chat', jwtid: sessionId }); // issuer kept for existing sessions
+  return jwt.sign({ sub: user.id, publicId: user.public_id, accountType: user.account_type || 'registered' }, JWT_SECRET, { expiresIn: user.account_type === 'guest' ? '3d' : '7d', issuer: 'orbit-chat', jwtid: sessionId }); // issuer kept for existing sessions
 }
 function cleanUsername(value) {
   if (typeof value !== 'string') return null;
@@ -957,8 +957,8 @@ async function main() {
   db.exec("UPDATE users SET settings_json = '{}' WHERE settings_json IS NULL OR settings_json = ''");
   db.exec("UPDATE users SET account_type = 'registered' WHERE account_type IS NULL OR account_type = ''");
   // Extend previously issued guest profiles to the new 180-day retention window.
-  dbRun("UPDATE users SET guest_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0) WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 180.0)");
-  dbRun("UPDATE sessions SET expires_at = (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id) WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL) AND expires_at < (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id)");
+  dbRun("UPDATE users SET guest_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + 3.0) WHERE account_type = 'guest'");
+  dbRun("UPDATE sessions SET expires_at = (SELECT guest_expires_at FROM users WHERE users.id = sessions.user_id) WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL)");
   // Expired temporary guests are removed during startup cleanup.
   const expiredGuests = dbAll("SELECT id FROM users WHERE account_type = 'guest' AND guest_expires_at IS NOT NULL AND guest_expires_at <= ?", [nowIso()]).map(row => row.id);
   if (expiredGuests.length) {
@@ -1217,7 +1217,7 @@ async function main() {
     const publicId = crypto.randomBytes(5).toString('hex').toUpperCase();
     const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 8);
     const createdAt = nowIso();
-    const guestExpiresAt = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+    const guestExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     transaction(() => {
       dbRun('INSERT INTO users (id, public_id, username, username_key, password_hash, avatar, adult_asserted_at, settings_json, account_type, guest_expires_at, tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)', [id, publicId, username, key, passwordHash, AVATARS[crypto.randomInt(AVATARS.length)], 'NOT_COLLECTED', JSON.stringify(DEFAULT_SETTINGS), 'guest', guestExpiresAt, createdAt]);
     });
@@ -1226,18 +1226,9 @@ async function main() {
     res.status(201).json({ token: issueToken(user), user: publicUser(user) });
   });
 
-  app.post('/api/auth/claim', authMiddleware, async (req, res) => {
+  app.post('/api/auth/claim', authMiddleware, (req, res) => {
     if (req.user.account_type !== 'guest') return res.status(400).json({ error: 'Этот аккаунт уже постоянный.' });
-    const username = cleanUsername(req.body?.username);
-    const password = req.body?.password;
-    if (!username) return res.status(400).json({ error: 'Ник должен содержать от 3 до 20 символов.' });
-    if (typeof password !== 'string' || password.length < 8 || password.length > 72) return res.status(400).json({ error: 'Пароль должен быть длиной от 8 до 72 символов.' });
-    const key = usernameKey(username);
-    if (dbGet('SELECT id FROM users WHERE username_key = ? AND id != ? LIMIT 1', [key, req.user.id])) return res.status(409).json({ error: 'Этот ник уже занят. Попробуй другой.' });
-    const passwordHash = await bcrypt.hash(password, 12);
-    transaction(() => dbRun("UPDATE users SET username = ?, username_key = ?, password_hash = ?, account_type = 'registered', guest_expires_at = NULL WHERE id = ?", [username, key, passwordHash, req.user.id]));
-    const user = getUserById(req.user.id);
-    res.json({ token: issueToken(user), user: publicUser(user) });
+    return res.status(403).json({ error: 'Гостевой аккаунт нельзя превратить в постоянный: ник и пароль гостя менять нельзя.' });
   });
 
   app.post('/api/auth/login', async (req, res) => {

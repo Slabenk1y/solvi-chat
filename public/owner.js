@@ -6,6 +6,15 @@
   const num = v => Number(v||0).toLocaleString('ru-RU');
   const date = v => v ? new Date(v).toLocaleString('ru-RU',{dateStyle:'medium',timeStyle:'short'}) : '—';
   const dateInput = v => { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); };
+  function applyOwnerTheme(theme){
+    const selected = theme || localStorage.getItem('solvi_owner_theme') || 'dark';
+    document.documentElement.dataset.theme = selected;
+    localStorage.setItem('solvi_owner_theme', selected);
+    const button = $('#themeToggleButton');
+    if (button) { button.textContent = selected === 'dark' ? '☀ Светлая тема' : '☾ Тёмная тема'; button.setAttribute('aria-label', selected === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'); button.title = selected === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'; }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', selected === 'dark' ? '#10131c' : '#f4f5fb');
+  }
   function toast(message){ const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),3200); }
   async function api(url,options){
     const opts=options||{};
@@ -281,6 +290,8 @@
     if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(err=>toast(err.message)),15000);
   }
 
+  applyOwnerTheme();
+  $('#themeToggleButton').addEventListener('click',()=>applyOwnerTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
   $('#loginForm').addEventListener('submit',async e=>{
     e.preventDefault();$('#loginError').textContent='';setConnection('Входим…');const b=e.currentTarget.querySelector('button[type="submit"]');b.disabled=true;
     try{const r=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:$('#loginName').value.trim(),password:$('#loginPassword').value,accessCode:$('#loginInvite').value.trim()})});state.token=r.token;localStorage.setItem('sovli_admin_token',state.token);if(!await verifyOwner())throw new Error('Этот аккаунт не назначен владельцем. Проверь OWNER_PUBLIC_ID.');await loadStoreItems();toast('Добро пожаловать в панель владельца.');}

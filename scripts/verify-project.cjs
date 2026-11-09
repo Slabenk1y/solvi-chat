@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.10.2') fail(`Ожидалась версия 1.10.2, получена ${pkg.version}`);
+  if (pkg.version !== '1.10.3') fail(`Ожидалась версия 1.10.3, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const matchingHtml = read('public/index.html');
@@ -109,7 +109,7 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v26/.test(sw)) fail('Service Worker cache version не соответствует v1.10.2');
+  if (!/sovli-shell-v27/.test(sw)) fail('Service Worker cache version не соответствует v1.10.3');
   else pass('Service Worker cache version обновлён');
   if (!html.includes('/styles.css?v=26') || !html.includes('/app.js?v=26')) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
@@ -164,6 +164,25 @@ try {
   if (!ownerHtml.includes('id="dashboardView"') || !ownerHtml.includes('id="loginView"') || !ownerHtml.includes('data-page="users"') || !ownerHtml.includes('data-page="tickets"')) fail('Owner panel login, dashboard or key sections missing');
   if (ownerHtml.includes('data-page="public"') || ownerHtml.includes('data-page="cloud"') || ownerPanel.includes('/api/admin/runtime/public/')) fail('Unused public-tunnel or cloud-server panels are still exposed');
   else pass('Новая панель владельца, карточки аккаунтов и основные API подключены; устаревшие панели убраны');
+
+  const guestServer = read('server.js');
+  const ownerHtml = read('public/owner.html');
+  const ownerJs = read('public/owner.js');
+  const ownerCss = read('public/owner.css');
+  const appJs = read('public/app.js');
+  if (!guestServer.includes("3 * 24 * 60 * 60 * 1000") || guestServer.includes("180 * 24 * 60 * 60 * 1000") || guestServer.includes("'180d'")) fail('Guest lifetime must be three days everywhere');
+  else pass('Гостевой срок и серверные сессии ограничены тремя днями');
+  if (!guestServer.includes('Гостевой аккаунт нельзя превратить в постоянный') || !appJs.includes('Гостевой профиль · 3 дня'.toUpperCase()) && !appJs.includes('ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ')) fail('Guest identity restrictions or UI copy missing');
+  if (!ownerHtml.includes('themeToggleButton') || !ownerJs.includes('applyOwnerTheme') || !ownerCss.includes(':root[data-theme="dark"]')) fail('Owner dark theme toggle is incomplete');
+  else pass('Тёмная тема панели владельца подключена');
+  if (!ownerCss.includes('animation:none!important') || !ownerCss.includes('transition-duration:.08s')) fail('Owner motion optimization missing');
+  else pass('Анимации панели владельца облегчены');
+  const staticSelectors = [...appJs.matchAll(/\$\(['"]#([^'"]+)['"]\)\.addEventListener/g)].map(match => match[1]);
+  const ids = new Set([...read('public/index.html').matchAll(/\bid=["']([^"']+)["']/g)].map(match => match[1]));
+  const missingSelectors = [...new Set(staticSelectors)].filter(id => !ids.has(id));
+  if (missingSelectors.length) fail('Main page buttons reference missing elements: ' + missingSelectors.join(', '));
+  else pass('Все статические обработчики кнопок основного сайта имеют DOM-элементы');
+
   if (!process.exitCode) pass('Комплект запуска и документации на месте');
 } catch (error) {
   fail(error.stack || error.message);

@@ -429,9 +429,9 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     });
     assert.equal(guestAvatarUpload.status, 201, 'guest accounts can upload a custom avatar');
     assert.match((await guestAvatarUpload.json()).user.avatarUrl, /\\?v=/);
-    assert.ok(Date.parse(guest1.user.guestExpiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest accounts should be kept for 180 days');
+    assert.ok(Date.parse(guest1.user.guestExpiresAt) - Date.now() > 2 * 24 * 60 * 60 * 1000, 'guest accounts should remain valid for three days');
     const guestSessions = await fetch(`${baseUrl}/api/sessions`, { headers: { Authorization: `Bearer ${guest1.token}` } }).then(response => response.json());
-    assert.ok(Date.parse(guestSessions.sessions[0].expiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest browser session should remain valid for 180 days');
+    assert.ok(Date.parse(guestSessions.sessions[0].expiresAt) - Date.now() > 2 * 24 * 60 * 60 * 1000, 'guest browser session should remain valid for three days');
     const decodedGuestToken = jwt.decode(guest1.token);
     const expiredLegacyGuestToken = jwt.sign(
       { sub: decodedGuestToken.sub, publicId: decodedGuestToken.publicId, accountType: 'guest', iat: Math.floor(Date.now() / 1000) - 120, exp: Math.floor(Date.now() / 1000) - 60 },
@@ -439,7 +439,7 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
       { issuer: 'orbit-chat', jwtid: decodedGuestToken.jti }
     );
     const legacyGuestSession = await fetch(`${baseUrl}/api/me`, { headers: { Authorization: `Bearer ${expiredLegacyGuestToken}` } });
-    assert.equal(legacyGuestSession.status, 200, 'previous 24-hour guest JWTs should remain usable while their extended session is valid');
+    assert.equal(legacyGuestSession.status, 200, 'legacy guest JWTs remain usable only while their shortened three-day database session is valid');
     assert.equal(guest2.user.tokens, 0, 'guest accounts start with zero tokens');
     assert.equal(Object.hasOwn(guest1.user, 'birthDate'), false);
     assert.equal(Object.hasOwn(guest1.user, 'age'), false);
@@ -482,21 +482,18 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     assert.equal(nextMatch1.matchId, nextMatch3.matchId);
     assert.notEqual(nextMatch1.matchId, match1.matchId);
 
-    const claimed = await fetch(`${baseUrl}/api/auth/claim`, {
+    const guestClaim = await fetch(`${baseUrl}/api/auth/claim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${guest1.token}` },
       body: JSON.stringify({ username: guest1.user.username, password: 'upgrade-password-123' })
     });
-    assert.equal(claimed.status, 200);
-    const claimedPayload = await claimed.json();
-    assert.equal(claimedPayload.user.accountType, 'registered');
-    const login = await postJson(baseUrl, '/api/auth/login', { username: guest1.user.username, password: 'upgrade-password-123', accessCode });
-    assert.equal(login.user.id, guest1.user.id);
-    const upgradedSocket = createSocket(baseUrl, { auth: { token: claimedPayload.token }, transports: ['websocket'], reconnection: false });
-    sockets.push(upgradedSocket);
-    const restoredAfterUpgrade = waitForEvent(upgradedSocket, 'chat:restored');
-    await new Promise((resolve, reject) => { upgradedSocket.once('connect', resolve); upgradedSocket.once('connect_error', reject); });
-    assert.equal((await restoredAfterUpgrade).matchId, nextMatch1.matchId, 'guest upgrade must preserve the active chat when reconnecting with the new token');
+    assert.equal(guestClaim.status, 403, 'guest identity cannot be converted by setting a nickname and password');
+    const guestRename = await fetch(`${baseUrl}/api/profile`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${guest1.token}` },
+      body: JSON.stringify({ username: 'НовоеИмя' })
+    });
+    assert.equal(guestRename.status, 403, 'guest nickname cannot be changed');
   } catch (error) {
     if (stderr) error.message += `\nServer stderr:\n${stderr}`;
     throw error;

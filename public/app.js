@@ -854,20 +854,27 @@ function setUser(user) {
   $('#profileUsername').value = user.username;
   if ($('#profileGender')) $('#profileGender').value = user.gender || '';
   if ($('#profileDescription')) $('#profileDescription').value = user.description || '';
-  $('#profileUsername').disabled = user.accountType === 'guest';
-  $('#saveProfileButton').hidden = user.accountType === 'guest';
+  const isGuest = user.accountType === 'guest';
+  $('#profileUsername').disabled = isGuest;
+  $('#profileUsernameLabel').hidden = isGuest;
+  $('#profileUsername').hidden = isGuest;
+  $('#profileGenderLabel').hidden = isGuest;
+  $('#profileGender').hidden = isGuest;
+  $('#profileDescriptionLabel').hidden = isGuest;
+  $('#profileDescription').hidden = isGuest;
+  $('#saveProfileButton').hidden = isGuest;
   $('#avatarOptions').hidden = false;
   $('#avatarUploadButton').hidden = false;
   state.settings = { ...state.settings, ...(user.settings || {}) };
   applyEquipped(user.equipped || {});
   $('#adminNavButton').hidden = user.role !== 'owner';
-  const isGuest = user.accountType === 'guest';
   $('#accountTypeBadge').textContent = isGuest ? 'ГОСТЬ' : 'АККАУНТ';
-  $('#profileAccountType').textContent = isGuest ? 'ГОСТЕВОЙ ПРОФИЛЬ · ДО 180 ДНЕЙ' : 'ПОСТОЯННЫЙ АККАУНТ';
+  $('#profileAccountType').textContent = isGuest ? 'ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ' : 'ПОСТОЯННЫЙ АККАУНТ';
   $('#guestClaimCard').hidden = !isGuest;
-  $('#claimUsername').value = isGuest ? user.username : '';
-  $('#claimPassword').value = '';
-  $('#claimError').textContent = '';
+  const guestExpiry = user.guestExpiresAt ? new Date(user.guestExpiresAt) : null;
+  if ($('#guestExpiryNote')) $('#guestExpiryNote').textContent = isGuest
+    ? `Гостевой профиль действует до ${guestExpiry && !Number.isNaN(guestExpiry.getTime()) ? guestExpiry.toLocaleString('ru-RU', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }) : 'истечения срока'}. Ник и пароль изменить нельзя. Аватар можно менять.`
+    : '';
   $('#sidePublicId').hidden = false;
   renderSettingsControls();
   applySettings();
@@ -1952,7 +1959,7 @@ $('#guestButton').addEventListener('click', async () => {
     showApp();
     connectSocket();
     loadFavorites();
-    showToast(`Привет, ${response.user.username}! Гостевой профиль сохранится в этом браузере до 180 дней.`);
+    showToast(`Привет, ${response.user.username}! Гостевой профиль действует 3 дня в этом браузере.`);
   } catch (error) { setAuthError(error.message); }
   finally { button.disabled = false; button.querySelector('span:first-child').textContent = 'Продолжить гостем'; }
 });
@@ -2097,21 +2104,6 @@ $('#saveProfileButton').addEventListener('click', async () => {
   } catch (error) { showToast(error.message); }
   finally { button.disabled = false; }
 });
-$('#claimGuestButton').addEventListener('click', async () => {
-  $('#claimError').textContent = '';
-  const button = $('#claimGuestButton');
-  button.disabled = true;
-  try {
-    const result = await api('/api/auth/claim', { method: 'POST', body: JSON.stringify({ username: $('#claimUsername').value.trim(), password: $('#claimPassword').value }) });
-    state.token = result.token;
-    localStorage.setItem('sovli_token', state.token);
-    setUser(result.user);
-    connectSocket();
-    showToast('Гостевой профиль сохранён. Теперь можно входить по нику и паролю.');
-  } catch (error) { $('#claimError').textContent = error.message; }
-  finally { button.disabled = false; }
-});
-
 $('#avatarUploadButton').addEventListener('click', () => $('#avatarFileInput').click());
 $('#avatarFileInput').addEventListener('change', async () => {
   const file = $('#avatarFileInput').files?.[0]; if (!file) return;

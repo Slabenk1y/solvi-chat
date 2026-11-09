@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=26">
+  <link rel="stylesheet" href="/styles.css?v=27">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -72,7 +72,7 @@
         <div class="guest-entry">
           <div class="guest-entry-caption"><span></span> ИЛИ ПОПРОБУЙ БЕЗ РЕГИСТРАЦИИ <span></span></div>
           <button id="guestButton" class="button button-secondary button-wide" type="button"><span>Продолжить гостем</span><span>👀</span></button>
-          <p>Гостевой профиль сохраняется в этом браузере до 180 дней. Просто закрой вкладку — аккаунт останется. Для входа с другого устройства сохрани постоянный аккаунт.</p>
+          <p>Гостевой профиль действует 3 дня в этом браузере. Ник и пароль изменить нельзя; для постоянного аккаунта пройди обычную регистрацию.</p>
         </div>
         <div class="auth-divider"><span></span> <small>ТВОЁ ПРОСТРАНСТВО</small> <span></span></div>
         <p class="auth-legal">Продолжая, ты принимаешь <button id="authRulesButton" type="button">правила сообщества</button> и соглашаешься общаться уважительно.</p>
@@ -112,7 +112,7 @@
         <div class="sidebar-bottom">
           <div class="privacy-card"><span class="privacy-icon">⌁</span><div><strong>Без лишнего следа</strong><p>Переписка удаляется после завершения диалога.</p></div></div>
           <button id="logoutButton" class="logout-button" type="button"><span>↗</span> Выйти</button>
-          <div class="sidebar-version">SOLVI <span>v1.10.2</span></div>
+          <div class="sidebar-version">SOLVI <span>v1.10.3</span></div>
         </div>
       </aside>
 
@@ -219,15 +219,12 @@
         <section id="profilePanel" class="profile-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">ПЕРСОНАЛЬНЫЕ НАСТРОЙКИ</div><h1>Твой профиль</h1><p>Немного о том, как тебя видят в SOLVI.</p></div><div class="panel-heading-icon">◌</div></div>
           <div class="profile-hero-v1"><div class="profile-cover-v1"><span class="profile-cover-orbit"></span><span class="profile-cover-spark">✦</span><div id="profilePreviewAvatar" class="avatar avatar-profile">◉</div><div class="profile-hero-copy"><div class="profile-hero-kicker">ТВОЯ КАРТОЧКА В SOLVI</div><h2 id="profilePreviewName">Пользователь</h2><p id="profilePreviewId">Технический ID: —</p><div class="profile-badges-v1"><span id="profileAccountType" class="account-type-badge">АККАУНТ</span><span id="profileRoleBadge" class="role-badge-v1">Участник</span></div><small id="profileMembershipLine">Стандартный участник</small></div></div><div class="profile-stats-v1" id="profileStats"><div><strong>0</strong><span>диалогов</span></div><div><strong>0</strong><span>минут общения</span></div><div><strong>0</strong><span>сообщений</span></div></div><div class="profile-meta-v1"><span id="profileCreatedAt">В SOLVI с —</span><strong><span id="profileTokenBalance">0</span> ✦</strong></div></div><div class="profile-edit-card">
-            <label class="field-label" for="profileUsername">Никнейм</label><input id="profileUsername" class="field" maxlength="20" minlength="3">
-            <label class="field-label" for="profileGender">Мой пол (для подбора собеседника)</label><select id="profileGender" class="field"><option value="">Не указывать</option><option value="female">Женщина</option><option value="male">Мужчина</option><option value="other">Другой</option></select><label class="field-label" for="profileDescription">О себе (до 160 символов)</label><textarea id="profileDescription" class="field" maxlength="160" rows="3" placeholder="Пара слов о себе…"></textarea><div class="field-label">Аватар</div><div id="avatarOptions" class="avatar-options"></div><div class="avatar-upload-row"><input id="avatarFileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadButton" class="button button-secondary" type="button">Загрузить своё фото</button><span>JPG, PNG или WebP · до 2 МБ</span></div>
+            <label id="profileUsernameLabel" class="field-label" for="profileUsername">Никнейм</label><input id="profileUsername" class="field" maxlength="20" minlength="3">
+            <label id="profileGenderLabel" class="field-label" for="profileGender">Мой пол (для подбора собеседника)</label><select id="profileGender" class="field"><option value="">Не указывать</option><option value="female">Женщина</option><option value="male">Мужчина</option><option value="other">Другой</option></select><label id="profileDescriptionLabel" class="field-label" for="profileDescription">О себе (до 160 символов)</label><textarea id="profileDescription" class="field" maxlength="160" rows="3" placeholder="Пара слов о себе…"></textarea><div class="field-label">Аватар</div><div id="avatarOptions" class="avatar-options"></div><div class="avatar-upload-row"><input id="avatarFileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="avatarUploadButton" class="button button-secondary" type="button">Загрузить своё фото</button><span>JPG, PNG или WebP · до 2 МБ</span></div>
             <button id="saveProfileButton" class="button button-primary" type="button">Сохранить изменения <span class="button-arrow">↗</span></button>
           </div>
           <div id="guestClaimCard" class="guest-claim-card" hidden>
-            <div class="guest-claim-icon">✦</div><div class="guest-claim-copy"><h2>Сохрани свой профиль</h2><p>Гостевой профиль хранится в этом браузере до 180 дней. Создай пароль, чтобы восстановить его на любом устройстве и не зависеть от данных браузера.</p></div>
-            <label class="field-label" for="claimUsername">Новый ник</label><input id="claimUsername" class="field" minlength="3" maxlength="20" autocomplete="username" placeholder="Твой уникальный ник">
-            <label class="field-label" for="claimPassword">Новый пароль</label><input id="claimPassword" class="field" type="password" minlength="8" maxlength="72" autocomplete="new-password" placeholder="Не менее 8 символов">
-            <p id="claimError" class="form-error"></p><button id="claimGuestButton" class="button button-primary" type="button">Сохранить аккаунт ↗</button>
+            <div class="guest-claim-icon">⌛</div><div class="guest-claim-copy"><h2>Гостевой режим</h2><p id="guestExpiryNote">Гостевой профиль действует 3 дня. Ник и пароль изменить нельзя. Для постоянного аккаунта используй обычную регистрацию.</p></div>
           </div>
           <div class="account-danger"><div><strong>Удаление аккаунта</strong><p>Аккаунт и связанные данные будут удалены. Это действие нельзя отменить.</p></div><button id="deleteAccountButton" class="button button-outline-danger" type="button">Удалить аккаунт</button></div>
         </section>
@@ -361,6 +358,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=26" defer></script>
+  <script src="/app.js?v=27" defer></script>
 </body>
 </html>
