@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=19">
+  <link rel="stylesheet" href="/styles.css?v=20">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -252,11 +252,15 @@
                 <strong>Что изменится</strong>
                 <p id="storePreviewBenefit"></p>
               </div>
+              <div class="store-preview-perks">
+                <strong>Что именно увидишь</strong>
+                <ul id="storePreviewPerks"></ul>
+              </div>
               <div class="store-preview-price-row"><span>Стоимость / статус</span><strong id="storePreviewPrice">0 ✦</strong></div>
               <button class="button button-primary button-wide" type="button" data-close-modal>Понятно</button>
             </section>
           </div>
-          <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">1 токен начисляется за минуту активного диалога, когда оба собеседника онлайн: 180 ✦ = 3 часа общения = 1 час VIP; 360 ✦ = 6 часов общения = 1 час Premium. VIP: до 3 000 символов, 4 фото, 5 языков и 8 интересов в фильтрах. Premium: до 5 000 символов, 6 фото, 10 языков и 12 интересов. Premium включает VIP. При повторной покупке срок прибавляется к оставшемуся времени; поиск и правила безопасности для всех одинаковы.</p><div id="membershipOffers" class="membership-grid"></div></section>
+          <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">1 токен начисляется за минуту активного диалога, когда оба собеседника онлайн: 180 ✦ = 3 часа общения = 1 час VIP; 360 ✦ = 6 часов общения = 1 час Premium. VIP: до 3 000 символов, 4 фото, 5 языков и 8 интересов, золотая рамка профиля, 8 эксклюзивных стикеров и дополнительные быстрые фразы. Premium: до 5 000 символов, 6 фото, 10 языков и 12 интересов, усиленная подсветка, ещё 8 стикеров и дополнительные фразы. Premium включает VIP. При повторной покупке срок прибавляется к оставшемуся времени; поиск и правила безопасности для всех одинаковы.</p><div id="membershipOffers" class="membership-grid"></div></section>
           <details class="token-history" id="tokenHistory"><summary>История токенов</summary><div id="tokenHistoryList" class="token-history-list"></div></details>
           <div id="purchaseConfirmModal" class="purchase-confirm-backdrop" hidden>
             <section class="purchase-confirm-card" role="dialog" aria-modal="true" aria-labelledby="purchaseConfirmTitle">
