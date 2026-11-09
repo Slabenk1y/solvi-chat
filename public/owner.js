@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const $ = s => document.querySelector(s);
-  const state = { token: localStorage.getItem('sovli_admin_token') || localStorage.getItem('sovli_token') || '', owner: false, runtime: null, poll: null, matches: [], inspectMatchId: '' };
+  const state = { token: localStorage.getItem('sovli_admin_token') || localStorage.getItem('sovli_token') || '', owner: false, runtime: null, poll: null, matches: [], inspectMatchId: '', matchesTimer: null };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),2800); }
   async function api(url, options={}) {
@@ -102,7 +102,7 @@
     const result=await api(`/api/admin/users?limit=80${q?`&q=${encodeURIComponent(q)}`:''}`);
     $('#userResults').innerHTML=(result.users||[]).map(u=>{
       const suspended=u.suspended_until && new Date(u.suspended_until)>new Date();
-      return `<article class="user-card"><div class="user-main"><strong>${esc(u.username)} ${u.owner?'👑':''}</strong><small>Public ID: ${esc(u.public_id)} · ${esc(u.account_type)} · ${esc(u.role)} · ${u.online?'онлайн':'не в сети'}</small><small>Баланс: ${Number(u.tokens||0).toLocaleString('ru-RU')} ✦ · Статус: ${esc(u.subscription_tier||'free')} · ${suspended?'ОГРАНИЧЕН':'активен'}</small>${suspended?`<small>До: ${esc(u.suspended_until)} · ${esc(u.suspension_reason||'')}</small>`:''}</div><div class="user-actions">${u.starter_gifted?'<span class="tag">🎁 Подарок уже выдан</span>':'<button class="primary mini" data-action="starterPack" data-id="'+esc(u.id)+'">🎁 Подарок первому участнику</button>'}<button class="secondary mini" data-action="tokens" data-id="${esc(u.id)}">± Токены</button><button class="secondary mini" data-action="vip" data-id="${esc(u.id)}">VIP/Premium</button><button class="secondary mini" data-action="role" data-id="${esc(u.id)}">Роль</button>${suspended?`<button class="primary mini" data-action="unsuspend" data-id="${esc(u.id)}">Снять блок</button>`:`<button class="danger mini" data-action="suspend" data-id="${esc(u.id)}">Ограничить</button>`}<button class="secondary mini" data-action="logout" data-id="${esc(u.id)}">Завершить сессии</button></div></article>`;
+      return `<article class="user-card"><div class="user-main"><strong>${esc(u.username)} ${u.owner?'👑':''}</strong><small>Public ID: ${esc(u.public_id)} · ${esc(u.account_type)} · ${esc(u.role)} · ${u.online?'онлайн':'не в сети'}</small><small>Баланс: ${Number(u.tokens||0).toLocaleString('ru-RU')} ✦ · Статус: ${esc(u.subscription_tier||'free')} · ${suspended?'ОГРАНИЧЕН':'активен'}</small>${suspended?`<small>До: ${esc(u.suspended_until)} · ${esc(u.suspension_reason||'')}</small>`:''}</div><div class="user-actions">${u.owner?'<span class="tag">👑 Владелец проекта</span>':u.starter_gifted?'<span class="tag">🎁 Подарок уже выдан</span>':'<button class="primary mini" data-action="starterPack" data-id="'+esc(u.id)+'">🎁 Подарок первому участнику</button>'}<button class="secondary mini" data-action="tokens" data-id="${esc(u.id)}">± Токены</button><button class="secondary mini" data-action="vip" data-id="${esc(u.id)}">VIP/Premium</button><button class="secondary mini" data-action="role" data-id="${esc(u.id)}">Роль</button>${suspended?`<button class="primary mini" data-action="unsuspend" data-id="${esc(u.id)}">Снять блок</button>`:`<button class="danger mini" data-action="suspend" data-id="${esc(u.id)}">Ограничить</button>`}<button class="secondary mini" data-action="logout" data-id="${esc(u.id)}">Завершить сессии</button></div></article>`;
     }).join('')||'<p class="hint">Ничего не найдено.</p>';
   }
   $('#userSearchForm').addEventListener('submit',event=>{event.preventDefault();loadUsers($('#userSearchInput').value.trim()).catch(e=>toast(e.message));});
@@ -191,7 +191,14 @@
   $('#refreshPromosButton').addEventListener('click',()=>loadPromos().catch(e=>toast(e.message))); $('#refreshMatchesButton').addEventListener('click',()=>loadMatches().catch(e=>toast(e.message))); $('#refreshReportsButton').addEventListener('click',()=>loadReports().catch(e=>toast(e.message))); $('#refreshAuditButton').addEventListener('click',()=>loadAudit().catch(e=>toast(e.message)));
   document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
   document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.go)));
-  function showTab(name){document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);const loaders={overview:refreshAll,public:loadRuntime,cloud:loadRenderPlatform,users:()=>loadUsers($('#userSearchInput').value.trim()),promos:loadPromos,dialogs:loadMatches,reports:loadReports,audit:loadAudit};loaders[name]?.().catch?.(e=>toast(e.message));}
+  function showTab(name){
+    document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+    document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
+    if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
+    const loaders={overview:refreshAll,public:loadRuntime,cloud:loadRenderPlatform,users:()=>loadUsers($('#userSearchInput').value.trim()),promos:loadPromos,dialogs:loadMatches,reports:loadReports,audit:loadAudit};
+    loaders[name]?.().catch?.(e=>toast(e.message));
+    if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(e=>toast(e.message)),12000);
+  }
   async function boot(){
     if(await verifyOwner()) { await loadStoreItems(); }
     else { $('#loginView').hidden=false; $('#dashboardView').hidden=true; setConnection('Нужен вход',false); if(state.token && !$('#loginError').textContent) $('#loginError').textContent='Текущая сессия не имеет прав владельца. Войди аккаунтом владельца.'; }
