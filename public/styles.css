@@ -606,3 +606,8 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 .footer-social-link[data-platform="facebook"] .footer-social-icon{color:#6b9eff}
 @media(max-width:620px){.footer-social-links{gap:8px}.footer-social-link{min-height:40px;padding-right:10px}.footer-social-icon{width:28px;height:28px;flex-basis:28px}}
 @media(prefers-reduced-motion:reduce){.footer-social-link{transition:none}.footer-social-link:hover{transform:none}}
+
+
+/* SOLVI v1.11.0 real-money token top-up */
+.topup-pack-list{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 4px}
+.topup-pack-list span{padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:var(--surface-soft);font-size:10px;font-weight:800;color:var(--ink)}
