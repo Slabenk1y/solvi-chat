@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'sovli-shell-v15-0';
+const CACHE_NAME = 'sovli-shell-v151-0';
 const SHELL = ['/', '/styles.css', '/app.js', '/favicon.svg', '/manifest.webmanifest', '/socket.io/socket.io.js', '/owner', '/owner.css', '/owner.js', '/owner-manifest.webmanifest'];
 
 self.addEventListener('install', event => {
