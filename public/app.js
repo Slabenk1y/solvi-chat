@@ -2,6 +2,7 @@
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
+const DEFAULT_AVATARS = ['🪐','🌙','🦊','🐼','🐸','🦉','🐳','🦋','🐙','🌵','🍀','🧩'];
 const STICKER_PACKS = {
   'stickers-night-owl': ['✨','🌙','🚀','🫶','👀','🫡','🤝','💫'],
   'stickers-sausage': ['🌭','🐭','🧀','😵‍💫','🥨','💨'],
@@ -14,6 +15,7 @@ function readStoredList(key) { try { const value = JSON.parse(localStorage.getIt
 const state = {
   token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
   user: null,
+  authRestoring: false,
   config: { languages: [], interests: [], avatars: [], matchingEnabled: true, publicMode: false },
   settings: { theme: 'system', sounds: true, soundVolume: 35, messageScale: 'normal', reducedMotion: false, enterToSend: true, compactChat: false, browserNotifications: false },
   soundContext: null,
@@ -147,6 +149,35 @@ function createStorePreview(item) {
   preview.append(scene);
   return preview;
 }
+function openStorePreview(item) {
+  const modal = $('#storePreviewModal');
+  const visual = $('#storePreviewCanvas');
+  visual.replaceChildren();
+  if (item.slot === 'membership') {
+    const mark = document.createElement('div'); mark.className = 'store-membership-preview-mark';
+    mark.textContent = item.tier === 'premium' ? 'PREMIUM' : 'VIP';
+    visual.append(mark);
+  } else {
+    const preview = createStorePreview(item);
+    preview.classList.add('store-detail-preview');
+    visual.append(preview);
+  }
+  $('#storePreviewBadge').textContent = item.category || (item.tier === 'premium' ? 'PREMIUM' : 'VIP');
+  $('#storePreviewTitle').textContent = item.name || 'Предпросмотр';
+  $('#storePreviewDescription').textContent = item.description || 'Посмотри, как предмет будет выглядеть в SOVLI.';
+  const effects = {
+    theme: 'Полностью меняет оформление SOVLI: фон, палитру, панели, карточки и область диалога.',
+    bubble: 'Меняет цвет и визуальный стиль твоих исходящих сообщений.',
+    frame: 'Добавляет декоративную рамку к аватару профиля.',
+    sound: 'Меняет короткий звуковой сигнал интерфейса.',
+    stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
+    title: 'Показывает выбранный титул рядом с твоим именем.',
+    membership: 'Даёт временный статус с косметическими возможностями. Срок добавляется к уже активной привилегии.'
+  };
+  $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
+  $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
+  modal.hidden = false;
+}
 function renderStore(data) {
   state.storeData = data;
   $('#storeBalance').textContent = Number(data.balance || 0).toLocaleString('ru-RU');
@@ -206,6 +237,8 @@ function renderStore(data) {
     meta.append(category, title, description, collection);
     const footer = document.createElement('div'); footer.className = 'store-item-footer';
     const price = document.createElement('strong'); price.className = 'store-item-price'; price.textContent = item.owned ? (item.equipped ? 'Уже используется' : 'В коллекции') : `${Number(item.price).toLocaleString('ru-RU')} ✦`;
+    const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Предпросмотр';
+    previewButton.addEventListener('click', () => openStorePreview(item));
     const action = document.createElement('button'); action.type = 'button'; action.className = 'button button-secondary store-action';
     if (item.equipped) action.textContent = 'Снять';
     else if (item.owned) action.textContent = 'Применить';
@@ -231,7 +264,7 @@ function renderStore(data) {
         await loadStore();
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
-    footer.append(price, action); card.append(preview, meta, footer); root.append(card);
+    footer.append(previewButton, price, action); card.append(preview, meta, footer); root.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
   (data.memberships || []).forEach(pack => {
@@ -240,6 +273,8 @@ function renderStore(data) {
     const title = document.createElement('h3'); title.textContent = pack.name;
     const copy = document.createElement('p'); copy.textContent = pack.description;
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
+    const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
+    previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
@@ -248,7 +283,7 @@ function renderStore(data) {
       try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    card.append(label, title, copy, price, button); membershipRoot.append(card);
+    card.append(label, title, copy, previewButton, price, button); membershipRoot.append(card);
   });
 }
 async function loadInventory() {
@@ -392,12 +427,12 @@ function renderFavorites() {
     empty.append(icon,title,copy); root.append(empty); return;
   }
   state.favorites.forEach(person => {
-    const card = document.createElement('article'); card.className = 'favorite-card';
+    const card = document.createElement('article'); card.className = 'favorite-contact-card';
     const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; setAvatarContent(avatar, person);
     const details = document.createElement('div'); details.className = 'favorite-card-details';
     const name = document.createElement('strong'); name.textContent = person.username;
-    const description = document.createElement('p'); description.textContent = person.description || 'Пользователь SOVLI';
-    details.append(name, description);
+    const note = document.createElement('p'); note.className = 'favorite-card-note'; note.textContent = 'Сохранённый контакт · чат пока недоступен';
+    details.append(name, note);
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button button-secondary'; remove.textContent = 'Убрать';
     remove.addEventListener('click', async () => { remove.disabled = true; try { await api(`/api/favorites/${encodeURIComponent(person.id)}`, { method: 'DELETE' }); state.favorites = state.favorites.filter(row => row.id !== person.id); renderFavorites(); if (state.activeMatch) renderChatHeader(); } catch (error) { remove.disabled = false; showToast(error.message); } });
     card.append(avatar, details, remove); root.append(card);
@@ -441,7 +476,7 @@ function renderBlockedUsers() {
     empty.append(icon, title, copy); root.append(empty); return;
   }
   state.blockedUsers.forEach(person => {
-    const card = document.createElement('article'); card.className = 'favorite-card';
+    const card = document.createElement('article'); card.className = 'favorite-contact-card';
     const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; setAvatarContent(avatar, person);
     const details = document.createElement('div'); details.className = 'favorite-card-details';
     const name = document.createElement('strong'); name.textContent = person.username;
@@ -491,6 +526,11 @@ function setView(view) {
     const panel = $(`#${name}Panel`);
     if (panel) panel.hidden = name !== view;
   });
+  const activePanel = $(`#${view}Panel`);
+  if (activePanel) {
+    activePanel.classList.remove('view-enter');
+    requestAnimationFrame(() => activePanel.classList.add('view-enter'));
+  }
   $$('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === (view === 'search' || view === 'chat' ? 'home' : view)));
   if (view === 'chat') scrollMessages();
   if (view === 'admin' && state.user?.role === 'owner') loadAdmin();
@@ -532,8 +572,8 @@ function setUser(user) {
   if ($('#profileDescription')) $('#profileDescription').value = user.description || '';
   $('#profileUsername').disabled = user.accountType === 'guest';
   $('#saveProfileButton').hidden = user.accountType === 'guest';
-  $('#avatarOptions').hidden = user.accountType === 'guest';
-  $('#avatarUploadButton').hidden = user.accountType === 'guest';
+  $('#avatarOptions').hidden = false;
+  $('#avatarUploadButton').hidden = false;
   state.settings = { ...state.settings, ...(user.settings || {}) };
   applyEquipped(user.equipped || {});
   $('#adminNavButton').hidden = user.role !== 'owner';
@@ -549,6 +589,7 @@ function setUser(user) {
   applySettings();
   renderAvatarOptions();
   renderStickerPanel();
+  try { if (state.token) localStorage.setItem('sovli_user_cache', JSON.stringify(user)); } catch { /* cached profile is optional */ }
 }
 async function api(url, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -557,16 +598,20 @@ async function api(url, options = {}) {
   let payload = {};
   try { payload = await response.json(); } catch { /* non-JSON response */ }
   if (!response.ok) {
-    if (response.status === 401 && state.token) logout(false, false);
-    throw new Error(payload.error || `Ошибка запроса (${response.status})`);
+    const error = new Error(payload.error || `Ошибка запроса (${response.status})`);
+    error.status = response.status;
+    if (response.status === 401 && state.token && !state.authRestoring) logout(false, false);
+    throw error;
   }
   return payload;
 }
 function showAuth() {
+  document.documentElement.classList.remove('session-checking');
   $('#authView').hidden = false;
   $('#appView').hidden = true;
 }
 function showApp() {
+  document.documentElement.classList.remove('session-checking');
   $('#authView').hidden = true;
   $('#appView').hidden = false;
   setView('home');
@@ -625,17 +670,24 @@ function renderAvatarOptions() {
   if (!state.selectedAvatar && !state.user.avatarUrl) state.selectedAvatar = state.user.avatar;
   const container = $('#avatarOptions');
   container.replaceChildren();
-  state.config.avatars.forEach(avatar => {
+  const avatarChoices = Array.isArray(state.config.avatars) && state.config.avatars.length ? state.config.avatars : DEFAULT_AVATARS;
+  avatarChoices.forEach(avatar => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `avatar-option${state.selectedAvatar === avatar ? ' selected' : ''}`;
     button.textContent = avatar;
     button.setAttribute('aria-label', `Выбрать аватар ${avatar}`);
     button.setAttribute('aria-pressed', String(state.selectedAvatar === avatar));
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       state.selectedAvatar = avatar;
       renderAvatarOptions();
       setAvatarContent($('#profilePreviewAvatar'), { ...state.user, avatar, avatarUrl: null });
+      if (state.user.accountType === 'guest') {
+        button.disabled = true;
+        try { const result = await api('/api/profile', { method: 'PATCH', body: JSON.stringify({ username: state.user.username, avatar }) }); setUser(result.user); showToast('Аватар обновлён.'); }
+        catch (error) { showToast(error.message); }
+        finally { button.disabled = false; }
+      }
     });
     container.append(button);
   });
@@ -980,7 +1032,7 @@ function renderMessages() {
         reactions.append(button);
       });
     }
-    if (!String(message.id).startsWith('pending:')) {
+    if (!String(message.id).startsWith('pending:') && !mine) {
       const reply = document.createElement('button'); reply.type = 'button'; reply.className = 'message-reply-button'; reply.textContent = '↩ Ответить';
       reply.addEventListener('click', () => {
         state.replyTarget = message;
@@ -1089,6 +1141,10 @@ function sendMessage(content, clientId, extras = {}) {
   const attachments = Array.isArray(extras.attachments) ? extras.attachments : [];
   const sticker = typeof extras.sticker === 'string' ? extras.sticker : null;
   const replyToId = extras.replyToId || state.replyTarget?.id || null;
+  if (replyToId && state.replyTarget?.sender_id === state.user?.id) {
+    showToast('Нельзя отвечать на собственное сообщение.');
+    return;
+  }
   if (!content && !attachments.length && !sticker) return;
   const message = {
     id: `pending:${clientId}`, match_id: state.activeMatch.matchId,
@@ -1224,7 +1280,8 @@ function clearVoiceRecording() {
   $('#voicePreview').removeAttribute('src');
   $('#voicePreview').hidden = true;
   $('#voiceRecordPanel').hidden = true;
-  $('#voiceButton').textContent = '◉ Голосовое';
+  $('#voiceButton').querySelector('.composer-label').textContent = 'Голосовое';
+  $('#voiceButton').classList.remove('recording');
   $('#voiceSendButton').disabled = true;
   $('#voiceRecordLabel').textContent = 'Идёт запись';
   $('#recordingTimer').textContent = '00:00';
@@ -1270,7 +1327,8 @@ async function startVoiceRecording() {
       $('#voicePreview').hidden = false;
       $('#voiceRecordLabel').textContent = 'Прослушай запись перед отправкой';
       $('#voiceSendButton').disabled = false;
-      $('#voiceButton').textContent = '◉ Голосовое';
+      $('#voiceButton').querySelector('.composer-label').textContent = 'Голосовое';
+  $('#voiceButton').classList.remove('recording');
     }, { once: true });
     state.mediaRecorder.start(250);
     state.socket?.emit('chat:recording', { matchId: state.activeMatch.matchId, recording: true });
@@ -1278,7 +1336,8 @@ async function startVoiceRecording() {
     $('#voicePreview').hidden = true;
     $('#voiceRecordLabel').textContent = 'Идёт запись';
     $('#voiceSendButton').disabled = true;
-    $('#voiceButton').textContent = '■ Остановить';
+    $('#voiceButton').querySelector('.composer-label').textContent = 'Остановить';
+    $('#voiceButton').classList.add('recording');
     state.voiceTimer = setInterval(() => {
       const seconds = Math.floor((Date.now() - state.voiceStartedAt) / 1000);
       $('#recordingTimer').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -1346,6 +1405,7 @@ function logout(showMessage = true, revokeServer = true) {
   stopVoiceRecording(true);
   localStorage.removeItem('sovli_token');
   localStorage.removeItem('orbit_token');
+  localStorage.removeItem('sovli_user_cache');
   state.token = '';
   state.user = null;
   state.activeMatch = null;
@@ -1438,6 +1498,13 @@ function playUiSound(frequency = 520) {
 async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   applyTheme();
+  let cachedUser = null;
+  const bootScreen = $('#sessionBootScreen');
+  if (state.token) {
+    try { cachedUser = JSON.parse(localStorage.getItem('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
+    if (cachedUser?.id) { setUser(cachedUser); showApp(); }
+  }
+  bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
   try { state.config = await api('/api/config'); }
   catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false }; }
   state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, 3);
@@ -1453,7 +1520,8 @@ async function boot() {
   } else if (state.config.publicMode) {
     $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
   }
-  if (!state.token) { showAuth(); return; }
+  if (!state.token) { showAuth(); bootScreen.hidden = true; return; }
+  state.authRestoring = true;
   try {
     const response = await api('/api/me');
     setUser(response.user);
@@ -1461,7 +1529,24 @@ async function boot() {
     showApp();
     loadFavorites();
     connectSocket();
-  } catch (error) { logout(false); if (error.message?.includes('гостевого')) setAuthError(error.message); }
+  } catch (error) {
+    if (error.status === 401) {
+      localStorage.removeItem('sovli_user_cache');
+      logout(false);
+      if (error.message?.includes('гостевого')) setAuthError(error.message);
+    } else if (cachedUser?.id) {
+      showApp();
+      connectSocket();
+      showToast('Восстанавливаем связь с сервером. Аккаунт сохранён.');
+    } else {
+      showAuth();
+      setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
+    }
+  } finally {
+    state.authRestoring = false;
+    bootScreen.hidden = true;
+    document.documentElement.classList.remove('session-checking');
+  }
 }
 
 $('#authForm').addEventListener('submit', async event => {

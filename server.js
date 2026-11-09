@@ -977,13 +977,22 @@ async function main() {
   });
 
   app.patch('/api/profile', authMiddleware, (req, res) => {
-    const username = cleanUsername(req.body?.username);
     const hasAvatarChoice = Object.prototype.hasOwnProperty.call(req.body || {}, 'avatar');
     const avatar = req.body?.avatar;
-    const description = typeof req.body?.description === 'string' ? req.body.description.trim().slice(0, 160) : (req.user.description || '');
-    if (req.user.account_type === 'guest') return res.status(403).json({ error: 'Гостевой ник и аватар нельзя менять. Сохрани профиль, чтобы получить настройки аккаунта.' });
-    if (!username) return res.status(400).json({ error: 'Ник должен содержать от 3 до 20 символов.' });
     if (hasAvatarChoice && !AVATARS.includes(avatar)) return res.status(400).json({ error: 'Выберите аватар из каталога.' });
+
+    if (req.user.account_type === 'guest') {
+      // Guests may personalize their avatar without changing account identity.
+      if (!hasAvatarChoice) return res.status(403).json({ error: 'Гостевой профиль может менять только аватар.' });
+      const oldAvatarFile = req.user.avatar_file;
+      transaction(() => dbRun('UPDATE users SET avatar = ?, avatar_file = NULL, avatar_mime = NULL WHERE id = ?', [avatar, req.user.id]));
+      if (oldAvatarFile) { try { fs.unlinkSync(path.join(AVATAR_DIR, path.basename(oldAvatarFile))); } catch { /* best-effort cleanup */ } }
+      return res.json({ user: publicUser(getUserById(req.user.id)) });
+    }
+
+    const username = cleanUsername(req.body?.username);
+    const description = typeof req.body?.description === 'string' ? req.body.description.trim().slice(0, 160) : (req.user.description || '');
+    if (!username) return res.status(400).json({ error: 'Ник должен содержать от 3 до 20 символов.' });
     const key = usernameKey(username);
     const taken = dbGet('SELECT id FROM users WHERE username_key = ? AND id != ? LIMIT 1', [key, req.user.id]);
     if (taken) return res.status(409).json({ error: 'Этот ник уже занят. Выбери другой.' });
@@ -1104,8 +1113,8 @@ async function main() {
   });
 
   app.get('/api/favorites', authMiddleware, (req, res) => {
-    const rows = dbAll('SELECT u.id, u.public_id, u.username, u.description, u.avatar, u.avatar_file, u.created_at FROM favorites f JOIN users u ON u.id = f.target_user_id WHERE f.user_id = ? ORDER BY f.created_at DESC LIMIT 100', [req.user.id]);
-    res.json({ favorites: rows.map(row => ({ id: row.id, publicId: row.public_id, username: row.username, description: row.description || '', avatar: row.avatar, avatarUrl: row.avatar_file ? `/api/avatar/${encodeURIComponent(row.id)}?v=${encodeURIComponent(row.avatar_file)}` : null, createdAt: row.created_at })) });
+    const rows = dbAll('SELECT u.id, u.username, u.avatar, u.avatar_file, u.created_at FROM favorites f JOIN users u ON u.id = f.target_user_id WHERE f.user_id = ? ORDER BY f.created_at DESC LIMIT 100', [req.user.id]);
+    res.json({ favorites: rows.map(row => ({ id: row.id, username: row.username, avatar: row.avatar, avatarUrl: row.avatar_file ? `/api/avatar/${encodeURIComponent(row.id)}?v=${encodeURIComponent(row.avatar_file)}` : null, createdAt: row.created_at })) });
   });
   app.post('/api/favorites', authMiddleware, (req, res) => {
     const match = getActiveMatch(req.user.id);
@@ -1157,7 +1166,6 @@ async function main() {
 
   const avatarUploadLimiter = rateLimit({ windowMs: 10 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false });
   app.post('/api/avatar/upload', authMiddleware, avatarUploadLimiter, express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
-    if (req.user.account_type === 'guest') return res.status(403).json({ error: 'Гостевой профиль нельзя настраивать. Сохрани аккаунт, чтобы загрузить аватар.' });
     if (!Buffer.isBuffer(req.body) || req.body.length < 16) return res.status(400).json({ error: 'Файл пустой или слишком маленький.' });
     if (req.body.length > MAX_AVATAR_BYTES) return res.status(413).json({ error: 'Аватар должен быть не больше 2 МБ.' });
     const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
@@ -1794,7 +1802,11 @@ async function main() {
       if (mediaRows.length !== attachmentIds.length) return ack({ ok: false, error: 'Одно из вложений не принадлежит этому диалогу. Загрузи его ещё раз.' });
       const attachments = mediaRows.map(mediaPublic);
       const replyToId = typeof payload?.replyToId === 'string' ? payload.replyToId : null;
-      if (replyToId) { const parent = dbGet('SELECT id FROM messages WHERE id = ? AND match_id = ?', [replyToId, match.id]); if (!parent) return ack({ ok: false, error: 'Сообщение для ответа не найдено.' }); }
+      if (replyToId) {
+        const parent = dbGet('SELECT id, sender_id FROM messages WHERE id = ? AND match_id = ?', [replyToId, match.id]);
+        if (!parent) return ack({ ok: false, error: 'Сообщение для ответа не найдено.' });
+        if (parent.sender_id === userId) return ack({ ok: false, error: 'Нельзя отвечать на собственное сообщение.' });
+      }
       const messageType = sticker ? 'sticker' : (attachments.some(file => file.kind === 'audio') ? 'voice' : (attachments.length ? 'media' : 'text'));
       const message = {
         id: crypto.randomUUID(), match_id: match.id, sender_id: userId, client_id: clientId,

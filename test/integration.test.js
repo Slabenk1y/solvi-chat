@@ -169,6 +169,15 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     await new Promise((resolve, reject) => socket2.emit('queue:join', { languages: ['Русский'], interests: ['Музыка'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
     const [match1, match2] = await Promise.all([found1, found2]);
     assert.equal(match1.matchId, match2.matchId);
+
+    await postJson(baseUrl, '/api/favorites', { matchId: match1.matchId }, user1.token);
+    const savedFavorites = await fetch(`${baseUrl}/api/favorites`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(savedFavorites.favorites[0].username, match1.partner.username);
+    assert.equal(Object.hasOwn(savedFavorites.favorites[0], 'description'), false, 'favorites expose only the avatar and nickname');
+    assert.equal(Object.hasOwn(savedFavorites.favorites[0], 'publicId'), false, 'favorites do not expose contact identifiers');
+    const favoriteRemoved = await fetch(`${baseUrl}/api/favorites/${encodeURIComponent(match1.partner.id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${user1.token}` } });
+    assert.equal(favoriteRemoved.status, 200);
+
     const credit1 = waitForEvent(socket1, 'wallet:updated', 9000);
     const credit2 = waitForEvent(socket2, 'wallet:updated', 9000);
     testDb.prepare("UPDATE matches SET active_seconds = 59, credited_minutes = 0, last_tick_at = ? WHERE id = ?").run(new Date(Date.now() - 2500).toISOString(), match1.matchId);
@@ -184,6 +193,12 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(received.content, payload.message.content);
     assert.equal(received.sender_id, user1.user.id);
 
+    const selfReply = await new Promise(resolve => socket1.emit('chat:send', {
+      matchId: match1.matchId, clientId: 'integration-self-reply-1', content: 'Ответ самому себе', replyToId: payload.message.id
+    }, resolve));
+    assert.equal(selfReply.ok, false, 'users must not reply to their own messages');
+    assert.match(selfReply.error, /Нельзя отвечать на собственное сообщение/);
+
     const selfReaction = await new Promise(resolve => socket1.emit('chat:react', { matchId: match1.matchId, messageId: payload.message.id, emoji: '🔥' }, resolve));
     assert.equal(selfReaction.ok, false, 'users must not react to their own messages');
     assert.match(selfReaction.error, /только на сообщения собеседника/);
@@ -196,7 +211,6 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const replyAck = await new Promise((resolve, reject) => socket2.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-reply-1', content: 'Ответ на привет', replyToId: payload.message.id }, result => result?.ok ? resolve(result) : reject(new Error(result?.error))));
     assert.equal(replyAck.message.replyTo.id, payload.message.id);
     assert.equal((await replyIncoming).replyTo.id, payload.message.id);
-
     const stickerIncoming = waitForEvent(socket2, 'chat:message');
     const stickerAck = await new Promise((resolve, reject) => socket1.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-sticker-1', content: '', sticker: '😂' }, result => result?.ok ? resolve(result) : reject(new Error(result?.error))));
     assert.equal(stickerAck.message.type, 'sticker');
@@ -308,6 +322,22 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     assert.notEqual(guest1.user.id, guest2.user.id);
     assert.match(guest1.user.username, /^Гость-/);
     assert.equal(guest1.user.tokens, 0, 'guest accounts start with zero tokens');
+
+    const guestAvatarChoice = await fetch(`${baseUrl}/api/profile`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${guest1.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar: '🦊' })
+    });
+    assert.equal(guestAvatarChoice.status, 200, 'guest accounts can choose a standard avatar');
+    assert.equal((await guestAvatarChoice.json()).user.avatar, '🦊');
+    const guestAvatarPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+N8AAAAASUVORK5CYII=', 'base64');
+    const guestAvatarUpload = await fetch(`${baseUrl}/api/avatar/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${guest1.token}`, 'Content-Type': 'image/png' },
+      body: guestAvatarPng
+    });
+    assert.equal(guestAvatarUpload.status, 201, 'guest accounts can upload a custom avatar');
+    assert.match((await guestAvatarUpload.json()).user.avatarUrl, /\\?v=/);
     assert.ok(Date.parse(guest1.user.guestExpiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest accounts should be kept for 180 days');
     const guestSessions = await fetch(`${baseUrl}/api/sessions`, { headers: { Authorization: `Bearer ${guest1.token}` } }).then(response => response.json());
     assert.ok(Date.parse(guestSessions.sessions[0].expiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest browser session should remain valid for 180 days');
