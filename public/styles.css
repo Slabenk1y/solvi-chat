@@ -469,3 +469,106 @@ html.session-checking #sessionBootScreen{display:grid!important}
 @media(prefers-reduced-motion:reduce){.modal-backdrop:not([hidden])>.modal-card,.store-preview-modal:not([hidden])>.store-preview-modal-card{animation:none!important}}
 .reduce-motion-user .modal-backdrop:not([hidden])>.modal-card,
 .reduce-motion-user .store-preview-modal:not([hidden])>.store-preview-modal-card{animation:none!important}
+
+
+/* SOVLI v1.7 — true in-app store previews and visible membership benefits */
+.store-preview-modal-card{width:min(690px,100%)}
+.store-preview-canvas{padding:0;background:var(--demo-bg,var(--surface-soft))}
+.store-live-preview{
+  --demo-bg:#f4f5fb;--demo-surface:#fff;--demo-ink:#26263d;--demo-primary:#655de2;
+  --demo-soft:#eeedff;--demo-line:#e7e8f2;--demo-bubble:#655de2;--demo-bubble-ink:#fff;
+  width:100%;padding:12px;background:var(--demo-bg);color:var(--demo-ink);
+}
+.store-live-shell{display:grid;grid-template-columns:42px minmax(0,1fr);min-height:226px;overflow:hidden;border:1px solid var(--demo-line);border-radius:14px;background:var(--demo-surface);box-shadow:0 9px 26px rgba(34,31,73,.12)}
+.store-live-rail{display:flex;flex-direction:column;align-items:center;gap:13px;padding:12px 5px;border-right:1px solid var(--demo-line);background:color-mix(in srgb,var(--demo-surface) 91%,var(--demo-primary) 9%);color:var(--demo-primary);font-size:13px}
+.store-live-rail>span{width:25px;height:25px;display:grid;place-items:center;border-radius:8px;color:color-mix(in srgb,var(--demo-ink) 48%,transparent)}
+.store-live-rail>span.active{background:var(--demo-soft);color:var(--demo-primary)}
+.store-live-logo{width:26px;height:26px;display:grid;place-items:center;border-radius:9px;background:var(--demo-primary);color:#fff;font:900 16px Manrope,sans-serif}
+.store-live-main{min-width:0;background:var(--demo-bg)}
+.store-live-topbar{height:38px;display:flex;align-items:center;gap:9px;padding:0 12px;border-bottom:1px solid var(--demo-line);background:var(--demo-surface)}
+.store-live-brand{font:900 11px Manrope,sans-serif;letter-spacing:.8px;color:var(--demo-ink)}
+.store-live-top-hint{font-size:7px;letter-spacing:1px;color:color-mix(in srgb,var(--demo-ink) 45%,transparent)}
+.store-live-top-avatar{margin-left:auto;width:23px;height:23px;display:grid;place-items:center;border-radius:50%;background:var(--demo-soft);font-size:13px}
+.store-live-content{min-height:188px;display:grid;grid-template-columns:minmax(100px,.7fr) minmax(0,1.4fr);gap:9px;padding:10px}
+.store-live-profile{display:flex;align-items:center;align-content:flex-start;gap:7px;flex-wrap:wrap;padding:11px 8px;border:1px solid var(--demo-line);border-radius:11px;background:var(--demo-surface)}
+.store-live-avatar{width:48px;height:48px;display:grid;place-items:center;flex:none;border:2px solid var(--demo-line);border-radius:50%;background:var(--demo-soft);font-size:25px;transition:box-shadow .18s,border-color .18s,transform .18s}
+.store-live-profile-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.store-live-profile-copy strong{font-size:10px;color:var(--demo-ink)}
+.store-live-profile-copy span{font-size:8px;color:#48a982}
+.store-live-badge{padding:4px 7px;border-radius:99px;background:var(--demo-soft);color:var(--demo-primary);font-size:7px;font-weight:900;letter-spacing:.45px}
+.store-live-chat{min-width:0;display:flex;flex-direction:column;gap:8px;padding:9px;border:1px solid var(--demo-line);border-radius:11px;background:var(--demo-surface)}
+.store-live-chat-head{display:flex;justify-content:space-between;align-items:center;gap:6px;padding-bottom:6px;border-bottom:1px solid var(--demo-line);font-size:9px;font-weight:800;color:var(--demo-ink)}
+.store-live-chat-head small{font-size:7px;color:color-mix(in srgb,var(--demo-ink) 46%,transparent);font-weight:500}
+.store-live-messages{min-height:95px;display:flex;flex-direction:column;align-items:flex-start;gap:7px;padding:4px 1px}
+.store-live-incoming,.store-live-outgoing{max-width:90%;padding:7px 9px;border-radius:10px;font-size:8px;line-height:1.4;box-shadow:0 2px 7px rgba(20,20,40,.07)}
+.store-live-incoming{border:1px solid var(--demo-line);background:var(--demo-bg);color:var(--demo-ink);border-bottom-left-radius:3px}
+.store-live-outgoing{align-self:flex-end;background:var(--demo-bubble);color:var(--demo-bubble-ink);border-bottom-right-radius:3px}
+.store-live-composer{margin-top:auto;padding:7px 9px;border:1px solid var(--demo-line);border-radius:8px;background:var(--demo-bg);color:color-mix(in srgb,var(--demo-ink) 44%,transparent);font-size:7px}
+.store-live-preview-caption{padding:7px 0 0;text-align:center;color:color-mix(in srgb,var(--demo-ink) 56%,transparent);font-size:8px;font-weight:700}
+.store-live-sticker-strip{display:flex;flex-wrap:wrap;gap:3px;padding-top:3px}
+.store-live-sticker-strip span{width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--demo-line);border-radius:8px;background:var(--demo-bg);font-size:14px}
+.store-live-wave{display:flex;align-items:center;justify-content:center;gap:4px;min-height:46px;padding:7px;border-radius:9px;background:var(--demo-soft)}
+.store-live-wave i{width:4px;border-radius:99px;background:var(--demo-primary);opacity:.85}
+.store-live-play{align-self:center;border:1px solid var(--demo-line);border-radius:99px;padding:5px 10px;background:var(--demo-bg);color:var(--demo-primary);font-size:8px;font-weight:800}
+.store-live-title-pill{align-self:flex-end;padding:5px 8px;border:1px solid var(--demo-line);border-radius:99px;background:var(--demo-soft);color:var(--demo-primary);font-size:8px;font-weight:900}
+.store-live-preview[data-preview-effect="theme"] .store-live-shell{box-shadow:0 12px 26px color-mix(in srgb,var(--demo-primary) 18%,transparent)}
+.store-live-preview[data-preview-effect="bubble"] .store-live-outgoing{outline:2px solid color-mix(in srgb,var(--demo-primary) 28%,transparent);outline-offset:2px}
+.store-live-preview[data-preview-effect="frame"] .store-live-profile{border-color:color-mix(in srgb,var(--demo-primary) 50%,var(--demo-line))}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="orbit"] .store-live-avatar{box-shadow:0 0 0 4px rgba(151,133,239,.35),0 0 0 7px rgba(151,133,239,.12)}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="comet"] .store-live-avatar{box-shadow:4px 0 0 4px rgba(255,185,116,.6)}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="pixel"] .store-live-avatar{border-radius:10px;border:3px dashed #9a82e6}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="royal"] .store-live-avatar{border:3px solid #d6ad53;box-shadow:0 0 0 4px rgba(214,173,83,.25)}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="flower"] .store-live-avatar{box-shadow:0 0 0 4px #eab6cb,0 0 0 7px rgba(234,182,203,.2)}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="neon"] .store-live-avatar{box-shadow:0 0 0 4px #62d7ee,0 0 16px rgba(98,215,238,.6)}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="sakura"] .store-live-avatar{box-shadow:0 0 0 4px #e9a5bd,0 0 0 7px rgba(233,165,189,.18)}
+.store-live-preview[data-preview-effect="frame"][data-preview-value="glass"] .store-live-avatar{border:3px solid rgba(255,255,255,.85);box-shadow:0 0 0 4px rgba(132,190,219,.65),0 8px 16px rgba(40,90,120,.15)}
+.store-live-preview[data-preview-effect="membership"][data-preview-tier="vip"] .store-live-avatar{border:3px solid #d6ad53;box-shadow:0 0 0 4px rgba(214,173,83,.26),0 0 14px rgba(214,173,83,.24)}
+.store-live-preview[data-preview-effect="membership"][data-preview-tier="vip"] .store-live-badge{background:#fbf0d4;color:#89621c}
+.store-live-preview[data-preview-effect="membership"][data-preview-tier="premium"] .store-live-avatar{border:3px solid #d9b4ff;box-shadow:0 0 0 4px rgba(172,128,226,.35),0 0 18px rgba(172,128,226,.42)}
+.store-live-preview[data-preview-effect="membership"][data-preview-tier="premium"] .store-live-badge{background:linear-gradient(100deg,#eee0ff,#fff0cf);color:#714da2}
+.store-preview-perks{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--surface-soft)}
+.store-preview-perks>strong{font-size:10px;color:var(--ink)}
+.store-preview-perks ul{display:grid;gap:7px;margin:9px 0 0;padding:0;list-style:none}
+.store-preview-perks li{position:relative;padding-left:19px;color:var(--muted);font-size:10px;line-height:1.45}
+.store-preview-perks li:before{content:'✓';position:absolute;left:0;top:0;color:var(--primary);font-weight:900}
+.membership-rate{position:relative;z-index:1;color:var(--muted);font-size:9px;font-weight:800}
+.membership-duration-note{position:relative;z-index:1;color:var(--muted);font-size:8px}
+.membership-card .store-preview-button{position:relative;z-index:1}
+.membership-current-status{display:inline-flex;align-items:center;gap:7px;width:max-content;max-width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:99px;background:var(--primary-soft);color:var(--primary);font-size:9px;font-weight:800}
+.membership-current-status:not([hidden]){margin:8px 0}
+.membership-perks-card{margin:14px 0 18px;padding:17px 19px;border:1px solid var(--line);border-radius:17px;background:var(--surface);box-shadow:0 8px 25px rgba(40,35,90,.04)}
+.membership-perks-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.membership-perks-heading strong{font:800 14px Manrope,sans-serif;color:var(--ink)}
+.membership-perks-heading span{padding:5px 8px;border-radius:99px;background:var(--primary-soft);color:var(--primary);font-size:8px;font-weight:900}
+.membership-perks-card>p,.membership-perks-card p{margin:7px 0 10px;color:var(--muted);font-size:10px;line-height:1.5}
+.membership-perks-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;margin:0;padding:0;list-style:none}
+.membership-perks-list li{position:relative;padding-left:17px;color:var(--muted);font-size:9px;line-height:1.5}
+.membership-perks-list li:before{content:'✦';position:absolute;left:0;color:var(--primary)}
+.membership-perks-expiry{display:block;margin-top:11px;color:var(--muted);font-size:8px}
+.profile-hero-v1[data-membership="vip"] .profile-cover-v1{background:radial-gradient(circle at 86% 16%,rgba(255,255,255,.38),transparent 25%),linear-gradient(120deg,#624a27,#b38b42 52%,#8363a8)}
+.profile-hero-v1[data-membership="vip"] .profile-cover-v1 .avatar{box-shadow:0 0 0 5px rgba(240,202,112,.35),0 12px 30px rgba(35,24,60,.25)}
+.profile-hero-v1[data-membership="premium"] .profile-cover-v1{background:radial-gradient(circle at 85% 15%,rgba(255,233,185,.42),transparent 24%),linear-gradient(120deg,#39285d,#8655a6 55%,#c18d6e)}
+.profile-hero-v1[data-membership="premium"] .profile-cover-v1 .avatar{box-shadow:0 0 0 5px rgba(225,194,255,.46),0 0 22px rgba(205,162,255,.6)}
+.chat-partner[data-membership="vip"] .avatar,.avatar[data-membership="vip"]{box-shadow:0 0 0 3px rgba(218,174,85,.34)}
+.chat-partner[data-membership="premium"] .avatar,.avatar[data-membership="premium"]{box-shadow:0 0 0 3px rgba(176,130,222,.4),0 0 14px rgba(176,130,222,.28)}
+:root[data-membership-tier="vip"] .user-chip{border-color:rgba(202,161,75,.5)}
+:root[data-membership-tier="premium"] .user-chip{border-color:rgba(173,128,221,.6);box-shadow:0 0 0 2px rgba(173,128,221,.12)}
+@media(max-width:700px){
+  .store-live-preview{padding:7px}
+  .store-live-shell{grid-template-columns:30px minmax(0,1fr);min-height:205px}
+  .store-live-rail{gap:10px;padding:10px 2px;font-size:11px}
+  .store-live-rail>span{width:22px;height:22px}
+  .store-live-content{grid-template-columns:minmax(80px,.65fr) minmax(0,1.35fr);gap:6px;padding:7px}
+  .store-live-profile{padding:8px 5px;gap:5px}
+  .store-live-avatar{width:38px;height:38px;font-size:20px}
+  .store-live-chat{padding:7px;gap:6px}
+  .store-live-incoming,.store-live-outgoing{font-size:7px;padding:6px}
+  .store-live-badge{font-size:6px;padding:4px 5px}
+  .membership-perks-list{grid-template-columns:1fr}
+  .membership-perks-card{padding:14px}
+  .store-preview-modal-card{max-height:92dvh}
+}
+@media(prefers-reduced-motion:reduce){
+  .store-live-avatar,.store-live-play,.store-live-wave i,.membership-perks-card{transition:none!important;animation:none!important}
+}
+.reduce-motion-user .store-live-avatar,.reduce-motion-user .store-live-play,.reduce-motion-user .store-live-wave i{transition:none!important;animation:none!important}
