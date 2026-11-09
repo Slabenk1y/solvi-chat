@@ -118,6 +118,12 @@ try {
   else pass('Ответы на собственные сообщения блокируются сервером');
   if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
   else pass('У каждого предмета магазина доступен отдельный предпросмотр');
+  if (!app.includes("modal.parentElement !== document.body") || !app.includes("store-preview-open")) fail('Store preview modal не вынесен из контейнера приложения');
+  else pass('Предпросмотр магазина открывается отдельным фиксированным слоем');
+  if (!server.includes("app.get('/api/ping'")) fail('Лёгкий ping endpoint отсутствует');
+  else pass('Лёгкий ping endpoint доступен');
+  if (!server.includes('GEMINI_API_KEY') || !server.includes('function startAiFallback') || !server.includes("socket.on('ai:send'") || !app.includes("socket.on('ai:message'")) fail('ИИ-подбор SOLVI не подключён во всех слоях');
+  else pass('ИИ-подбор с явной маркировкой и Gemini API подключён');
   if (!server.includes('support_tickets') || !server.includes("app.post('/api/tickets'") || !server.includes("app.get('/api/admin/tickets'") || !server.includes("app.post('/api/tickets/:id/close'") || !html.includes('id="ticketCreateForm"') || !html.includes('id="ticketCloseButton"') || !ownerPublicHtml.includes('data-page="tickets"') || !ownerPanel.includes("api('/api/admin/tickets')")) fail('Система тикетов не подключена ко всем слоям');
   else pass('Тикеты: приватные треды, ответы, закрытие и owner inbox подключены');
   if (!server.includes('site_social_links') || !server.includes("app.post('/api/admin/social-links'") || !html.includes('socialLinksFooter') || !ownerPublicHtml.includes('data-page="growth"')) fail('Управление соцсетями не подключено');
