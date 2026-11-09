@@ -29,6 +29,8 @@ const NATIVE_DB_BACKUP = path.join(DATA_DIR, 'orbit.pre-v5-sqlitejs.backup.sqlit
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 const BASE_STICKERS = Object.freeze(['👋', '😂', '❤️', '🔥', '🥹', '🎉', '☕', '🐈']);
+const VIP_STICKERS = Object.freeze(['👑', '💎', '🪄', '🌟', '🫶', '🚀', '🦋', '✨']);
+const PREMIUM_STICKERS = Object.freeze(['🪩', '🌌', '🦄', '🪽', '🌠', '🔮', '💫', '🪐']);
 const STICKER_PACKS = Object.freeze({
   'stickers-night-owl': ['✨', '🌙', '🚀', '🫶', '👀', '🫡', '🤝', '💫'],
   'stickers-sausage': ['🌭', '🐭', '🧀', '😵‍💫', '🥨', '💨'],
@@ -198,12 +200,12 @@ const STORE_CATALOG = Object.freeze([
   { id: "title-night-circuit", name: "Ночной контур", description: "Титул цифрового города.", category: "Титулы", slot: "title", price: 3920, rarity: "Легендарный", preview: "title-circuit", value: "night-circuit", collection: "Цифровой город" },
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
-  { id: 'vip-1d', tier: 'vip', days: 1, price: 270, name: 'VIP · 1 день', description: 'Значок VIP, расширенное оформление профиля и эксклюзивные косметические функции.' },
-  { id: 'vip-7d', tier: 'vip', days: 7, price: 1350, name: 'VIP · 7 дней', description: 'Неделя дополнительных косметических возможностей. Выгоднее дневного тарифа.' },
-  { id: 'vip-30d', tier: 'vip', days: 30, price: 4200, name: 'VIP · 30 дней', description: 'Месяц статуса VIP с заметной скидкой за длительный срок.' },
-  { id: 'premium-1d', tier: 'premium', days: 1, price: 480, name: 'Premium · 1 день', description: 'Все возможности VIP плюс эксклюзивная рамка, титул и набор оформления.' },
-  { id: 'premium-7d', tier: 'premium', days: 7, price: 2400, name: 'Premium · 7 дней', description: 'Неделя полного косметического набора Premium.' },
-  { id: 'premium-30d', tier: 'premium', days: 30, price: 7200, name: 'Premium · 30 дней', description: 'Месяц полного статуса Premium с выгодной месячной ценой.' }
+  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'Значок VIP, золотой контур профиля, 8 эксклюзивных стикеров и дополнительные быстрые фразы.', hourlyRate: 180 },
+  { id: 'vip-3h', tier: 'vip', hours: 3, price: 540, name: 'VIP · 3 часа', description: 'Все возможности VIP на три часа. Цена строго 180 токенов за каждый час.', hourlyRate: 180 },
+  { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Все возможности VIP на шесть часов. Цена строго 180 токенов за каждый час.', hourlyRate: 180 },
+  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Все возможности VIP плюс премиальная карточка профиля, сияющая рамка, 8 особых стикеров и расширенные фразы.', hourlyRate: 360 },
+  { id: 'premium-3h', tier: 'premium', hours: 3, price: 1080, name: 'Premium · 3 часа', description: 'Все возможности Premium на три часа. Цена строго 360 токенов за каждый час.', hourlyRate: 360 },
+  { id: 'premium-6h', tier: 'premium', hours: 6, price: 2160, name: 'Premium · 6 часов', description: 'Все возможности Premium на шесть часов. Цена строго 360 токенов за каждый час.', hourlyRate: 360 }
 ]);
 const LANGUAGES = ['Русский', 'English', 'Español', 'Deutsch', 'Français', 'Türkçe', 'Português', 'العربية', '中文', '日本語'];
 const INTERESTS = ['Музыка', 'Игры', 'Кино и сериалы', 'Технологии', 'Путешествия', 'Спорт', 'Книги', 'Юмор', 'Наука', 'Искусство', 'Языки', 'Общение'];
@@ -1060,10 +1062,15 @@ async function main() {
         const current = dbGet('SELECT tokens, subscription_tier, subscription_expires_at FROM users WHERE id = ?', [req.user.id]);
         if (!current || Number(current.tokens) < pack.price) throw new Error('Недостаточно токенов для покупки привилегии.');
         const now = Date.now();
+        const activeTier = effectiveSubscription(current);
+        if (activeTier === 'premium' && pack.tier === 'vip') throw new Error('Premium уже активен. Для продления выбери пакет Premium.');
         const oldExpires = current.subscription_expires_at && Date.parse(current.subscription_expires_at) > now ? Date.parse(current.subscription_expires_at) : now;
-        const expires = new Date(oldExpires + pack.days * 86400000).toISOString();
+        const remainingMs = Math.max(0, oldExpires - now);
+        // VIP time converts to Premium at the same token value: 1 VIP hour = 30 Premium minutes.
+        const carryMs = activeTier === 'vip' && pack.tier === 'premium' ? Math.floor(remainingMs / 2) : remainingMs;
+        const expires = new Date(now + carryMs + pack.hours * 60 * 60 * 1000).toISOString();
         dbRun('UPDATE users SET tokens = tokens - ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [pack.price, pack.tier, expires, req.user.id]);
-        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -pack.price, `${pack.name} · ${pack.days} дн.`, nowIso()]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'membership', -pack.price, `${pack.name} · ${pack.hours} ч · ${pack.hourlyRate} ✦/ч`, nowIso()]);
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.json({ ok: true, user: publicUser(getUserById(req.user.id)) });
@@ -1788,7 +1795,9 @@ async function main() {
       const clientId = typeof payload?.clientId === 'string' && payload.clientId.length <= 80 ? payload.clientId : '';
       const requestedSticker = payload?.sticker;
       const equippedStickerPack = getEquippedItems(userId).stickers;
-      const allowedStickers = new Set([...BASE_STICKERS, ...(STICKER_PACKS[equippedStickerPack] || [])]);
+      const membershipTier = effectiveSubscription(getUserById(userId));
+      const membershipStickers = membershipTier === 'premium' ? [...VIP_STICKERS, ...PREMIUM_STICKERS] : (membershipTier === 'vip' ? VIP_STICKERS : []);
+      const allowedStickers = new Set([...BASE_STICKERS, ...membershipStickers, ...(STICKER_PACKS[equippedStickerPack] || [])]);
       const sticker = allowedStickers.has(requestedSticker) ? requestedSticker : null;
       const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, 3) : [];
       if (!clientId || content.length > MAX_MESSAGE_LENGTH || (!content && !sticker && !attachmentIds.length)) {
