@@ -214,16 +214,16 @@ const STORE_BUNDLES = Object.freeze([
   { id: 'vip-signature-pack', name: 'VIP · Звёздный след', tier: 'vip', price: 2400, description: '5 эксклюзивных предметов: туманность, метеоритные сообщения, полярная рамка, кометные стикеры и титул «Пыльца комет». Нужен активный VIP или Premium.', itemIds: ['theme-vip-nebula','bubble-vip-meteor','frame-vip-aurora','stickers-vip-comet','title-vip-stardust'] },
   { id: 'premium-quantum-pack', name: 'Premium · Квантовый портал', tier: 'premium', price: 4800, description: '5 мифических предметов: горизонт событий, призматические сообщения, портал измерений, квантовые стикеры и титул «Сингулярность». Нужен активный Premium.', itemIds: ['theme-premium-event-horizon','bubble-premium-prism','frame-premium-portal','stickers-premium-quantum','title-premium-singularity'] }
 ]);
-const BILLING_CURRENCY_RAW = String(process.env.BILLING_CURRENCY || 'eur').trim().toLowerCase();
+const BILLING_CURRENCY_RAW = String(process.env.BILLING_CURRENCY || 'rub').trim().toLowerCase();
 const BILLING_CURRENCY = /^[a-z]{3}$/.test(BILLING_CURRENCY_RAW) ? BILLING_CURRENCY_RAW : 'eur';
-function billingMinorPrice(envName, eurDefault) {
+function billingMinorPrice(envName, defaultMinor) {
   const raw = process.env[envName];
-  const value = raw === undefined || String(raw).trim() === '' ? (BILLING_CURRENCY === 'eur' ? eurDefault : 0) : Number(raw);
+  const value = raw === undefined || String(raw).trim() === '' ? defaultMinor : Number(raw);
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 const BILLING_PRODUCTS = Object.freeze([
-  { id: 'vip-30d', tier: 'vip', days: 30, amountMinor: billingMinorPrice('VIP_PRICE_MINOR', 499), currency: BILLING_CURRENCY, name: 'VIP · 30 дней', description: '30 дней VIP: расширенные лимиты, голосовые до 45 секунд и 5 фото за сообщение.' },
-  { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: billingMinorPrice('PREMIUM_PRICE_MINOR', 899), currency: BILLING_CURRENCY, name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
+  { id: 'vip-30d', tier: 'vip', days: 30, amountMinor: billingMinorPrice('VIP_PRICE_MINOR', BILLING_CURRENCY === 'rub' ? 49900 : ['eur','usd'].includes(BILLING_CURRENCY) ? 499 : 0), currency: BILLING_CURRENCY, name: 'VIP · 30 дней', description: '30 дней VIP: расширенные лимиты, голосовые до 45 секунд и 5 фото за сообщение.' },
+  { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: billingMinorPrice('PREMIUM_PRICE_MINOR', BILLING_CURRENCY === 'rub' ? 89900 : ['eur','usd'].includes(BILLING_CURRENCY) ? 899 : 0), currency: BILLING_CURRENCY, name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
   { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов.' },
@@ -424,7 +424,7 @@ function storePrice(itemId, fallbackPrice) {
 }
 function cashStorePrice(itemId) {
   const row = dbGet('SELECT price_minor, currency, enabled FROM cash_store_price_overrides WHERE item_id = ?', [itemId]);
-  return row ? { cashPriceMinor: Number(row.price_minor), cashCurrency: String(row.currency || 'EUR'), cashEnabled: Boolean(row.enabled) } : { cashPriceMinor: 0, cashCurrency: 'EUR', cashEnabled: false };
+  return row ? { cashPriceMinor: Number(row.price_minor), cashCurrency: String(row.currency || 'EUR'), cashEnabled: Boolean(row.enabled) } : { cashPriceMinor: 0, cashCurrency: 'RUB', cashEnabled: false };
 }
 function auditAdmin(actorId, action, targetId = null, details = {}) {
   dbRun('INSERT INTO admin_audit_log (id, actor_id, action, target_id, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -1381,7 +1381,7 @@ async function main() {
     res.json({
       provider: 'Paymentwall',
       configured: settings.configured,
-      currency: String(process.env.PAYMENTWALL_DISPLAY_CURRENCY || 'EUR').trim().toUpperCase(),
+      currency: String(process.env.PAYMENTWALL_DISPLAY_CURRENCY || 'RUB').trim().toUpperCase(),
       packages: PAYMENTWALL_TOKEN_PACKAGES,
       billingEmail: String(_req.user?.billing_email || ''),
       goodsConfigured: paymentwallGoodsSettings().configured,
@@ -2610,7 +2610,7 @@ async function main() {
     const item = STORE_CATALOG.find(row => row.id === req.params.itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === req.params.itemId) || STORE_BUNDLES.find(row => row.id === req.params.itemId);
     if (!item || item.price <= 0) return res.status(404).json({ error: 'Товар не поддерживает прямую денежную цену.' });
     const priceMinor = Math.trunc(Number(req.body?.priceMinor));
-    const currency = String(req.body?.currency || 'EUR').trim().toUpperCase();
+    const currency = String(req.body?.currency || 'RUB').trim().toUpperCase();
     if (!Number.isSafeInteger(priceMinor) || priceMinor < 30 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Цена должна быть от 0,30 до 1 000 000 в валюте ISO.' });
     const enabled = req.body?.enabled === false ? 0 : 1;
     transaction(() => {
