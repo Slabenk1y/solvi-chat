@@ -61,3 +61,10 @@ Both adult queues require a fresh explicit 18+ self-attestation for each queue e
 Stripe store currency and prices are configurable through `BILLING_CURRENCY`, `VIP_PRICE_MINOR`, and `PREMIUM_PRICE_MINOR`. Keep `BILLING_CURRENCY=eur` for the current €4.99/€8.99 defaults. For RUB, configure RUB and prices in kopeks (for example RUB 499.00 is 49900). Stripe charge currency and payout currency are not necessarily the same; configure a supported settlement bank account in Stripe Dashboard before switching. Do not assume RUB proceeds can be paid out to a Russian bank account.
 
 Default public links are Telegram https://t.me/ChatSolvi and TikTok https://www.tiktok.com/@slabenk1y_armagedon. Owner edits remain available in the panel.
+
+
+## AI matchmaking fallback
+
+After 25 seconds in the standard Chat queue, SOLVI can connect a Gemini-powered AI character if no human match was found. The character is always visibly labelled **ИИ-собеседник**; AI sessions do not inflate the real online-user count and are not stored as human accounts. The fallback uses the user's selected interests and gender preference to choose a fitting persona. Adult queues (Flirt 18+ and Roleplay 18+) do not use AI fallback.
+
+To enable it, create a Gemini Developer API key in Google AI Studio and add it in Render → service → Environment as `GEMINI_API_KEY`. Optionally set `GEMINI_MODEL=gemini-2.5-flash`. Never commit the API key or paste it into client-side code. The Gemini API has separate quotas and terms from a consumer Gemini subscription. If no API key is configured, users remain in the human queue and see that AI fallback is not enabled. AI sessions currently support text and stickers; photo and voice attachments remain human-chat features.
