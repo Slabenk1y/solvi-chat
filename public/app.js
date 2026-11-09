@@ -627,7 +627,11 @@ function setUser(user) {
   const messageInput = $('#messageInput');
   if (messageInput) messageInput.maxLength = user.subscriptionTier === 'premium' ? 5000 : (user.subscriptionTier === 'vip' ? 3000 : 2000);
   document.documentElement.dataset.role = user.role === 'owner' ? 'owner' : (user.role || 'member');
-  document.documentElement.dataset.memberTier = ['vip', 'premium'].includes(user.subscriptionTier) ? user.subscriptionTier : 'free';\n  const messageLimit = user.subscriptionTier === 'premium' ? 5000 : (user.subscriptionTier === 'vip' ? 3000 : 2000);\n  $('#messageInput').maxLength = messageLimit;\n  $('#messageHint').textContent = `До ${messageLimit.toLocaleString('ru-RU')} символов · Enter — отправить · Shift + Enter — новая строка`;\n  if ($('#languageOptions')) renderFilters();
+  document.documentElement.dataset.memberTier = ['vip', 'premium'].includes(user.subscriptionTier) ? user.subscriptionTier : 'free';
+  const messageLimit = user.subscriptionTier === 'premium' ? 5000 : (user.subscriptionTier === 'vip' ? 3000 : 2000);
+  if (messageInput) messageInput.maxLength = messageLimit;
+  $('#messageHint').textContent = `До ${messageLimit.toLocaleString('ru-RU')} символов · Enter — отправить · Shift + Enter — новая строка`;
+  if ($('#languageOptions')) renderFilters();
   if (isNewAccount) state.selectedAvatar = user.avatarUrl ? null : user.avatar;
   setAvatarContent($('#sideAvatar'), user);
   setAvatarContent($('#topAvatar'), user);
