@@ -279,7 +279,7 @@
 .session-current{font-size:9px;font-weight:800;color:var(--green);white-space:nowrap}
 .message-row{scroll-margin:20px}.message-reply-quote{display:block;width:100%;border:0;border-left:3px solid var(--primary);border-radius:7px;padding:6px 8px;margin:0 0 6px;background:rgba(120,110,210,.08);color:inherit;text-align:left;font-size:10px;cursor:pointer}
 .message-row.reply-highlight .message-bubble{outline:2px solid var(--primary);outline-offset:3px}
-@media(max-width:560px){.session-row{align-items:flex-start;flex-direction:column}.session-row .button{align-self:flex-start}}
+@media(max-width:560px){.session-row{align-items:flex-start;flex-direction:column}.session-row .button{align-self:flex-start}.store-preview-modal-card{padding:15px}.store-preview-canvas{min-height:230px}.theme-context-preview{min-height:230px!important}.theme-mock-shell{min-height:205px!important}.theme-mock-body{min-height:179px!important}}
 
 
 /* SOVLI v1.0.0 — profile identity, collection showroom and sausage-mouse mascot */
@@ -405,10 +405,16 @@ html.session-checking #sessionBootScreen{display:grid!important}
 .store-item-preview{cursor:zoom-in;touch-action:manipulation}
 .store-item-preview:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 .store-preview-open-label{position:absolute;z-index:4;right:8px;bottom:7px;padding:5px 8px;border:1px solid rgba(255,255,255,.28);border-radius:99px;background:rgba(23,22,45,.62);color:#fff;font-size:8px;font-weight:800;letter-spacing:.15px;backdrop-filter:none;pointer-events:none}
-.store-preview-modal-card{width:min(500px,100%);max-height:min(92dvh,820px);overflow:auto;padding:22px}
+.store-preview-modal-card{width:min(620px,100%);max-height:min(94dvh,900px);overflow:auto;padding:22px}
 .store-preview-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 .store-preview-modal-head .modal-close{position:static;flex:none}
-.store-preview-canvas{width:100%;overflow:hidden;border:1px solid var(--line);border-radius:16px;margin:9px 0 15px;background:var(--surface-soft)}
+.store-preview-canvas{width:100%;min-height:270px;overflow:hidden;border:1px solid var(--line);border-radius:16px;margin:9px 0 10px;background:var(--surface-soft)}
+.store-preview-live-note{margin:0 0 13px;color:var(--muted);font-size:10px;line-height:1.55}
+.theme-context-preview{min-height:270px!important;padding:12px!important}
+.theme-mock-shell{min-height:242px!important}
+.theme-mock-body{min-height:216px!important}
+.membership-showcase{min-height:270px!important}
+.membership-showcase-perks span{font-size:9px;line-height:1.4}
 .store-detail-preview{height:190px;cursor:default;border-radius:0}
 .store-detail-preview .store-preview-open-label{display:none}
 .store-preview-modal-card h2{margin:8px 0 6px}
