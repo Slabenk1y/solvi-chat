@@ -40,7 +40,7 @@ jobs:
 
           rsync -a \
             --exclude='.git/' \
-            --exclude='.github/workflows/unpack-sovli.yml' \
+            --exclude='.github/' \
             "$SOURCE_DIR"/ ./
 
           rm -f "$ZIP_FILE"
