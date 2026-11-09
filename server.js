@@ -454,7 +454,7 @@ function membershipLimits(user) {
     attachmentLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
     imageBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 6 * 1024 * 1024),
     audioBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 5 * 1024 * 1024),
-    avatarBytes: tier === 'premium' ? 8 * 1024 * 1024 : (tier === 'vip' ? 4 * 1024 * 1024 : 2 * 1024 * 1024),
+    avatarBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 4 * 1024 * 1024),
     voiceSeconds: tier === 'premium' ? 60 : (tier === 'vip' ? 45 : 30)
   };
 }
@@ -657,9 +657,8 @@ function addToQueue(socket, preferences) {
   const roleplayIntent = preferences?.roleplayIntent === 'offering' ? 'offering' : 'seeking';
   if (mode === 'roleplay' && !['seeking', 'offering'].includes(preferences?.roleplayIntent)) return { ok: false, error: 'Выбери: ищешь сюжет или предлагаешь сюжет.' };
   const limits = membershipLimits(user);
-  const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(x => LANGUAGES.includes(x)))].slice(0, limits.languageLimit) : [];
-  const allowedInterests = mode === 'flirt' ? FLIRT_INTERESTS : (mode === 'roleplay' ? ROLEPLAY_INTERESTS : INTERESTS);
-  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(x => allowedInterests.includes(x)))].slice(0, limits.interestLimit) : [];
+  const languages = ['Русский'];
+  const interests = [];
   const entry = { userId, mode, gender: ownGender, desiredGender, roleplayIntent, languages, interests, joinedAt: Date.now() };
   if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
@@ -1641,7 +1640,7 @@ async function main() {
   });
 
   const avatarUploadLimiter = rateLimit({ windowMs: 10 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false });
-  app.post('/api/avatar/upload', authMiddleware, avatarUploadLimiter, express.raw({ type: '*/*', limit: '8mb' }), (req, res) => {
+  app.post('/api/avatar/upload', authMiddleware, avatarUploadLimiter, express.raw({ type: '*/*', limit: '12mb' }), (req, res) => {
     if (!Buffer.isBuffer(req.body) || req.body.length < 16) return res.status(400).json({ error: 'Файл пустой или слишком маленький.' });
     const avatarLimit = membershipLimits(req.user).avatarBytes;
     if (req.body.length > avatarLimit) return res.status(413).json({ error: `Аватар для твоего статуса должен быть не больше ${Math.round(avatarLimit / 1024 / 1024)} МБ.` });
