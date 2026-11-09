@@ -112,17 +112,31 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.items.some(item => item.id === 'wallpaper-deep-space' && item.category === 'Темы' && item.slot === 'theme' && item.owned && item.equipped));
     assert.equal(storeBefore.equipped.theme, 'wallpaper-deep-space', 'legacy wallpaper equipment should migrate into full interface themes');
     assert.equal(storeBefore.equipped.wallpaper, undefined, 'legacy wallpaper slot should be retired');
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1d')?.price, 270);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1d')?.price, 480);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-30d')?.price, 4200);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-30d')?.price, 7200);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1h')?.price, 180);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-3h')?.price, 540);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-6h')?.price, 1080);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1h')?.price, 360);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-3h')?.price, 1080);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-6h')?.price, 2160);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1h')?.hourlyRate, 180);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1h')?.hourlyRate, 360);
     assert.equal(storeBefore.items.find(item => item.id === 'theme-aurora')?.price, 300);
     assert.equal(storeBefore.items.find(item => item.id === 'stickers-night-owl')?.price, 330);
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
     assert.equal(storeBefore.dailyAvailable, undefined, 'daily rewards are not part of v1 economy');
     assert.ok(storeBefore.collections.length >= 8, 'catalog is grouped into collections');
+    const vipBought = await postJson(baseUrl, '/api/store/membership', { packageId: 'vip-1h' }, user1.token);
+    assert.equal(vipBought.user.subscriptionTier, 'vip');
+    assert.ok(Date.parse(vipBought.user.subscriptionExpiresAt) - Date.now() > 59 * 60 * 1000, 'VIP one-hour package should grant one hour');
+    assert.equal(vipBought.user.tokens, 820);
+    const premiumUpgrade = await postJson(baseUrl, '/api/store/membership', { packageId: 'premium-1h' }, user1.token);
+    assert.equal(premiumUpgrade.user.subscriptionTier, 'premium');
+    assert.ok(Date.parse(premiumUpgrade.user.subscriptionExpiresAt) - Date.now() > 89 * 60 * 1000, 'VIP time should convert by value when upgrading to Premium');
+    assert.equal(premiumUpgrade.user.tokens, 460);
+    const downgradeAttempt = await fetch(`${baseUrl}/api/store/membership`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId: 'vip-1h' }) });
+    assert.equal(downgradeAttempt.status, 400, 'active Premium cannot be downgraded by buying VIP');
     const bought = await postJson(baseUrl, '/api/store/buy', { itemId: 'theme-aurora' }, user1.token);
-    assert.equal(bought.balance, 700);
+    assert.equal(bought.balance, 160);
     const stickerPackPurchase = await postJson(baseUrl, '/api/store/buy', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackPurchase.balance, 670);
     const stickerPackEquipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'stickers-night-owl' }, user2.token);
@@ -219,6 +233,14 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const premiumStickerAck = await new Promise((resolve, reject) => socket2.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-sticker-premium-1', content: '', sticker: '🌙' }, result => result?.ok ? resolve(result) : reject(new Error(result?.error))));
     assert.equal(premiumStickerAck.message.type, 'sticker');
     assert.equal((await premiumStickerIncoming).sticker, '🌙');
+
+    const premiumStickerIncoming2 = waitForEvent(socket2, 'chat:message');
+    const premiumStickerAck2 = await new Promise((resolve, reject) => socket1.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-premium-membership-sticker-1', content: '', sticker: '🪩' }, result => result?.ok ? resolve(result) : reject(new Error(result?.error))));
+    assert.equal(premiumStickerAck2.message.sticker, '🪩', 'Premium-only sticker should be allowed for an active Premium member');
+    assert.equal((await premiumStickerIncoming2).sticker, '🪩');
+
+    const freePremiumSticker = await new Promise(resolve => socket2.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-free-premium-sticker-1', content: '', sticker: '🪩' }, resolve));
+    assert.equal(freePremiumSticker.ok, false, 'free users cannot send Premium-only stickers');
 
 
     const uploadResponse = await fetch(`${baseUrl}/api/media/upload`, {
