@@ -3,7 +3,7 @@
 const CACHE_NAME = 'sovli-shell-v44-0';
 const SHELL = [
   '/',
-  '/styles.css?v=30',
+  '/styles.css?v=31',
   '/app.js?v=43',
   '/favicon.svg',
   '/manifest.webmanifest',
