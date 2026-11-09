@@ -1490,7 +1490,7 @@ async function main() {
     if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(billingEmail)) return res.status(400).json({ error: 'Укажи действующий email для платёжного чека.' });
     const currency = String(priceInfo.cashCurrency || 'EUR').toUpperCase();
     const priceMinor = Number(priceInfo.cashPriceMinor);
-    const orderId = 'solvi_order_' + crypto.randomUUID().replace(/-/g, '');
+    const orderId = 'solviorder' + crypto.randomUUID().replace(/-/g, '');
     const registrationTimestamp = Math.floor(Date.parse(req.user.created_at || '') / 1000);
     const at = nowIso();
     try {
@@ -1524,7 +1524,7 @@ async function main() {
     const reference = String(params.ref || '').trim();
     const orderId = String(params.goodsid || '').trim();
     const publicId = String(params.uid || '').trim();
-    if (!reference || reference.length > 180 || !orderId.startsWith('solvi_order_')) return res.status(400).type('text/plain').send('Invalid purchase reference');
+    if (!reference || reference.length > 180 || !/^solviorder[a-f0-9]{32}$/.test(orderId)) return res.status(400).type('text/plain').send('Invalid purchase reference');
     const order = dbGet('SELECT * FROM paymentwall_store_orders WHERE id = ?', [orderId]);
     if (!order) return res.status(200).type('text/plain').send('OK');
     const user = getUserById(order.user_id);
