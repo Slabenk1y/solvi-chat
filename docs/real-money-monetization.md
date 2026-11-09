@@ -20,7 +20,7 @@ The storefront stays fail-closed until the matching project credentials and HTTP
    - PAYMENTWALL_VC_PUBLIC_KEY — VC project's public key.
    - PAYMENTWALL_VC_PRIVATE_KEY — VC project's private key.
    - PAYMENTWALL_VC_WIDGET_CODE — the VC project's widget code, e.g. p1_1.
-   - PAYMENTWALL_DISPLAY_CURRENCY — label displayed in SOLVI, e.g. EUR.
+   - PAYMENTWALL_DISPLAY_CURRENCY — display label in SOLVI (defaults to RUB). This does not force the payment method or settlement currency.
    - APP_PUBLIC_URL — https://solvi-chat-next.onrender.com.
 
    For backward compatibility, the VC integration also accepts PAYMENTWALL_PUBLIC_KEY, PAYMENTWALL_PRIVATE_KEY, and PAYMENTWALL_WIDGET_CODE. Do not reuse these generic keys for the Digital Goods project.
@@ -36,7 +36,7 @@ The VC webhook uses Paymentwall's Virtual Currency convention: **type=0** is a s
    - PAYMENTWALL_GOODS_PUBLIC_KEY — Digital Goods project's public key.
    - PAYMENTWALL_GOODS_PRIVATE_KEY — Digital Goods project's private key.
    - PAYMENTWALL_GOODS_WIDGET_CODE — Digital Goods widget code, e.g. p1.
-5. In the SOLVI owner panel → Monetization → Catalog and prices, set a direct cash price and enable **За деньги** for each catalogue item you want to sell. These prices are separate from token prices. Prices for 30-day VIP/Premium are sourced from VIP_PRICE_MINOR and PREMIUM_PRICE_MINOR (default EUR 4.99 / EUR 8.99 when the billing currency is EUR).
+5. In the SOLVI owner panel → Monetization → Catalog and prices, set a direct cash price and enable **За деньги** for each catalogue item you want to sell. These prices are separate from token prices. The storefront and owner-panel defaults use RUB; EUR and USD remain selectable per item and advertising campaign. 30-day VIP/Premium use BILLING_CURRENCY (defaults to RUB) and VIP_PRICE_MINOR / PREMIUM_PRICE_MINOR (defaults RUB 499.00 / RUB 899.00; override these values before launch). RUB display/pricing does not guarantee that Paymentwall will accept RUB or settle proceeds in RUB; confirm supported merchant currencies and payout currency with the approved merchant account.
 6. Users enter a billing email in the store. SOLVI creates an order with a server-generated reference and passes the exact price, currency, product name, email, and callback URL to Paymentwall.
 7. Paymentwall's signed Digital Goods pingback uses **type=0** for successful delivery and **type=2** for refund/chargeback. SOLVI verifies goodsid, user ID, signature, and unique ref; then it places the item in the user's inventory or extends the paid subscription. A repeated pingback cannot grant the product twice. A type=2 callback revokes delivered store items or reduces the paid subscription.
 
@@ -52,7 +52,7 @@ This is a direct-sold ad placement, not an automatic advertising network. Google
 
 The owner panel reports token credits/reversals, direct-store orders and their order prices, current catalogue pricing, and direct sponsor campaign totals. Virtual Currency pingbacks contain the number of virtual tokens purchased rather than the fiat amount charged, so exact top-up gross, local currency, provider fees, reserves, refunds, and net proceeds must be reconciled against Paymentwall Merchant Dashboard.
 
-Paymentwall's public payout support page lists international bank transfer and SEPA bank transfer and notes an automatic payout threshold, but the permitted settlement currency depends on the merchant account and receiving bank. Do not assume RUB settlement is available; confirm the exact payout currency and bank route with Paymentwall after merchant approval.
+Paymentwall's public payout support page lists international bank transfer and SEPA bank transfer and notes an automatic payout threshold, but the permitted settlement currency depends on the merchant account and receiving bank. Do not assume RUB settlement is available; confirm accepted buyer currencies, conversion rules, fees, reserve/chargeback terms, exact payout currency and bank route with Paymentwall after merchant approval. Keep the app's display currency separate from the provider's actual charge and settlement currency.
 
 Test both projects using Paymentwall's Test Payment Method and Test Pingback Tool. Verify correct successful callback type (VC type=0, DG type=0), duplicate-reference handling, wrong-signature rejection, and type=2 reversal. Then submit both projects for Paymentwall's technical and business review before accepting live payments.
 
