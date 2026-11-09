@@ -165,9 +165,16 @@ function openStorePreview(item) {
   $('#storePreviewBadge').textContent = item.category || (item.tier === 'premium' ? 'PREMIUM' : 'VIP');
   $('#storePreviewTitle').textContent = item.name || 'Предпросмотр';
   $('#storePreviewDescription').textContent = item.description || 'Посмотри, как предмет будет выглядеть в SOVLI.';
-  $('#storePreviewBenefit').textContent = item.slot === 'membership'
-    ? 'Особый статус действует указанный срок и продлевается при повторной покупке.'
-    : (item.slot === 'theme' ? 'Изменит палитру всего интерфейса.' : 'Применяется к разделу: ' + (item.category || 'оформление') + '.');
+  const effects = {
+    theme: 'Полностью меняет оформление SOVLI: фон, палитру, панели, карточки и область диалога.',
+    bubble: 'Меняет цвет и визуальный стиль твоих исходящих сообщений.',
+    frame: 'Добавляет декоративную рамку к аватару профиля.',
+    sound: 'Меняет короткий звуковой сигнал интерфейса.',
+    stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
+    title: 'Показывает выбранный титул рядом с твоим именем.',
+    membership: 'Даёт временный статус с косметическими возможностями. Срок добавляется к уже активной привилегии.'
+  };
+  $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
   modal.hidden = false;
 }
@@ -599,10 +606,12 @@ async function api(url, options = {}) {
   return payload;
 }
 function showAuth() {
+  document.documentElement.classList.remove('session-checking');
   $('#authView').hidden = false;
   $('#appView').hidden = true;
 }
 function showApp() {
+  document.documentElement.classList.remove('session-checking');
   $('#authView').hidden = true;
   $('#appView').hidden = false;
   setView('home');
@@ -1132,6 +1141,10 @@ function sendMessage(content, clientId, extras = {}) {
   const attachments = Array.isArray(extras.attachments) ? extras.attachments : [];
   const sticker = typeof extras.sticker === 'string' ? extras.sticker : null;
   const replyToId = extras.replyToId || state.replyTarget?.id || null;
+  if (replyToId && state.replyTarget?.sender_id === state.user?.id) {
+    showToast('Нельзя отвечать на собственное сообщение.');
+    return;
+  }
   if (!content && !attachments.length && !sticker) return;
   const message = {
     id: `pending:${clientId}`, match_id: state.activeMatch.matchId,
