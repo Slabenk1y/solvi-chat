@@ -1798,8 +1798,8 @@ async function main() {
       const allowedStickers = new Set([...BASE_STICKERS, ...(STICKER_PACKS[equippedStickerPack] || [])]);
       const sticker = allowedStickers.has(requestedSticker) ? requestedSticker : null;
       const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, 3) : [];
-      if (!clientId || content.length > MAX_MESSAGE_LENGTH || (!content && !sticker && !attachmentIds.length)) {
-        return ack({ ok: false, error: `Добавь текст, стикер или вложение. Текст — до ${MAX_MESSAGE_LENGTH} символов.` });
+      if (!clientId || content.length > messageLimit || (!content && !sticker && !attachmentIds.length)) {
+        return ack({ ok: false, error: `Добавь текст, стикер или вложение. Твой лимит — до ${messageLimit.toLocaleString('ru-RU')} символов.` });
       }
       const existing = dbGet('SELECT * FROM messages WHERE sender_id = ? AND client_id = ?', [userId, clientId]);
       if (existing) return ack({ ok: true, message: serializeMessage(existing, userId), duplicate: true });
