@@ -591,59 +591,6 @@ async function loadTokenHistory() {
   } catch { /* token history is supplementary */ }
 }
 
-async function loadAdmin() {
-  try {
-    const [overview, reports] = await Promise.all([api('/api/admin/overview'), api('/api/admin/reports')]);
-    const stats = $('#adminStats'); stats.replaceChildren();
-    [['Пользователи', overview.users], ['Гости', overview.guests], ['Активные чаты', overview.activeMatches], ['Открытые жалобы', overview.openReports], ['Токены в системе', overview.tokenTotal]].forEach(([label, value]) => {
-      const card = document.createElement('div'); card.className = 'admin-stat-card';
-      const strong = document.createElement('strong'); strong.textContent = Number(value).toLocaleString('ru-RU');
-      const caption = document.createElement('span'); caption.textContent = label;
-      card.append(strong, caption); stats.append(card);
-    });
-    const usersRoot = $('#adminUsers'); usersRoot.replaceChildren();
-    (overview.recentUsers || []).forEach(person => {
-      const row = document.createElement('div'); row.className = 'admin-user-row';
-      const label = document.createElement('div'); label.className = 'admin-user-copy';
-      const name = document.createElement('strong'); name.textContent = person.username;
-      const roleNames = { owner: 'Владелец', developer: 'Разработчик', moderator: 'Модератор', member: 'Участник' };
-      const meta = document.createElement('small'); meta.textContent = `${person.public_id} · ${roleNames[person.role] || 'Участник'} · ${person.subscription_tier || 'free'}`;
-      label.append(name, meta);
-      const actions = document.createElement('div'); actions.className = 'admin-user-actions';
-      if (person.role !== 'owner') {
-        for (const [tier, days, text] of [['vip',7,'VIP 7д'],['premium',30,'Premium 30д']]) {
-          const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = text;
-          button.addEventListener('click', async () => { try { await api(`/api/admin/users/${encodeURIComponent(person.id)}/membership`, { method: 'POST', body: JSON.stringify({ tier, days }) }); showToast(`${person.username}: ${tier.toUpperCase()} на ${days} дней.`); await loadAdmin(); } catch (error) { showToast(error.message); } }); actions.append(button);
-        }
-        const nextRole = person.role === 'member' ? 'moderator' : person.role === 'moderator' ? 'developer' : 'member';
-        const roleButton = document.createElement('button'); roleButton.type = 'button'; roleButton.className = 'button button-secondary'; roleButton.textContent = nextRole === 'moderator' ? 'Назначить модератора' : nextRole === 'developer' ? 'Назначить разработчика' : 'Снять роль';
-        roleButton.addEventListener('click', async () => { try { await api(`/api/admin/users/${encodeURIComponent(person.id)}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) }); await loadAdmin(); showToast('Роль обновлена.'); } catch (error) { showToast(error.message); } }); actions.append(roleButton);
-      } else {
-        const ownerLabel = document.createElement('span'); ownerLabel.className = 'owner-account-label'; ownerLabel.textContent = 'Полный доступ'; actions.append(ownerLabel);
-      }
-      row.append(label, actions); usersRoot.append(row);
-    });
-    const list = $('#adminReports'); list.replaceChildren();
-    if (!reports.reports.length) { const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'Жалоб пока нет.'; list.append(empty); return; }
-    reports.reports.forEach(report => {
-      const card = document.createElement('article'); card.className = 'admin-report-card';
-      const heading = document.createElement('div'); heading.className = 'admin-report-heading';
-      const title = document.createElement('strong'); title.textContent = `${report.category} · ${report.reported}`;
-      const status = document.createElement('span'); status.className = `report-status ${report.status}`; status.textContent = report.status === 'resolved' ? 'Рассмотрена' : 'Открыта';
-      heading.append(title, status);
-      const reason = document.createElement('p'); reason.textContent = report.details || `Жалоба от ${report.reporter}`;
-      const context = document.createElement('div'); context.className = 'report-context';
-      report.context.forEach(message => { const line = document.createElement('p'); line.textContent = `${message.sender_id === report.reportedId ? report.reported : report.reporter}: ${message.content || 'Вложение'}`; context.append(line); });
-      const actions = document.createElement('div'); actions.className = 'admin-report-actions';
-      const resolve = document.createElement('button'); resolve.type = 'button'; resolve.className = 'button button-secondary'; resolve.textContent = report.status === 'resolved' ? 'Обновить решение' : 'Отметить рассмотренной';
-      resolve.addEventListener('click', async () => { const resolution = await appDialog({title:'Решение по жалобе',message:'Кратко опиши результат проверки.',input:true,defaultValue:'Проверено',confirmText:'Сохранить'}); if (resolution === null) return; try { await api(`/api/admin/reports/${encodeURIComponent(report.id)}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }); await loadAdmin(); showToast('Жалоба отмечена рассмотренной.'); } catch (error) { showToast(error.message); } });
-      const suspend = document.createElement('button'); suspend.type = 'button'; suspend.className = 'button button-danger'; suspend.textContent = 'Ограничить на 1 час';
-      suspend.addEventListener('click', async () => { if (!await appDialog({title:'Ограничить пользователя?',message:`Доступ для ${report.reported} будет ограничен на 1 час.`,confirmText:'Ограничить',danger:true})) return; try { await api(`/api/admin/users/${encodeURIComponent(report.reportedId)}/suspend`, { method: 'POST', body: JSON.stringify({ minutes: 60, reason: `Жалоба: ${report.category}` }) }); await loadAdmin(); showToast('Доступ пользователя ограничен.'); } catch (error) { showToast(error.message); } });
-      actions.append(resolve, suspend); card.append(heading, reason, context, actions); list.append(card);
-    });
-  } catch (error) { showToast(error.message); }
-}
-
 async function loadFavorites() {
   try { const data = await api('/api/favorite-chats'); state.favoriteChats = data.chats || []; state.favoriteChatDrafts = data.drafts || []; renderFavorites(); }
   catch (error) { showToast(error.message); }
@@ -844,11 +791,11 @@ async function loadSessions() {
 
 function setAuthError(message = '') { $('#authError').textContent = message; }
 function currentView() {
-  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked', 'admin'].find(name => !$(`#${name}Panel`).hidden) || 'home';
+  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked'].find(name => !$(`#${name}Panel`).hidden) || 'home';
 }
 function setView(view) {
   if (view === 'home' && state.activeMatch) view = 'chat';
-  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked', 'admin'].forEach(name => {
+  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked'].forEach(name => {
     const panel = $(`#${name}Panel`);
     if (panel) panel.hidden = name !== view;
   });
@@ -859,7 +806,6 @@ function setView(view) {
   }
   $$('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === (view === 'search' || view === 'chat' ? 'home' : view)));
   if (view === 'chat') scrollMessages();
-  if (view === 'admin' && state.user?.role === 'owner') loadAdmin();
   if (view === 'store') loadStore();
   if (view === 'inventory') loadInventory();
   if (view === 'favorites') loadFavorites();
@@ -919,7 +865,6 @@ function setUser(user) {
   $('#avatarUploadButton').hidden = false;
   state.settings = { ...state.settings, ...(user.settings || {}) };
   applyEquipped(user.equipped || {});
-  $('#adminNavButton').hidden = user.role !== 'owner';
   $('#accountTypeBadge').textContent = isGuest ? 'ГОСТЬ' : 'АККАУНТ';
   $('#profileAccountType').textContent = isGuest ? 'ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ' : 'ПОСТОЯННЫЙ АККАУНТ';
   $('#guestClaimCard').hidden = !isGuest;
@@ -2121,7 +2066,6 @@ $('#storeCollectionSelect')?.addEventListener('change', () => { state.storeColle
 $('#storeSearchInput')?.addEventListener('input', () => { state.storeSearch = $('#storeSearchInput').value; if (state.storeData) renderStore(state.storeData); });
 $('#promoRedeemButton')?.addEventListener('click', redeemPromo);
 $('#promoCodeInput')?.addEventListener('keydown', event => { if (event.key === 'Enter') redeemPromo(); });
-$('#refreshReportsButton')?.addEventListener('click', loadAdmin);
 $('#loadSessionsButton')?.addEventListener('click', loadSessions);
 $('#ticketCreateForm')?.addEventListener('submit', async event => {
   event.preventDefault();
