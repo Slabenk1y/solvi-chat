@@ -115,7 +115,6 @@ try {
   else pass('VIP/Premium наборы закрыты для подписок, купленных только за токены');
   if (/\b(confirm|prompt|alert)\(/.test(app) || /\b(confirm|prompt|alert)\(/.test(ownerPanel)) fail('В интерфейсе остались нативные диалоги браузера');
   else pass('Подтверждения и текстовые запросы используют фирменные диалоги');
-  else pass('Идеи и баг-репорты подключены к пользовательской и owner-панели');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
   else pass('Новый зарегистрированный аккаунт получает 50 ✦');
   if (!server.includes('favorite_chat_drafts') || !server.includes("app.get('/api/favorite-chats/:id'") || !app.includes('function openFavoriteChat')) fail('Архив избранных переписок не подключён');
