@@ -14,7 +14,7 @@ const { rateLimit } = require('express-rate-limit');
 const { Server } = require('socket.io');
 const sqlite = require('node:sqlite');
 const { PostgresSnapshotStore } = require('./lib/postgres-snapshot.cjs');
-const { buildVirtualCurrencyWidgetUrl, verifyPingback } = require('./lib/paymentwall.cjs');
+const { buildVirtualCurrencyWidgetUrl, buildDigitalGoodsCheckoutUrl, verifyPingback } = require('./lib/paymentwall.cjs');
 const SqliteDatabase = sqlite.Database || sqlite.DatabaseSync;
 const APP_VERSION = require('./package.json').version;
 
@@ -421,6 +421,10 @@ function ensureStarterInventory(userId) {
 function storePrice(itemId, fallbackPrice) {
   const row = dbGet('SELECT price, enabled FROM store_price_overrides WHERE item_id = ?', [itemId]);
   return row ? { price: Number(row.price), enabled: Boolean(row.enabled) } : { price: fallbackPrice, enabled: true };
+}
+function cashStorePrice(itemId) {
+  const row = dbGet('SELECT price_minor, currency, enabled FROM cash_store_price_overrides WHERE item_id = ?', [itemId]);
+  return row ? { cashPriceMinor: Number(row.price_minor), cashCurrency: String(row.currency || 'EUR'), cashEnabled: Boolean(row.enabled) } : { cashPriceMinor: 0, cashCurrency: 'EUR', cashEnabled: false };
 }
 function auditAdmin(actorId, action, targetId = null, details = {}) {
   dbRun('INSERT INTO admin_audit_log (id, actor_id, action, target_id, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -983,6 +987,30 @@ async function main() {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS paymentwall_token_purchases_user ON paymentwall_token_purchases(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS cash_store_price_overrides (
+      item_id TEXT PRIMARY KEY,
+      price_minor INTEGER NOT NULL CHECK(price_minor >= 30),
+      currency TEXT NOT NULL DEFAULT 'EUR',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      updated_by TEXT REFERENCES users(id),
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS paymentwall_store_orders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      item_kind TEXT NOT NULL CHECK(item_kind IN ('catalog','membership','bundle','paid_tier')),
+      amount_minor INTEGER NOT NULL CHECK(amount_minor >= 30),
+      currency TEXT NOT NULL,
+      billing_email TEXT NOT NULL,
+      provider_reference TEXT UNIQUE,
+      status TEXT NOT NULL CHECK(status IN ('pending','paid','reversed')),
+      delivered_item_ids TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS paymentwall_store_orders_user ON paymentwall_store_orders(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS paymentwall_store_orders_status ON paymentwall_store_orders(status, created_at DESC);
     CREATE TABLE IF NOT EXISTS ad_campaigns (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -1063,6 +1091,7 @@ async function main() {
   if (!promoColumns.includes('target_user_id')) db.exec('ALTER TABLE promo_codes ADD COLUMN target_user_id TEXT REFERENCES users(id) ON DELETE CASCADE');
   db.exec('CREATE INDEX IF NOT EXISTS promo_codes_target_user_idx ON promo_codes(target_user_id, created_at DESC)');
   if (!userColumns.includes('username_key')) db.exec('ALTER TABLE users ADD COLUMN username_key TEXT');
+  if (!userColumns.includes('billing_email')) db.exec("ALTER TABLE users ADD COLUMN billing_email TEXT NOT NULL DEFAULT ''");
   if (!userColumns.includes('settings_json')) db.exec("ALTER TABLE users ADD COLUMN settings_json TEXT NOT NULL DEFAULT '{}'");
   if (!userColumns.includes('account_type')) db.exec("ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'registered'");
   if (!userColumns.includes('guest_expires_at')) db.exec('ALTER TABLE users ADD COLUMN guest_expires_at TEXT');
@@ -1573,13 +1602,13 @@ async function main() {
     const equipped = getEquippedItems(req.user.id);
     const items = STORE_CATALOG.map(item => {
       const override = storePrice(item.id, item.price);
-      return { ...item, price: override.price, enabled: override.enabled, owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
+      return { ...item, price: override.price, enabled: override.enabled, ...cashStorePrice(item.id), owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
     });
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
-    res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
-      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), current: effectiveSubscription(user) === item.tier })),
-      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
+    res.json({ balance: Number(user.tokens || 0), billingEmail: String(user.billing_email || ''), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
+      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), current: effectiveSubscription(user) === item.tier })),
+      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), ...cashStorePrice(bundle.id), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
@@ -2431,6 +2460,21 @@ async function main() {
     });
     res.json({ ok: true, itemId: item.id, price, enabled: Boolean(enabled) });
   });
+  app.patch('/api/admin/store/:itemId/cash-price', authMiddleware, ownerOnly, (req, res) => {
+    const item = STORE_CATALOG.find(row => row.id === req.params.itemId);
+    if (!item || item.price <= 0) return res.status(404).json({ error: 'Товар не поддерживает прямую денежную цену.' });
+    const priceMinor = Math.trunc(Number(req.body?.priceMinor));
+    const currency = String(req.body?.currency || 'EUR').trim().toUpperCase();
+    if (!Number.isSafeInteger(priceMinor) || priceMinor < 30 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Цена должна быть от 0,30 до 1 000 000 в валюте ISO.' });
+    const enabled = req.body?.enabled === false ? 0 : 1;
+    transaction(() => {
+      dbRun('INSERT INTO cash_store_price_overrides (item_id,price_minor,currency,enabled,updated_by,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET price_minor=excluded.price_minor,currency=excluded.currency,enabled=excluded.enabled,updated_by=excluded.updated_by,updated_at=excluded.updated_at',
+        [item.id,priceMinor,currency,enabled,req.user.id,nowIso()]);
+      auditAdmin(req.user.id,'store_cash_price',item.id,{priceMinor,currency,enabled:Boolean(enabled)});
+    });
+    res.json({ ok:true,itemId:item.id,priceMinor,currency,enabled:Boolean(enabled) });
+  });
+
   app.get('/api/ads/slot', authMiddleware, (req, res) => {
     const placement = String(req.query?.placement || 'store');
     if (placement !== 'store') return res.json({ ad: null });
@@ -2504,12 +2548,14 @@ async function main() {
     const storeSales = Number(dbGet('SELECT COUNT(*) AS n FROM store_purchases').n);
     const salesByItem = dbAll('SELECT item_id, COUNT(*) AS sales, COALESCE(SUM(price),0) AS tokens FROM store_purchases GROUP BY item_id ORDER BY sales DESC, tokens DESC LIMIT 20');
     const payments = dbAll('SELECT provider, currency, COUNT(*) AS count, COALESCE(SUM(amount_minor),0) AS amount_minor FROM payment_records GROUP BY provider, currency ORDER BY provider, currency');
+    const cashStoreSales = dbAll("SELECT item_id, currency, COUNT(*) AS sales, COALESCE(SUM(amount_minor),0) AS gross_minor FROM paymentwall_store_orders WHERE status = 'paid' GROUP BY item_id, currency ORDER BY sales DESC, gross_minor DESC LIMIT 30");
+    const cashStoreRecent = dbAll("SELECT o.id,o.user_id,u.username,o.item_id,o.item_kind,o.amount_minor,o.currency,o.status,o.created_at FROM paymentwall_store_orders o JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT 30");
     const paymentwall = dbGet("SELECT COUNT(*) AS topups, COALESCE(SUM(CASE WHEN status = 'credited' THEN token_amount ELSE 0 END),0) AS tokens_credited, COALESCE(SUM(CASE WHEN status = 'reversed' THEN token_amount ELSE 0 END),0) AS tokens_reversed FROM paymentwall_token_purchases");
     const paymentwallRecent = dbAll("SELECT p.provider_reference, p.user_id, u.username, p.token_amount, p.status, p.created_at, p.updated_at FROM paymentwall_token_purchases p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 20");
     const adStats = dbAll("SELECT currency, COUNT(*) AS campaigns, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(CASE WHEN payment_status IN ('paid','comped') THEN price_minor ELSE 0 END),0) AS booked_minor FROM ad_campaigns GROUP BY currency");
     const adCampaigns = dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100');
-    const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), bundleOnly: Boolean(item.bundleOnly) }));
-    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured });
+    const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), bundleOnly: Boolean(item.bundleOnly) }));
+    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, cashStoreSales, cashStoreRecent, adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured, paymentwallGoodsConfigured: paymentwallGoodsSettings().configured });
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
