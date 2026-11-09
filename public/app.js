@@ -11,6 +11,8 @@ const STICKER_PACKS = {
   'stickers-sausage-mouse': ['🐭','🌭','🧀','😳','🏃','💨','👑','🥹'],
   'stickers-deep-sea': ['🐠','🐙','🪼','🐬','🦀','🐚']
 };
+const VIP_STICKERS = ['👑','💎','🪄','🌟','🫶','🚀','🦋','✨'];
+const PREMIUM_STICKERS = ['🪩','🌌','🦄','🪽','🌠','🔮','💫','🪐'];
 function readStoredList(key) { try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
 const state = {
   token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
@@ -149,33 +151,159 @@ function createStorePreview(item) {
   preview.append(scene);
   return preview;
 }
+const PREVIEW_THEME_PALETTES = {
+  light: ['#f5f6fb','#ffffff','#26263d','#655de2','#eeedff','#e7e8f2'],
+  dark: ['#1b1b2b','#29293d','#f1f0ff','#958cff','#393654','#34344c'],
+  default: ['#f4f5fb','#ffffff','#27263d','#655de2','#eeedff','#e8e9f2'],
+  aurora: ['#eaf5f5','#ffffff','#1e3d4c','#368b91','#d8f3ee','#c7e9e7'],
+  sunset: ['#fff1ed','#ffffff','#593c4c','#d8757d','#ffe0d4','#f6c4ba'],
+  midnight: ['#171827','#25263b','#f0efff','#8b7df0','#38334f','#333249'],
+  candy: ['#fff0f7','#ffffff','#56334f','#d45f9c','#ffe0f0','#f6c3de'],
+  arcade: ['#17172d','#242448','#f2efff','#4fd1c5','#34345d','#45426e'],
+  space: ['#161a36','#22264b','#f1efff','#9c85ec','#39355f','#4c4779'],
+  paper: ['#f3ead8','#fffaf0','#584c40','#a17e55','#efe1c5','#e3d1b0'],
+  neon: ['#17182a','#22253d','#f4f2ff','#28c8db','#3a3d62','#493f75'],
+  pixel: ['#20203c','#2e2d55','#f6f0ff','#a58ae8','#49416f','#5d4f8f'],
+  cream: ['#f7f0e3','#fffdf7','#55483b','#bd9967','#f4e6cd','#e9d8b8'],
+  clouds: ['#eaf4ff','#ffffff','#35465d','#6d9cce','#deedff','#cee0f5'],
+  royal: ['#211b39','#30264d','#fff4db','#d4a74f','#59446f','#71518b'],
+  ice: ['#e9f4fb','#ffffff','#334b61','#548eb7','#d8ebf8','#c4dfef'],
+  sakura: ['#fff0f4','#ffffff','#62424f','#d98ba7','#ffe0e9','#f3c5d5'],
+  mountain: ['#f0eee7','#ffffff','#45534c','#7f9b81','#e3e8dc','#d3ddcf'],
+  cyber: ['#161d31','#222b48','#effaff','#49c5dd','#3a446c','#574e8a'],
+  sea: ['#e6f5f7','#ffffff','#244e59','#35a1ab','#d1f0ee','#b5e4e1']
+};
+const PREVIEW_BUBBLES = {
+  mint:['#bcebd9','#31594c'], berry:['#7850a6','#ffffff'], lilac:['#a68fea','#ffffff'],
+  gold:['#dfc17a','#473818'], ocean:['#4d9eae','#ffffff'], rose:['#e89ab8','#5b3044'],
+  citrus:['#cde77b','#35421e'], graphite:['#45465a','#ffffff']
+};
+const PREVIEW_FRAMES = ['orbit','comet','pixel','royal','flower','neon','sakura','glass'];
+function previewNode(tag, className, textValue) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (textValue !== undefined) node.textContent = textValue;
+  return node;
+}
+function createLiveStorePreview(item) {
+  const root = previewNode('div', 'store-live-preview');
+  const effect = item.slot === 'wallpaper' ? 'theme' : (item.slot || 'theme');
+  root.dataset.previewEffect = effect;
+  root.dataset.previewValue = item.value || '';
+  root.dataset.previewTier = item.tier || '';
+  const palette = PREVIEW_THEME_PALETTES[item.value] || PREVIEW_THEME_PALETTES.default;
+  ['--demo-bg','--demo-surface','--demo-ink','--demo-primary','--demo-soft','--demo-line'].forEach((key,index)=>root.style.setProperty(key,palette[index]));
+  const bubble = PREVIEW_BUBBLES[item.value];
+  if (bubble) {
+    root.style.setProperty('--demo-bubble',bubble[0]);
+    root.style.setProperty('--demo-bubble-ink',bubble[1]);
+  } else {
+    root.style.setProperty('--demo-bubble',palette[3]);
+    root.style.setProperty('--demo-bubble-ink','#ffffff');
+  }
+  const shell=previewNode('div','store-live-shell');
+  const rail=previewNode('aside','store-live-rail');
+  rail.append(previewNode('strong','store-live-logo','s'));
+  ['⌂','◌','♡','⚙'].forEach((symbol,index)=>rail.append(previewNode('span',index===1?'active':'',symbol)));
+  const main=previewNode('div','store-live-main');
+  const top=previewNode('div','store-live-topbar');
+  const brand=previewNode('strong','store-live-brand','SOVLI');
+  const topHint=previewNode('span','store-live-top-hint','ТВОЁ ПРОСТРАНСТВО');
+  const topAvatar=previewNode('span','store-live-top-avatar','🪐');
+  top.append(brand,topHint,topAvatar);
+  const content=previewNode('div','store-live-content');
+  const profile=previewNode('div','store-live-profile');
+  const avatar=previewNode('div','store-live-avatar','🦊');
+  const profileCopy=previewNode('div','store-live-profile-copy');
+  profileCopy.append(previewNode('strong','','Алекс'),previewNode('span','','В сети'));
+  profile.append(avatar,profileCopy);
+  const profileBadge=previewNode('span','store-live-badge',item.slot==='membership'?(item.tier==='premium'?'PREMIUM':'VIP'):(item.slot==='title'?item.name:'Участник'));
+  profile.append(profileBadge);
+  const chat=previewNode('div','store-live-chat');
+  const chatHead=previewNode('div','store-live-chat-head');
+  chatHead.append(previewNode('span','','Диалог'),previewNode('small','',item.slot==='membership'?'Особый статус': 'Пример оформления'));
+  const bubbles=previewNode('div','store-live-messages');
+  bubbles.append(previewNode('span','store-live-incoming','Привет! Как тебе SOVLI?'));
+  bubbles.append(previewNode('span','store-live-outgoing','Очень красиво ✨'));
+  if(effect==='stickers'||effect==='membership'){
+    const tray=previewNode('div','store-live-sticker-strip');
+    const stickers=item.slot==='membership'
+      ? (item.tier==='premium'?[...VIP_STICKERS.slice(0,2),...PREMIUM_STICKERS.slice(0,3)]:VIP_STICKERS.slice(0,5))
+      : (STICKER_PACKS[item.id]||['🌙','✨','☕','🪐','🫶']);
+    stickers.slice(0,5).forEach(symbol=>tray.append(previewNode('span','',symbol)));
+    bubbles.append(tray);
+  }
+  if(effect==='sound'){
+    const waveform=previewNode('div','store-live-wave');
+    [10,19,28,14,23,34,17,27,12,21,30,15].forEach(h=>{
+      const bar=previewNode('i');
+      bar.style.height=`${h}px`;
+      waveform.append(bar);
+    });
+    const play=previewNode('button','store-live-play','▶ Прослушать звук');
+    play.type='button';
+    play.addEventListener('click',()=>playUiSound(640));
+    bubbles.append(waveform,play);
+  }
+  if(effect==='title'){
+    bubbles.append(previewNode('span','store-live-title-pill',item.name));
+  }
+  chat.append(chatHead,bubbles,previewNode('div','store-live-composer','＋  Написать сообщение…'));
+  content.append(profile,chat);
+  main.append(top,content);
+  shell.append(rail,main);
+  root.append(shell);
+  const caption=previewNode('div','store-live-preview-caption',
+    effect==='theme'?'Так будет выглядеть весь интерфейс':
+    effect==='bubble'?'Так будет выглядеть твоё сообщение':
+    effect==='frame'?'Так будет выглядеть рамка профиля':
+    effect==='stickers'?'Так будут выглядеть стикеры':
+    effect==='sound'?'Нажми, чтобы услышать звук':
+    effect==='title'?'Так увидят твой титул':
+    item.tier==='premium'?'Премиум-профиль и специальные стикеры':'VIP-профиль и специальные стикеры');
+  root.append(caption);
+  return root;
+}
+function storePreviewPerks(item) {
+  if(item.slot==='membership' && item.tier==='premium') return [
+    'Золотой Premium-бейдж рядом с ником в чате и профиле',
+    'Сияющая рамка и отдельное оформление карточки профиля',
+    '8 эксклюзивных Premium-стикеров плюс весь VIP-набор',
+    'Дополнительные быстрые фразы для начала разговора'
+  ];
+  if(item.slot==='membership') return [
+    'Золотой VIP-бейдж рядом с ником в чате и профиле',
+    'Золотой контур аватара в чате и карточке профиля',
+    '8 эксклюзивных VIP-стикеров в панели отправки',
+    'Дополнительные быстрые фразы для начала разговора'
+  ];
+  const perks={
+    theme:['Меняется фон всего приложения','Обновляются панели, карточки и поля','Цвета чата и рабочей области подстраиваются под тему'],
+    bubble:['Меняется цвет твоих исходящих сообщений','Входящие сообщения остаются нейтральными','Эффект виден в каждом новом диалоге'],
+    frame:['Рамка появляется вокруг аватара в профиле','Такой же контур виден рядом с именем в чате','Само фото аватара не изменяется'],
+    sound:['Можно прослушать короткий пример прямо здесь','Звук используется для событий интерфейса','Громкость и отключение звуков остаются в настройках'],
+    stickers:['Здесь показаны реальные стикеры из набора','Набор добавляется в панель отправки сообщений','Уже отправленные сообщения не меняются'],
+    title:['Титул показывается рядом с именем в чате','Он также отображается в собственной карточке','Титул можно снять через инвентарь']
+  };
+  return perks[item.slot] || ['Посмотри на внешний вид предмета в интерфейсе SOVLI','Предмет можно применить из инвентаря'];
+}
 function openStorePreview(item) {
   const modal = $('#storePreviewModal');
   const visual = $('#storePreviewCanvas');
-  visual.replaceChildren();
-  if (item.slot === 'membership') {
-    const mark = document.createElement('div'); mark.className = 'store-membership-preview-mark';
-    mark.textContent = item.tier === 'premium' ? 'PREMIUM' : 'VIP';
-    visual.append(mark);
-  } else {
-    const preview = createStorePreview(item);
-    preview.classList.add('store-detail-preview');
-    visual.append(preview);
-  }
+  visual.replaceChildren(createLiveStorePreview(item));
   $('#storePreviewBadge').textContent = item.category || (item.tier === 'premium' ? 'PREMIUM' : 'VIP');
   $('#storePreviewTitle').textContent = item.name || 'Предпросмотр';
   $('#storePreviewDescription').textContent = item.description || 'Посмотри, как предмет будет выглядеть в SOVLI.';
-  const effects = {
-    theme: 'Полностью меняет оформление SOVLI: фон, палитру, панели, карточки и область диалога.',
-    bubble: 'Меняет цвет и визуальный стиль твоих исходящих сообщений.',
-    frame: 'Добавляет декоративную рамку к аватару профиля.',
-    sound: 'Меняет короткий звуковой сигнал интерфейса.',
-    stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
-    title: 'Показывает выбранный титул рядом с твоим именем.',
-    membership: 'Даёт временный статус с косметическими возможностями. Срок добавляется к уже активной привилегии.'
-  };
-  $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
-  $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
+  $('#storePreviewBenefit').textContent = item.slot==='membership'
+    ? (item.tier==='premium'?'Всё из VIP, а также Premium-оформление и отдельный набор стикеров.':'Бейдж VIP, рамка аватара, VIP-стикеры и быстрые фразы.')
+    : ({theme:'Тема меняет весь экран: не только образец, но и фон, панели и чат.',bubble:'В образце показано твоё исходящее сообщение с выбранным цветом.',frame:'Образец показывает рамку на аватаре в профиле и чате.',stickers:'В образце показаны настоящие эмодзи-стикеры из набора.',sound:'Нажми «Прослушать звук» внутри образца.',title:'Титул появится рядом с ником в чате и профиле.'}[item.slot] || 'Посмотри на предмет в макете приложения.');
+  const list=$('#storePreviewPerks');
+  list.replaceChildren();
+  storePreviewPerks(item).forEach(line=>list.append(previewNode('li','',line)));
+  $('#storePreviewPriceLabel').textContent=item.hours? 'Стоимость и срок' : 'Стоимость / статус';
+  $('#storePreviewPrice').textContent=item.hours
+    ? `${Number(item.price).toLocaleString('ru-RU')} ✦ · ${item.hours} ч (${item.hourlyRate} ✦/ч)`
+    : (item.owned?(item.equipped?'Уже используется':'Уже в инвентаре'):`${Number(item.price||0).toLocaleString('ru-RU')} ✦`);
   modal.hidden = false;
 }
 function renderStore(data) {
@@ -272,19 +400,33 @@ function renderStore(data) {
     const label = document.createElement('span'); label.className = 'membership-kicker'; label.textContent = pack.tier === 'premium' ? 'МАКСИМАЛЬНЫЙ СТАТУС' : 'РАСШИРЕННЫЙ СТАТУС';
     const title = document.createElement('h3'); title.textContent = pack.name;
     const copy = document.createElement('p'); copy.textContent = pack.description;
+    const rate = document.createElement('span'); rate.className='membership-rate'; rate.textContent=`${Number(pack.hourlyRate).toLocaleString('ru-RU')} ✦ за час`;
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
-    const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
-    previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
+    const detail = document.createElement('small'); detail.className='membership-duration-note'; detail.textContent=`${pack.hours} ${pack.hours===1?'часа':'часа'} доступа · без скидок и скрытых коэффициентов`;
+    const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Посмотреть в интерфейсе';
+    previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership' }));
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = pack.current ? 'Продлить' : 'Оформить';
+    const premiumBlocked=pack.tier==='vip'&&data.membershipCurrent==='premium';
+    if(premiumBlocked){button.disabled=true;button.textContent='Premium уже активен';}
     button.addEventListener('click', async () => {
-      const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
+      const approved = await confirmStorePurchase({
+        title: `Оформить ${pack.name}?`,
+        description: `${pack.description} Стоимость рассчитана по фиксированной ставке ${pack.hourlyRate} токенов за час. Срок добавится к текущему; при переходе с VIP на Premium остаток VIP пересчитывается по стоимости токенов.`,
+        price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку'
+      });
       if (!approved) return;
       button.disabled = true;
       try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    card.append(label, title, copy, previewButton, price, button); membershipRoot.append(card);
+    card.append(label,title,copy,rate,price,detail,previewButton,button); membershipRoot.append(card);
   });
+  const currentMembership=$('#membershipCurrentStatus');
+  if(currentMembership){
+    const tier=data.membershipCurrent||'free';
+    currentMembership.hidden=tier==='free';
+    currentMembership.textContent=tier==='free'?'':`${tier==='premium'?'Premium':'VIP'} активен до ${data.membershipExpiresAt?new Date(data.membershipExpiresAt).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short'}):'—'}`;
+  }
 }
 async function loadInventory() {
   try {
@@ -549,10 +691,70 @@ function setAvatarContent(element, user) {
   } else element.textContent = user?.avatar || '◉';
 }
 
+function renderMembershipPerks(user) {
+  const root=$('#membershipPerksCard');
+  if(!root)return;
+  const tier=user?.subscriptionTier||'free';
+  root.hidden=tier==='free';
+  root.dataset.tier=tier;
+  if(tier==='free')return;
+  root.replaceChildren();
+  const premium=tier==='premium';
+  const heading=previewNode('div','membership-perks-heading');
+  heading.append(previewNode('strong','',premium?'Твои возможности Premium':'Твои возможности VIP'));
+  heading.append(previewNode('span','',premium?'VIP + Premium':'VIP активен'));
+  const intro=previewNode('p','',premium
+    ? 'Premium объединяет привилегии VIP и добавляет собственное премиальное оформление.'
+    : 'Твои косметические привилегии активны во всех диалогах, пока действует статус.');
+  const perks=previewNode('ul','membership-perks-list');
+  const lines=[
+    'Особый бейдж рядом с ником в чате и профиле',
+    '8 эксклюзивных стикеров в панели сообщений',
+    'Дополнительные быстрые фразы для начала разговора'
+  ];
+  if(premium)lines.push('Ещё 8 Premium-стикеров','Золотая Premium-карточка профиля и сияющая рамка');
+  else lines.push('Золотой контур аватара в чате и профиле');
+  lines.forEach(line=>perks.append(previewNode('li','',line)));
+  const expiry=previewNode('small','membership-perks-expiry',user.subscriptionExpiresAt
+    ? `Действует до ${new Date(user.subscriptionExpiresAt).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short'})}`
+    : 'Срок не указан');
+  root.append(heading,intro,perks,expiry);
+}
+function renderMembershipQuickReplies(user) {
+  const list=$('#quickReplies .quick-reply-list');
+  if(!list)return;
+  list.querySelectorAll('[data-membership-quick]').forEach(node=>node.remove());
+  const tier=user?.subscriptionTier||'free';
+  if(tier==='free')return;
+  const vip=[
+    'Что тебя сегодня порадовало?',
+    'Какую цель хочешь достичь в этом году?',
+    'Какой фильм можешь пересматривать снова?'
+  ];
+  const premium=[
+    'Какое место ты мечтаешь посетить?',
+    'Что бы ты создал, если бы не было ограничений?',
+    'Какая мелочь моментально поднимает тебе настроение?'
+  ];
+  [...vip,...(tier==='premium'?premium:[])].forEach(text=>{
+    const button=previewNode('button','',text);
+    button.type='button';
+    button.dataset.membershipQuick='true';
+    button.addEventListener('click',()=>{
+      sendMessage(text,crypto.randomUUID());
+      $('#quickReplies').open=false;
+    });
+    list.append(button);
+  });
+}
 function setUser(user) {
   const isNewAccount = state.user?.id !== user.id;
   state.user = user;
   document.documentElement.dataset.role = user.role === 'owner' ? 'owner' : (user.role || 'member');
+  document.documentElement.dataset.membershipTier = user.subscriptionTier || 'free';
+  $('#profileHero').dataset.membership = user.subscriptionTier || 'free';
+  renderMembershipPerks(user);
+  renderMembershipQuickReplies(user);
   if (isNewAccount) state.selectedAvatar = user.avatarUrl ? null : user.avatar;
   setAvatarContent($('#sideAvatar'), user);
   setAvatarContent($('#topAvatar'), user);
@@ -565,7 +767,7 @@ function setUser(user) {
   const stats = user.stats || { chats: 0, activeMinutes: 0, messages: 0 };
   $('#profileStats').innerHTML = `<div><strong>${Number(stats.chats || 0).toLocaleString('ru-RU')}</strong><span>диалогов</span></div><div><strong>${Number(stats.activeMinutes || 0).toLocaleString('ru-RU')}</strong><span>минут общения</span></div><div><strong>${Number(stats.messages || 0).toLocaleString('ru-RU')}</strong><span>сообщений</span></div>`;
   $('#profileRoleBadge').textContent = user.badge || 'Участник';
-  $('#profileMembershipLine').textContent = user.subscriptionTier === 'free' ? 'Стандартный участник' : `${user.subscriptionTier.toUpperCase()} до ${user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleDateString('ru-RU') : '—'}`;
+  $('#profileMembershipLine').textContent = user.subscriptionTier === 'free' ? 'Стандартный участник' : `${user.subscriptionTier.toUpperCase()} активно до ${user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short'}) : '—'}`;
   $('#profileTokenBalance').textContent = Number(user.tokens || 0).toLocaleString('ru-RU');
   $('#profileCreatedAt').textContent = `В SOVLI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
   $('#profileUsername').value = user.username;
@@ -824,6 +1026,9 @@ function renderChatHeader() {
   const partner = state.activeMatch?.partner;
   if (!partner) return;
   setAvatarContent($('#partnerAvatar'), partner);
+  const partnerTier=partner.subscriptionTier||'free';
+  $('#chatPanel .chat-partner').dataset.membership=partnerTier;
+  $('#partnerAvatar').dataset.membership=partnerTier;
   $('#partnerName').textContent = partner.username || 'Собеседник';
   $('#partnerStateText').textContent = [partner.badge, partner.cosmeticTitle].filter(Boolean).join(' · ') || 'На связи';
   $('#partnerName').title = partner.description || partner.username || '';
@@ -1365,7 +1570,9 @@ function renderStickerPanel() {
   panel.replaceChildren();
   const base = state.config.stickers || ['👋', '😂', '❤️', '🔥', '🥹', '🎉', '☕', '🐈'];
   const pack = STICKER_PACKS[state.user?.equipped?.stickers] || [];
-  [...base, ...pack].forEach(sticker => {
+  const tier = state.user?.subscriptionTier || 'free';
+  const membershipPack = tier === 'premium' ? [...VIP_STICKERS,...PREMIUM_STICKERS] : (tier === 'vip' ? VIP_STICKERS : []);
+  [...new Set([...base, ...pack, ...membershipPack])].forEach(sticker => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'sticker-choice';
