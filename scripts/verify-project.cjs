@@ -161,8 +161,8 @@ try {
   const ownerHtml = read('public/owner.html');
   const ownerUiEndpoints = ['/api/admin/users', '/api/admin/users/', '/api/admin/promos', '/api/admin/promos/', '/api/admin/matches', '/api/admin/reports', '/api/admin/tickets', '/api/admin/growth'];
   for (const endpoint of ownerUiEndpoints) if (!ownerPanel.includes(endpoint)) fail(`Owner panel does not call ${endpoint}`);
-  if (!ownerHtml.includes('id=\\"dashboardView\\"') || !ownerHtml.includes('id=\\"loginView\\"') || !ownerHtml.includes('data-page=\\"users\\"') || !ownerHtml.includes('data-page=\\"tickets\\"')) fail('Owner panel login, dashboard or key sections missing');
-  if (ownerHtml.includes('data-page=\\"public\\"') || ownerHtml.includes('data-page=\\"cloud\\"') || ownerPanel.includes('/api/admin/runtime/public/')) fail('Unused public-tunnel or cloud-server panels are still exposed');
+  if (!ownerHtml.includes('id="dashboardView"') || !ownerHtml.includes('id="loginView"') || !ownerHtml.includes('data-page="users"') || !ownerHtml.includes('data-page="tickets"')) fail('Owner panel login, dashboard or key sections missing');
+  if (ownerHtml.includes('data-page="public"') || ownerHtml.includes('data-page="cloud"') || ownerPanel.includes('/api/admin/runtime/public/')) fail('Unused public-tunnel or cloud-server panels are still exposed');
   else pass('Новая панель владельца, карточки аккаунтов и основные API подключены; устаревшие панели убраны');
   if (!process.exitCode) pass('Комплект запуска и документации на месте');
 } catch (error) {
