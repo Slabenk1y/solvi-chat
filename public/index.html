@@ -8,7 +8,7 @@
   <title>SOVLI — случайные разговоры</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=15">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -222,6 +222,24 @@
           <div id="storeEquippedSummary" class="store-equipped-summary"></div><div id="storeItems" class="store-grid"></div>
           <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Косметические преимущества без приоритета в поиске</span></div><p class="membership-explainer">Привилегии не обходят правила безопасности и не дают преимущества в очереди. Срок продлевается при повторной покупке. Цены высокие намеренно: токены зарабатываются временем общения.</p><div id="membershipOffers" class="membership-grid"></div></section>
           <details class="token-history" id="tokenHistory"><summary>История токенов</summary><div id="tokenHistoryList" class="token-history-list"></div></details>
+          <div id="purchaseConfirmModal" class="purchase-confirm-backdrop" hidden>
+            <section class="purchase-confirm-card" role="dialog" aria-modal="true" aria-labelledby="purchaseConfirmTitle">
+              <div class="purchase-confirm-mark">✦</div>
+              <span class="eyebrow">МАГАЗИН SOVLI</span>
+              <h2 id="purchaseConfirmTitle">Подтверждение покупки</h2>
+              <p id="purchaseConfirmDescription" class="purchase-confirm-description"></p>
+              <div class="purchase-confirm-ledger">
+                <div><span>Стоимость</span><strong id="purchaseConfirmPrice">0 ✦</strong></div>
+                <div><span>Твой баланс</span><strong id="purchaseConfirmBalance">0 ✦</strong></div>
+              </div>
+              <p id="purchaseConfirmShortfall" class="purchase-confirm-shortfall" hidden></p>
+              <div class="purchase-confirm-actions">
+                <button id="purchaseCancelButton" class="button button-secondary" type="button">Отмена</button>
+                <button id="purchaseConfirmButton" class="button button-primary" type="button">Купить</button>
+              </div>
+              <small>Покупка спишет токены и добавит предмет в инвентарь.</small>
+            </section>
+          </div>
         </section>
         <section id="inventoryPanel" class="settings-panel" hidden><div class="panel-heading"><div><div class="eyebrow">ВСЁ, ЧТО ТЫ СОБРАЛ</div><h1>Мой инвентарь</h1><p>Здесь хранятся все купленные и полученные предметы. Экипируй или снимай их, когда захочешь.</p></div><div class="panel-heading-icon">▣</div></div><div class="inventory-summary-v1"><div><span>ПРЕДМЕТОВ</span><strong id="inventoryCount">0</strong></div><div><span>БАЛАНС</span><strong id="inventoryBalance">0 ✦</strong></div><button class="button button-secondary" type="button" data-view="store">Открыть магазин</button></div><div id="inventoryItems" class="store-grid inventory-grid"></div></section>
         <section id="favoritesPanel" class="settings-panel" hidden>
@@ -263,6 +281,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=14" defer></script>
+  <script src="/app.js?v=15" defer></script>
 </body>
 </html>
