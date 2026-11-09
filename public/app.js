@@ -217,6 +217,8 @@ function renderStore(data) {
 async function loadInventory() {
   try {
     const data = await api('/api/inventory');
+    if (state.user) state.user.equipped = data.equipped || {};
+    applyEquipped(data.equipped || {});
     $('#inventoryBalance').textContent = Number(data.balance || 0).toLocaleString('ru-RU');
     $('#inventoryCount').textContent = `${data.items.length} предметов`;
     const root = $('#inventoryItems'); root.replaceChildren();
