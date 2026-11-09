@@ -85,6 +85,9 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(user2.user.tokens, 0, 'new accounts start with zero tokens');
     testDb = new DatabaseSync(path.join(dataDir, 'orbit.sqlite'));
     testDb.prepare('UPDATE users SET tokens = 1000 WHERE id IN (?, ?)').run(user1.user.id, user2.user.id);
+    testDb.prepare("INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, 'wallpaper-deep-space', ?, 'purchase')").run(user1.user.id, new Date().toISOString());
+    testDb.prepare("DELETE FROM store_equipped WHERE user_id = ? AND slot = 'theme'").run(user1.user.id);
+    testDb.prepare("INSERT INTO store_equipped (user_id, slot, item_id, updated_at) VALUES (?, 'wallpaper', 'wallpaper-deep-space', ?)").run(user1.user.id, new Date().toISOString());
     const loginCheck = await postJson(baseUrl, '/api/auth/login', { username: 'TESTER-ONE', password: 'test-password-111' });
     assert.equal(loginCheck.user.id, user1.user.id);
     const sessionList = await (await fetch(`${baseUrl}/api/sessions`, { headers: { Authorization: `Bearer ${user1.token}` } })).json();
@@ -106,7 +109,9 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.categories.includes('Титулы'));
     assert.ok(storeBefore.categories.includes('Темы'));
     assert.ok(!storeBefore.categories.includes('Обои'), 'wallpapers are now full-interface themes');
-    assert.ok(storeBefore.items.some(item => item.id === 'wallpaper-deep-space' && item.category === 'Темы' && item.slot === 'theme'));
+    assert.ok(storeBefore.items.some(item => item.id === 'wallpaper-deep-space' && item.category === 'Темы' && item.slot === 'theme' && item.owned && item.equipped));
+    assert.equal(storeBefore.equipped.theme, 'wallpaper-deep-space', 'legacy wallpaper equipment should migrate into full interface themes');
+    assert.equal(storeBefore.equipped.wallpaper, undefined, 'legacy wallpaper slot should be retired');
     assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1d')?.price, 180);
     assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1d')?.price, 320);
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
