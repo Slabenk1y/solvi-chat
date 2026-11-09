@@ -1,6 +1,42 @@
 'use strict';
 
 const $ = selector => document.querySelector(selector);
+
+function submitChatComposer() {
+  const form = document.getElementById('messageForm');
+  const input = document.getElementById('messageInput');
+  if (!form || !input) return;
+  const content = input.value.trim();
+  if (!content) return;
+  if (!window.__solviChatStateReady) {
+    // The normal app boot may still be restoring the session; retain the draft.
+    return;
+  }
+  if (!state.activeMatch) { if (typeof showToast === 'function') showToast('Сначала найди собеседника.'); return; }
+  const limit = state.user?.subscriptionTier === 'premium' ? 5000 : (state.user?.subscriptionTier === 'vip' ? 3000 : 2000);
+  if (content.length > limit) { showToast(`Сообщение слишком длинное. Лимит: ${limit.toLocaleString('ru-RU')} символов.`); return; }
+  const clientId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  sendMessage(content, clientId);
+  input.value = '';
+  input.style.height = 'auto';
+  saveDraft('');
+  const stickerPanel = document.getElementById('stickerPanel');
+  if (stickerPanel) stickerPanel.hidden = true;
+  state.socket?.emit('chat:typing', { matchId: state.activeMatch?.matchId, typing: false });
+}
+document.addEventListener('submit', event => {
+  if (event.target?.id !== 'messageForm') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  submitChatComposer();
+}, true);
+document.addEventListener('click', event => {
+  if (!event.target?.closest?.('#sendButton')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  submitChatComposer();
+}, true);
+
 const $$ = selector => [...document.querySelectorAll(selector)];
 const DEFAULT_AVATARS = ['🪐','🌙','🦊','🐼','🐸','🦉','🐳','🦋','🐙','🌵','🍀','🧩'];
 const STICKER_PACKS = {
@@ -15,6 +51,8 @@ const STICKER_PACKS = {
 };
 function readStoredList(key) { try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
 const state = {
+  // Set after the state object has been initialized.
+
   token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
   user: null,
   authRestoring: false,
@@ -63,6 +101,7 @@ const state = {
   blockedUsers: [],
   tokenHistoryLoaded: false
 };
+window.__solviChatStateReady = true;
 
 function escapeText(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
