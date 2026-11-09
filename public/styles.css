@@ -621,3 +621,12 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 .store-sponsored-ad-copy strong{font:800 15px Manrope,sans-serif;overflow-wrap:anywhere}
 .store-sponsored-ad-copy p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}
 @media(max-width:560px){.store-sponsored-ad{align-items:stretch;flex-direction:column}.store-sponsored-ad .button{width:100%}}
+
+
+/* SOLVI direct cash store checkout */
+.store-billing-email-row{display:grid;gap:6px;margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}
+.store-billing-email-row label{font-size:10px;font-weight:800;color:var(--ink)}
+.store-billing-email-row input{max-width:460px}
+.store-billing-email-row span{font-size:9px;color:var(--muted)}
+.store-cash-buy{border-color:rgba(126,98,240,.35)!important;background:var(--surface)!important}
+.store-cash-buy:disabled{opacity:.55}
