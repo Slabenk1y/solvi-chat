@@ -26,10 +26,28 @@
   function clearAuth(){state.token='';localStorage.removeItem('sovli_admin_token');$('#dashboardView').hidden=true;$('#loginView').hidden=false;$('#logoutButton').hidden=true;}
   function setConnection(text,good){const e=$('#connectionBadge');e.textContent=text;e.className='status-pill '+(good===false?'bad':'good');}
   function stat(label,value,small){return '<article class="stat-card"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong>'+(small?'<small>'+esc(small)+'</small>':'')+'</article>';}
-  function openInfo(title,body){$('#infoModalTitle').textContent=title;$('#infoModalBody').innerHTML=body;$('#infoModal').hidden=false;}
-  function closeInfo(){$('#infoModal').hidden=true;}
+  function suspendModalLayers(exceptId){
+    const restore=[];
+    ['ownerActionModal','userDetailModal','infoModal','dialogInspector'].forEach(id=>{
+      if(id===exceptId)return;
+      const modal=$('#'+id);
+      if(modal&&!modal.hidden){restore.push(id);modal.hidden=true;}
+    });
+    return ()=>restore.forEach(id=>{const modal=$('#'+id);if(modal)modal.hidden=false;});
+  }
+  let infoModalRestore=null;
+  function openInfo(title,body){
+    if(infoModalRestore){infoModalRestore();infoModalRestore=null;}
+    infoModalRestore=suspendModalLayers('infoModal');
+    $('#infoModalTitle').textContent=title;$('#infoModalBody').innerHTML=body;$('#infoModal').hidden=false;
+  }
+  function closeInfo(){
+    $('#infoModal').hidden=true;
+    if(infoModalRestore){const restore=infoModalRestore;infoModalRestore=null;restore();}
+  }
   function confirmDialog(opts){
     const o=opts||{};
+    const restoreModals=suspendModalLayers(null);
     return new Promise(resolve=>{
       const back=document.createElement('div');back.className='modal-backdrop';
       const card=document.createElement('section');card.className='modal-card confirm-card';card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');
@@ -40,7 +58,7 @@
       const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.textContent='Отмена';
       const ok=document.createElement('button');ok.type='button';ok.className=o.danger?'danger':'primary';ok.textContent=o.confirmText||'Продолжить';
       actions.append(cancel,ok);card.append(actions);back.append(card);document.body.append(back);
-      const finish=value=>{back.remove();window.removeEventListener('keydown',key);resolve(value);};
+      const finish=value=>{back.remove();window.removeEventListener('keydown',key);restoreModals();resolve(value);};
       const key=e=>{if(e.key==='Escape')finish(null);};
       cancel.onclick=()=>finish(null);ok.onclick=()=>finish(field?field.value.trim():true);
       back.onclick=e=>{if(e.target===back)finish(null);};window.addEventListener('keydown',key);if(field)field.focus();
@@ -49,11 +67,11 @@
   function openActionDialog(action,ctx){
     const c=ctx||{};
     const configs={
-      tokens:['Изменить баланс','Плюс начисляет токены, минус списывает.','Сохранить','<label>Количество токенов<input name="amount" type="number" min="-1000000" max="1000000" value="100" required></label><label>Причина<input name="reason" maxlength="160" value="Бонус от владельца" required></label>'],
+      tokens:['Изменить баланс','Плюс начисляет токены, минус списывает.','Сохранить','<label>Количество токенов<input name="amount" type="number" min="-1000000" max="1000000" value="100" required></label><label>Комментарий (необязательно)<input name="comment" maxlength="160" placeholder="Например: подарок за активность"></label>'], 
       vip:['Привилегия','Продлить статус или вернуть обычный тариф.','Применить','<label>Статус<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option><option value="free">Обычный аккаунт</option></select></label><label>Дней<input name="days" type="number" min="1" max="365" value="7" required></label>'],
       role:['Изменить роль','Роль определяет доступ к инструментам модерации.','Сохранить','<label>Роль<select name="role"><option value="member">Участник</option><option value="moderator">Модератор</option><option value="developer">Разработчик</option></select></label>'],
       suspend:['Ограничить аккаунт','Пользователь не сможет пользоваться аккаунтом до окончания срока.','Ограничить','<label>Срок<select name="minutes"><option value="10">10 минут</option><option value="60" selected>1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option></select></label><label>Причина<input name="reason" maxlength="180" value="Нарушение правил" required></label>'],
-      starterPack:['Стартовый подарок','Разовая награда: 100 токенов и 7 дней VIP.','Выдать подарок','<div class="grant-preview"><strong>🎁 100 ✦ + 7 дней VIP</strong><span>Сервер не позволит выдать подарок повторно.</span></div>'],
+      starterPack:['Стартовый подарок','Разовая награда: 100 токенов и 7 дней VIP.','Выдать подарок','<div class="grant-preview"><strong>🎁 100 ✦ + 7 дней VIP</strong><span>Сервер не позволит выдать подарок повторно.</span></div><label>Комментарий (необязательно)<input name="comment" maxlength="240" placeholder="Например: приветственный подарок"></label>'], 
       paidMembership:['Подтвердить оплату','Только после проверки реального поступления платежа.','Зафиксировать','<label>Тариф<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option></select></label><label>Дней<input name="days" type="number" min="1" max="365" value="30"></label><label>Сумма<input name="amount" type="number" min="0.01" step="0.01" value="4.99" required></label><label>Валюта<input name="currency" value="EUR" minlength="3" maxlength="3" required></label><label>ID платежа<input name="paymentReference" minlength="4" maxlength="120" required></label>'],
       personalPromo:['Персональный промокод','Код привяжется к аккаунту и будет доступен только ему. Одна активация, срок 30 дней по умолчанию.','Создать код','<label>Код (пусто — сгенерировать)<input name="code" maxlength="32" placeholder="SOLVI-XXXXXX"></label><label>Токены<input name="tokens" type="number" min="0" max="1000000" value="100"></label><label>Предмет<select name="itemId" id="personalPromoItem"><option value="">Без предмета</option></select></label><label>Привилегия<select name="membershipTier"><option value="">Без привилегии</option><option value="vip">VIP</option><option value="premium">Premium</option></select></label><label>Дней привилегии<select name="membershipDays"><option value="1">1</option><option value="7">7</option><option value="30">30</option><option value="90">90</option></select></label><label>Действует до<input name="expiresAt" type="date"></label>'],
       logout:['Завершить все сессии','Пользователю придётся войти снова на всех устройствах.','Завершить','<div class="grant-preview"><strong>🔐 Отключить устройства</strong><span>Все активные сессии будут отозваны.</span></div>'],
@@ -62,12 +80,13 @@
       editTask:['Редактировать задание','Измени название, описание, площадку, ссылку, награду и лимит.','Сохранить','<label>Название<input name="title" maxlength="100" value="'+esc(c.title)+'" required></label><label>Описание<textarea name="description" maxlength="500" rows="3" required>'+esc(c.description)+'</textarea></label><label>Платформа<input name="platform" maxlength="40" value="'+esc(c.platform)+'" required></label><label>HTTPS-ссылка<input name="url" type="url" maxlength="500" value="'+esc(c.url)+'" required></label><label>Награда<input name="rewardTokens" type="number" min="1" max="5000" value="'+Number(c.reward_tokens)+'" required></label><label>Рекламодатель<input name="sponsorName" maxlength="80" value="'+esc(c.sponsor_name||'')+'"></label><label>Лимит, 0 = без лимита<input name="maxClaims" type="number" min="0" max="100000" value="'+Number(c.max_claims||0)+'"></label>']
     };
     const cfg=configs[action];if(!cfg)return Promise.resolve(null);
+    const restoreModals=suspendModalLayers('ownerActionModal');
     const modal=$('#ownerActionModal');$('#ownerActionTitle').textContent=cfg[0];$('#ownerActionDescription').textContent=cfg[1];$('#ownerActionSubmit').textContent=cfg[2];$('#ownerActionFields').innerHTML=cfg[3];
     if(action==='personalPromo')$('#personalPromoItem').innerHTML=$('#promoItem').innerHTML;
     modal.hidden=false;
     return new Promise(resolve=>{
       let done=false;
-      const finish=value=>{if(done)return;done=true;modal.hidden=true;$('#ownerActionForm').onsubmit=null;$('#ownerActionCancel').onclick=null;$('#ownerActionClose').onclick=null;modal.onclick=null;window.removeEventListener('keydown',key);resolve(value);};
+      const finish=value=>{if(done)return;done=true;modal.hidden=true;restoreModals();$('#ownerActionForm').onsubmit=null;$('#ownerActionCancel').onclick=null;$('#ownerActionClose').onclick=null;modal.onclick=null;window.removeEventListener('keydown',key);resolve(value);};
       const key=e=>{if(e.key==='Escape')finish(null);};
       $('#ownerActionCancel').onclick=()=>finish(null);$('#ownerActionClose').onclick=()=>finish(null);modal.onclick=e=>{if(e.target===modal)finish(null);};
       $('#ownerActionForm').onsubmit=e=>{
@@ -76,7 +95,7 @@
         if(action==='vip'||action==='paidMembership'){result.days=Number(result.days);if(!Number.isInteger(result.days)||result.days<1||result.days>365)return toast('Срок должен быть от 1 до 365 дней.');}
         if(action==='paidMembership'){const currency=String(result.currency||'EUR').trim().toUpperCase();const zero=['BIF','CLP','DJF','GNF','JPY','KMF','KRW','MGA','PYG','RWF','UGX','VND','VUV','XAF','XOF','XPF'].includes(currency);result.amountMinor=Math.round(Number(result.amount)*(zero?1:100));delete result.amount;result.currency=currency;if(!Number.isInteger(result.amountMinor)||result.amountMinor<1||!/^[A-Z]{3}$/.test(currency)||String(result.paymentReference||'').trim().length<4)return toast('Проверь сумму, валюту и ID оплаты.');}
         if(action==='suspend')result.minutes=Number(result.minutes);
-        if(action==='starterPack')Object.assign(result,{tokens:100,tier:'vip',days:7});
+        if(action==='starterPack'){result.tokens=100;result.tier='vip';result.days=7;result.comment=String(result.comment||'').trim();}
         if(action==='personalPromo'){result.tokens=Number(result.tokens||0);result.membershipDays=result.membershipTier?Number(result.membershipDays):undefined;if(result.expiresAt)result.expiresAt=new Date(result.expiresAt+'T23:59:59').toISOString();else result.expiresAt=undefined;}
         if(action==='editPromo'){result.maxUses=Number(result.maxUses);result.startsAt=result.startsAt?new Date(result.startsAt).toISOString():null;result.expiresAt=result.expiresAt?new Date(result.expiresAt).toISOString():null;}
         if(action==='editSocial')result.sortOrder=Number(result.sortOrder||0);
@@ -111,6 +130,7 @@
     $('#loadMoreUsers').hidden=!state.userHasMore;
   }
   async function openUserDetail(id){
+    suspendModalLayers('userDetailModal');
     state.selectedUserId=id;$('#userDetailModal').hidden=false;$('#userDetailTitle').textContent='Загружаем…';$('#userDetailMeta').textContent='';$('#userDetailContent').innerHTML='<p class="empty-state">Загружаем профиль…</p>';
     try{
       const d=await api('/api/admin/users/'+encodeURIComponent(id));if(state.selectedUserId!==id)return;
@@ -176,6 +196,7 @@
   }
   async function loadMatches(){const r=await api('/api/admin/matches');state.matches=r.matches||[];renderMatches();}
   function openInspector(id){
+    suspendModalLayers('dialogInspector');
     const m=state.matches.find(x=>x.id===id);if(!m)return;state.inspectMatchId=id;
     $('#inspectorTitle').textContent='Проверка активного диалога';$('#inspectorParticipants').textContent=m.user1+' ↔ '+m.user2+' · '+m.id;
     $('#inspectReason').value='';$('#dialogNoticeText').value='';$('#dialogMessages').innerHTML='<p class="empty-state">Укажи причину проверки. Участники будут уведомлены.</p>';$('#dialogInspector').hidden=false;
