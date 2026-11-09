@@ -1084,7 +1084,7 @@ function connectSocket() {
   socket.on('queue:cancelled', () => { state.searching = false; clearSearchTimer(); setView('home'); });
   socket.on('match:found', match => activateMatch(match));
   socket.on('chat:restored', payload => {
-    state.activeMatch = { matchId: payload.matchId, partner: payload.partner, commonInterests: payload.commonInterests || [], startedAt: payload.startedAt };
+    state.activeMatch = { matchId: payload.matchId, isAi: Boolean(payload.isAi || payload.partner?.isAi), partner: payload.partner, commonInterests: payload.commonInterests || [], startedAt: payload.startedAt };
     state.messages = payload.messages || [];
     restoreOutbox();
     restoreDraft();
