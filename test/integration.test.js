@@ -105,6 +105,8 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(storeResponse.status, 200);
     const storeBefore = await storeResponse.json();
     assert.ok(storeBefore.items.some(item => item.id === 'theme-aurora' && !item.owned));
+    assert.equal(storeBefore.items.find(item => item.id === 'theme-aurora')?.price, 300);
+    assert.equal(storeBefore.items.find(item => item.id === 'wallpaper-paper')?.price, 120);
     assert.ok(storeBefore.items.some(item => item.id === 'theme-default' && item.owned));
     assert.ok(storeBefore.categories.includes('Титулы'));
     assert.ok(storeBefore.categories.includes('Темы'));
@@ -112,15 +114,17 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.items.some(item => item.id === 'wallpaper-deep-space' && item.category === 'Темы' && item.slot === 'theme' && item.owned && item.equipped));
     assert.equal(storeBefore.equipped.theme, 'wallpaper-deep-space', 'legacy wallpaper equipment should migrate into full interface themes');
     assert.equal(storeBefore.equipped.wallpaper, undefined, 'legacy wallpaper slot should be retired');
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1d')?.price, 180);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1d')?.price, 320);
+    assert.deepEqual(storeBefore.memberships.map(item => [item.id, item.price]), [
+      ['vip-1d', 270], ['vip-7d', 1350], ['vip-30d', 4200],
+      ['premium-1d', 480], ['premium-7d', 2400], ['premium-30d', 7200]
+    ]);
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
     assert.equal(storeBefore.dailyAvailable, undefined, 'daily rewards are not part of v1 economy');
     assert.ok(storeBefore.collections.length >= 8, 'catalog is grouped into collections');
     const bought = await postJson(baseUrl, '/api/store/buy', { itemId: 'theme-aurora' }, user1.token);
-    assert.equal(bought.balance, 800);
+    assert.equal(bought.balance, 700);
     const stickerPackPurchase = await postJson(baseUrl, '/api/store/buy', { itemId: 'stickers-night-owl' }, user2.token);
-    assert.equal(stickerPackPurchase.balance, 780);
+    assert.equal(stickerPackPurchase.balance, 670);
     const stickerPackEquipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackEquipped.equipped.stickers, 'stickers-night-owl');
     const equipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'theme-aurora' }, user1.token);
@@ -141,7 +145,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(dailyBonus.status, 404, 'daily bonus endpoint must be removed');
     const tokenHistory = await (await fetch(`${baseUrl}/api/store/transactions`, { headers: { Authorization: `Bearer ${user1.token}` } })).json();
     assert.ok(!tokenHistory.transactions.some(row => ['welcome', 'daily_reward'].includes(row.kind)), 'welcome and daily rewards are not issued');
-    assert.ok(tokenHistory.transactions.some(row => row.kind === 'purchase' && row.amount === -200));
+    assert.ok(tokenHistory.transactions.some(row => row.kind === 'purchase' && row.amount === -300));
     const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+N8AAAAASUVORK5CYII=', 'base64');
     const avatarUpload = await fetch(`${baseUrl}/api/avatar/upload`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'image/png' }, body: tinyPng });
     assert.equal(avatarUpload.status, 201, `avatar upload failed: ${(await avatarUpload.clone().json()).error}`);
