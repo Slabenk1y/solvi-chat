@@ -185,6 +185,36 @@ function previewNode(tag, className, textValue) {
   if (textValue !== undefined) node.textContent = textValue;
   return node;
 }
+function playStoreSoundPreview(value) {
+  try {
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextClass)return;
+    state.soundContext ||= new AudioContextClass();
+    const ctx=state.soundContext;
+    if(ctx.state==='suspended')ctx.resume();
+    const presets={
+      soft:{type:'triangle',start:520,end:410,duration:.12},
+      orbit:{type:'sine',start:460,end:780,duration:.24},
+      arcade:{type:'square',start:420,end:920,duration:.1},
+      royal:{type:'sine',start:520,end:640,duration:.3},
+      rain:{type:'triangle',start:680,end:360,duration:.22},
+      bubble:{type:'sine',start:540,end:600,duration:.14},
+      synth:{type:'sawtooth',start:360,end:680,duration:.17}
+    };
+    const preset=presets[value]||presets.soft;
+    const now=ctx.currentTime;
+    const oscillator=ctx.createOscillator();
+    const gain=ctx.createGain();
+    oscillator.type=preset.type;
+    oscillator.frequency.setValueAtTime(preset.start,now);
+    oscillator.frequency.linearRampToValueAtTime(preset.end,now+preset.duration*.7);
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.linearRampToValueAtTime(.045,now+.015);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+preset.duration);
+    oscillator.connect(gain);gain.connect(ctx.destination);
+    oscillator.start(now);oscillator.stop(now+preset.duration+.02);
+  } catch { showToast('Не удалось воспроизвести звук в этом браузере.'); }
+}
 function createLiveStorePreview(item) {
   const root = previewNode('div', 'store-live-preview');
   const effect = item.slot === 'wallpaper' ? 'theme' : (item.slot || 'theme');
@@ -402,7 +432,7 @@ function renderStore(data) {
     const copy = document.createElement('p'); copy.textContent = pack.description;
     const rate = document.createElement('span'); rate.className='membership-rate'; rate.textContent=`${Number(pack.hourlyRate).toLocaleString('ru-RU')} ✦ за час`;
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
-    const detail = document.createElement('small'); detail.className='membership-duration-note'; detail.textContent=`${pack.hours} ${pack.hours===1?'часа':'часа'} доступа · без скидок и скрытых коэффициентов`;
+    const detail = document.createElement('small'); detail.className='membership-duration-note'; detail.textContent=`${pack.hours} ч доступа · без скидок и скрытых коэффициентов`;
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Посмотреть в интерфейсе';
     previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership' }));
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = pack.current ? 'Продлить' : 'Оформить';
