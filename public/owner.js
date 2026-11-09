@@ -4,6 +4,56 @@
   const state = { token: localStorage.getItem('sovli_admin_token') || localStorage.getItem('sovli_token') || '', owner: false, runtime: null, poll: null, matches: [], inspectMatchId: '', matchesTimer: null };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),2800); }
+
+  function openOwnerActionDialog(action, userId) {
+    const modal = $('#ownerActionModal');
+    const title = $('#ownerActionTitle');
+    const description = $('#ownerActionDescription');
+    const fields = $('#ownerActionFields');
+    const submit = $('#ownerActionSubmit');
+    const configs = {
+      starterPack: { title: 'Стартовый подарок', description: `Аккаунт ${userId}. Разовая награда: 100 токенов и 7 дней VIP.`, submit: 'Выдать подарок', fields: '<div class="grant-reward-preview"><strong>🎁 100 ✦ + 7 дней VIP</strong><span>Повторная выдача заблокирована сервером.</span></div>' },
+      tokens: { title: 'Изменить баланс', description: `Аккаунт ${userId}. Положительное число начисляет токены, отрицательное — списывает.`, submit: 'Сохранить баланс', fields: '<label class="grant-field">Количество токенов<input name="amount" type="number" min="-1000000" max="1000000" step="1" value="100" required></label><label class="grant-field">Причина для журнала<input name="reason" maxlength="180" value="Бонус от владельца" required></label>' },
+      vip: { title: 'Выдать привилегию', description: `Выбери статус и срок для аккаунта ${userId}.`, submit: 'Применить статус', fields: '<label class="grant-field">Статус<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option><option value="free">Обычный аккаунт</option></select></label><label class="grant-field">Срок в днях<input name="days" type="number" min="1" max="365" value="7" required></label>' },
+      role: { title: 'Изменить роль', description: `Роль определяет доступ к инструментам модерации для аккаунта ${userId}.`, submit: 'Сохранить роль', fields: '<label class="grant-field">Новая роль<select name="role"><option value="member">Участник</option><option value="moderator">Модератор</option><option value="developer">Разработчик</option></select></label>' },
+      suspend: { title: 'Ограничить аккаунт', description: `Выбери срок ограничения и укажи причину для аккаунта ${userId}.`, submit: 'Применить ограничение', fields: '<label class="grant-field">Срок<select name="minutes"><option value="10">10 минут</option><option value="60" selected>1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option></select></label><label class="grant-field">Причина<input name="reason" maxlength="180" value="Нарушение правил" required></label>' },
+      logout: { title: 'Завершить сессии', description: `Все активные сессии аккаунта ${userId} будут отозваны. Пользователю потребуется войти снова.`, submit: 'Завершить сессии', fields: '<div class="grant-reward-preview"><strong>🔐 Отозвать все устройства</strong><span>Это действие немедленно завершит текущие сессии.</span></div>' }
+    };
+    const config = configs[action];
+    if (!config) return Promise.resolve(null);
+    title.textContent = config.title;
+    description.textContent = config.description;
+    fields.innerHTML = config.fields;
+    submit.textContent = config.submit;
+    modal.hidden = false;
+    return new Promise(resolve => {
+      let done = false;
+      const finish = value => {
+        if (done) return;
+        done = true;
+        modal.hidden = true;
+        $('#ownerActionForm').onsubmit = null;
+        $('#ownerActionCancel').onclick = null;
+        modal.onclick = null;
+        window.removeEventListener('keydown', onKey);
+        resolve(value);
+      };
+      const onKey = event => { if (event.key === 'Escape') finish(null); };
+      $('#ownerActionCancel').onclick = () => finish(null);
+      modal.onclick = event => { if (event.target === modal) finish(null); };
+      $('#ownerActionForm').onsubmit = event => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const result = Object.fromEntries(form.entries());
+        if (action === 'tokens') { result.amount = Number(result.amount); if (!Number.isInteger(result.amount) || result.amount === 0) return toast('Укажи целое ненулевое число токенов.'); }
+        if (action === 'vip') { result.days = Number(result.days); if (!Number.isInteger(result.days) || result.days < 1 || result.days > 365) return toast('Срок должен быть от 1 до 365 дней.'); }
+        if (action === 'suspend') result.minutes = Number(result.minutes);
+        if (action === 'starterPack') Object.assign(result, { tokens: 100, tier: 'vip', days: 7 });
+        finish(result);
+      };
+      window.addEventListener('keydown', onKey);
+    });
+  }
   async function api(url, options={}) {
     const response = await fetch(url, { ...options, headers: { 'Content-Type':'application/json', ...(state.token ? { Authorization:`Bearer ${state.token}` } : {}), ...(options.headers||{}) } });
     const body = await response.json().catch(()=>({}));
@@ -109,13 +159,17 @@
   $('#userResults').addEventListener('click',async event=>{
     const b=event.target.closest('button[data-action]'); if(!b)return; const id=b.dataset.id; const action=b.dataset.action;
     try{
-      if(action==='starterPack'){ if(!confirm('Выдать стартовый подарок: 100 токенов и 7 дней VIP? Эту награду можно выдать только один раз.'))return; await api(`/api/admin/users/${encodeURIComponent(id)}/starter-pack`,{method:'POST',body:JSON.stringify({tokens:100,tier:'vip',days:7})}); }
-      if(action==='tokens'){ const amount=Number(prompt('Начислить положительное или списать отрицательное число токенов:','100')); if(!Number.isInteger(amount)||!amount)return; const reason=prompt('Причина для журнала:','Корректировка владельцем')||'Корректировка владельцем'; await api(`/api/admin/users/${encodeURIComponent(id)}/tokens`,{method:'POST',body:JSON.stringify({amount,reason})}); }
-      if(action==='vip'){ const tier=(prompt('Укажи vip, premium или free:','vip')||'').toLowerCase(); if(!['vip','premium','free'].includes(tier))return toast('Неизвестный статус'); const days=tier==='free'?1:Number(prompt('Срок в днях (1, 7, 30, 90):','1')); await api(`/api/admin/users/${encodeURIComponent(id)}/membership`,{method:'POST',body:JSON.stringify({tier,days})}); }
-      if(action==='role'){ const role=(prompt('Роль: member, moderator или developer:','moderator')||'').toLowerCase(); await api(`/api/admin/users/${encodeURIComponent(id)}/role`,{method:'POST',body:JSON.stringify({role})}); }
-      if(action==='suspend'){ const minutes=Number(prompt('Срок в минутах: 10, 60, 1440 или 10080','60')); const reason=prompt('Причина:','Нарушение правил')||'Нарушение правил'; await api(`/api/admin/users/${encodeURIComponent(id)}/suspend`,{method:'POST',body:JSON.stringify({minutes,reason})}); }
-      if(action==='unsuspend'){ await api(`/api/admin/users/${encodeURIComponent(id)}/suspend`,{method:'DELETE'}); }
-      if(action==='logout'){ if(!confirm('Завершить все сессии пользователя?'))return; await api(`/api/admin/users/${encodeURIComponent(id)}/logout`,{method:'POST',body:'{}'}); }
+      if(['starterPack','tokens','vip','role','suspend','logout'].includes(action)){
+        const payload=await openOwnerActionDialog(action,id);
+        if(!payload)return;
+        if(action==='starterPack') await api(`/api/admin/users/${encodeURIComponent(id)}/starter-pack`,{method:'POST',body:JSON.stringify(payload)});
+        if(action==='tokens') await api(`/api/admin/users/${encodeURIComponent(id)}/tokens`,{method:'POST',body:JSON.stringify(payload)});
+        if(action==='vip') await api(`/api/admin/users/${encodeURIComponent(id)}/membership`,{method:'POST',body:JSON.stringify(payload)});
+        if(action==='role') await api(`/api/admin/users/${encodeURIComponent(id)}/role`,{method:'POST',body:JSON.stringify(payload)});
+        if(action==='suspend') await api(`/api/admin/users/${encodeURIComponent(id)}/suspend`,{method:'POST',body:JSON.stringify(payload)});
+        if(action==='logout') await api(`/api/admin/users/${encodeURIComponent(id)}/logout`,{method:'POST',body:'{}'});
+      }
+      if(action==='unsuspend') await api(`/api/admin/users/${encodeURIComponent(id)}/suspend`,{method:'DELETE'});
       toast('Изменения сохранены.'); await loadUsers($('#userSearchInput').value.trim());
     }catch(error){toast(error.message);}
   });
