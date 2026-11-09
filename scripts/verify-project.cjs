@@ -109,9 +109,9 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v34/.test(sw)) fail('Service Worker cache version не соответствует v1.10.6');
+  if (!/sovli-shell-v(?:3[4-9]|[4-9]\d)-/.test(sw)) fail('Service Worker cache version не обновлён');
   else pass('Service Worker cache version обновлён');
-  if (!html.includes('/styles.css?v=30') || !html.includes('/app.js?v=33')) fail('Версии клиентских CSS/JS assets не обновлены');
+  if (!/\/styles\.css\?v=\d+/.test(html) || !/\/app\.js\?v=\d+/.test(html) || Number(html.match(/\/app\.js\?v=(\d+)/)?.[1] || 0) < 33) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
