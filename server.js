@@ -733,9 +733,7 @@ async function generateAiReply(session, isGreeting = false) {
   const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
   if (!apiKey) return fallbackAiReply(session, isGreeting);
   const model = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
-  const contents = isGreeting
-    ? [{ role: 'user', parts: [{ text: 'Начни разговор первым: поздоровайся, коротко представься как ИИ-персонаж и предложи естественную тему по интересам пользователя.' }] }]
-    : session.history.slice(-12);
+  const contents = session.history.slice(-12);
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -754,7 +752,10 @@ function queueAiTurn(userId, session, text) {
   (async () => {
     while (session.pending.length && aiSessions.get(userId) === session) {
       const input = session.pending.shift();
-      if (input !== null) session.history.push({ role: 'user', parts: [{ text: input }] });
+      const userPrompt = input === null
+        ? 'Начни разговор первым: поздоровайся, коротко представься как ИИ-персонаж и предложи естественную тему по интересам пользователя.'
+        : input;
+      session.history.push({ role: 'user', parts: [{ text: userPrompt }] });
       io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
       let reply;
       try { reply = await generateAiReply(session, input === null); }
