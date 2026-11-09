@@ -171,7 +171,7 @@ function createThemeStorePreview(item) {
     clouds: ['#e9f2fa','#ffffff','#6fa9d0','#31475c','#8ba1b3'],
     default: ['#f2f1f8','#ffffff','#8278d8','#302d45','#918ca7'],
     'vip-nebula': ['#101a2e','#172941','#72c9d6','#eafaff','#9ab9cf'],
-    'premium-event-horizon': ['#171027','#24183a','#c78cff','#fff5ff','#c4aed8']
+    'premium-event-horizon': ['#171027','#24183a','#c78cff','#fff5ff','#c4aed8'],
     dark: ['#181827','#232337','#8d86ff','#f0efff','#a2a2ba'],
     light: ['#f5f6fb','#ffffff','#756ee8','#29263e','#88859e']
   };
