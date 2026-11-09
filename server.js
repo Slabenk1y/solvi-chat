@@ -1004,7 +1004,7 @@ async function main() {
       currency TEXT NOT NULL,
       billing_email TEXT NOT NULL,
       provider_reference TEXT UNIQUE,
-      status TEXT NOT NULL CHECK(status IN ('pending','paid','reversed')),
+      status TEXT NOT NULL CHECK(status IN ('pending','paid','reversed','cancelled')),
       delivered_item_ids TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -1508,7 +1508,7 @@ async function main() {
       });
       res.json({ url });
     } catch (error) {
-      dbRun("UPDATE paymentwall_store_orders SET status = 'reversed', updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),orderId]);
+      dbRun("UPDATE paymentwall_store_orders SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),orderId]);
       console.error('[BILLING] Paymentwall Digital Goods checkout error:', error.message);
       res.status(503).json({ error: 'Не удалось создать страницу денежной покупки. Проверь настройки Paymentwall.' });
     }
@@ -1529,7 +1529,7 @@ async function main() {
     if (!user || user.public_id !== publicId) return res.status(400).type('text/plain').send('User mismatch');
     const at = nowIso();
     if (type === '0') {
-      if (order.status === 'paid' || order.status === 'reversed') return res.status(200).type('text/plain').send('OK');
+      if (order.status === 'paid' || order.status === 'reversed' || order.status === 'cancelled') return res.status(200).type('text/plain').send('OK');
       const delivered = [];
       try {
         transaction(() => {
