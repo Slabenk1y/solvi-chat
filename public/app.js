@@ -1073,7 +1073,7 @@ function connectSocket() {
     if (message) showToast(`Сообщение от команды SOLVI: ${message}`, 7500);
   });
   socket.on('queue:waiting', () => {
-    if (state.searching) $('#searchStatusText').textContent = 'Подбираем человека с похожими интересами.';
+    if (state.searching) $('#searchStatusText').textContent = 'Подбираем собеседника на русском языке.';
   });
   socket.on('queue:aiUnavailable', data => {
     if (!state.searching) return;
