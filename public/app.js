@@ -967,7 +967,7 @@ function renderFilters() {
   });
   $('#desiredGender').value = state.desiredGender;
   $('#roleplayIntent').value = state.roleplayIntent;
-  $('#standardInterestBlock').hidden = state.matchingMode !== 'chat';
+  $('#standardInterestBlock').hidden = true;
   $('#flirtSettings').hidden = state.matchingMode !== 'flirt';
   $('#roleplaySettings').hidden = state.matchingMode !== 'roleplay';
   renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, languageLimit));
