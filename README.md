@@ -1,87 +1,45 @@
-# SOVLI v1.7.2
+# SOLVI
 
-SOVLI — международная платформа случайных разговоров 1-на-1. Эта версия сохраняет текущие функции чата и панели владельца и добавляет постоянное хранение для бесплатного Render через Neon PostgreSQL.
+SOLVI is a lightweight random chat for meeting new people and having conversations by shared languages and interests.
 
-## Облако — Render Free + Neon
+## v1.8.0 highlights
 
-Можно запускать backend с телефона, без собственного компьютера. Render обслуживает сайт и WebSocket, а Neon хранит постоянный снимок данных.
+- Ideas and bug reports through private support tickets, with an owner inbox and threaded replies.
+- 50 ✦ welcome credit for every new registered account.
+- Completed conversations can be saved to Favorites after the user confirms. Transcript text and stickers are retained; temporary image/audio files are deleted when a chat ends.
+- Media limits: Free — 3 photos and 30-second voice notes; VIP — 5 photos and 45 seconds; Premium — 10 photos and 60 seconds.
+- Speech recording uses mono input, echo cancellation, noise suppression, auto gain control and compact Opus encoding.
+- VIP and Premium members can buy exclusive five-piece cosmetic sets: “Звёздный след” and “Квантовый портал”.
+- The owner console includes a private ticket inbox.
 
-**Важно:** локальный SQLite остаётся рабочей базой процесса. Neon хранит её снимок в одной записи JSONB, который автоматически обновляется после изменений и восстанавливается при старте. Это безопасный переходный вариант для одного экземпляра и небольшой beta-нагрузки; это ещё не полноценная нормализованная миграция всех SQL-запросов на PostgreSQL.
+## Run locally
 
-Для Render обязательно добавь в Environment:
-- `DATABASE_URL` — pooled connection string проекта Neon; не публикуй его и не отправляй в чат.
-- `JWT_SECRET` — постоянный случайный секрет, не меняй его после настройки.
-- `OWNER_PUBLIC_ID` — Public ID твоего аккаунта владельца.
-
-В `render.yaml` выбран бесплатный Web Service без Persistent Disk. Переменная `DATABASE_URL` обязательна: без неё сервер на Render намеренно не запускается, чтобы случайно не работать с непостоянной базой.
-
-Render Free засыпает после 15 минут без входящего трафика и может запускаться около минуты после следующего запроса. Это ограничение бесплатного хостинга, не ошибка SOVLI. Данные аккаунтов и магазина при этом восстанавливаются из Neon.
-
-Телефонная инструкция: **[DEPLOY_FROM_PHONE.md](DEPLOY_FROM_PHONE.md)**.
-
-## Локально — Windows
-
-1. Установи Node.js 22.16 или новее.
-2. Распакуй проект в отдельную папку.
-3. Запусти `start.bat`.
-4. Открой `http://localhost:3000`.
-5. Для телефона в той же Wi-Fi-сети используй LAN IP, который показывает BAT.
-
-Без `DATABASE_URL` локальный запуск использует обычную локальную SQLite-базу.
-
-## Мобильная панель владельца
-
-После входа постоянным аккаунтом владельца открой `/owner`. Панель адаптируется под телефон и может быть установлена через меню браузера → «Добавить на главный экран». Доступны пользователи, балансы, подписки, роли, ограничения, промокоды, метаданные активных диалогов, жалобы, аудит и управление облачным Render-сервисом.
-
-Ключ Render API хранится только в серверных переменных окружения и никогда не отдаётся браузеру.
-
-## Ключевые функции платформы
-
-- Регистрация по уникальному нику и паролю; гостевой профиль на 24 часа.
-- Случайный поиск по языкам и интересам, отмена и следующий собеседник.
-- Чат 1-на-1 через Socket.IO: текст, ответы, реакции, стикеры, фото и голосовые вложения.
-- Профиль с описанием, встроенным или собственным аватаром, ролью, привилегией и статистикой.
-- Магазин: 57 предметов, 12 коллекций, предпросмотр, покупка, инвентарь и экипировка.
-- Экономика: 1 токен за полную минуту, когда оба участника подключены к одному активному диалогу.
-- Новые аккаунты и гости начинают с 0 токенов. Ежедневных бонусов нет.
-- VIP/Premium, закрытый публичный тест по коду приглашения, блокировки, жалобы и управление сессиями.
-
-
-## Магазин и VIP/Premium v1.7.2
-
-- Предметы магазина имеют наглядный визуальный предпросмотр; темы показываются на макете рабочего пространства и диалога.
-- Для тем, пузырей сообщений, рамок профиля и VIP/Premium доступна локальная примерка на реальном интерфейсе. Кнопка «Вернуть моё оформление» снимает её; примерка не изменяет инвентарь и не списывает токены.
-- 1 токен = 1 минута активного диалога, когда оба участника находятся в чате. VIP: 180 ✦ за 1 час (3 часа активного общения); Premium: 360 ✦ за 1 час (6 часов активного общения).
-- Тарифы: VIP — 1/6/24 часа за 180/1 080/4 320 ✦; Premium — 1/6/24 часа за 360/2 160/8 640 ✦. Повторная покупка добавляет время к действующему сроку.
-- VIP: до 3 000 символов, 4 вложений, 5 языков и 8 интересов. Premium: до 5 000 символов, 6 вложений, 10 языков и 12 интересов; Premium включает возможности VIP.
-- Привилегии не дают приоритета в поиске и не обходят правила безопасности. Сервер проверяет лимиты независимо от интерфейса.
-
-## Хранение и ограничения
-
-- Снимок Neon содержит таблицы SQLite, аккаунты, сессии, магазин, балансы и аудит. Файлы аватаров хранятся отдельно в `sovli_avatar_files` (до 2 МБ на файл) и передаются только при изменении.
-- Снимок отправляется в Neon после изменений с небольшой задержкой; при штатной остановке выполняется дополнительное сохранение.
-- Активные диалоги, сообщения и временные медиа очищаются при перезапуске согласно существующей политике приложения.
-- Один экземпляр сервиса. Не запускай несколько Render-инстансов и не используй эту snapshot-схему как multi-instance базу.
-- Neon Free имеет лимиты по хранилищу и времени работы compute; следи за Usage в Neon. Снимок не заменяет отдельную резервную копию.
-- Render Free может засыпать и просыпаться с задержкой. Для постоянной работы без сна нужен платный тариф Render.
-
-## Проверки
+Requirements: Node.js 22.16 or newer.
 
 ```bash
-npm run check
-npm run verify
-npm run doctor
-npm test
+yarn install
+yarn start
 ```
 
-Интеграционные проверки и запуск на реальном Render/Neon должны быть выполнены после подключения строки `DATABASE_URL`. Не считать реальный облачный запуск подтверждённым до проверки `/api/health`.
+Copy `.env.example` to `.env` and configure the settings that apply to your deployment. Set `OWNER_PUBLIC_ID` to the permanent account's public ID so the owner console can identify it.
 
-## Безопасность
+## Production services
 
-Не публикуй `.env`, `DATABASE_URL`, `JWT_SECRET`, Render API key, GitHub secrets и резервные копии. Не отправляй их в чат.
+- App: https://solvi-chat.onrender.com
+- Repository: https://github.com/Slabenk1y/solvi-chat
+- Hosting: Render
+- Persistent snapshot: Neon
 
-## Документация
+The current hostname already matches the SOLVI brand. Keep it for launch; a custom domain can be added later after it is purchased and verified.
 
-- `DEPLOY_FROM_PHONE.md` — развёртывание только со смартфона.
-- `DEPLOYMENT.md` — облако, локальный запуск и устройство постоянного хранения.
-- `ARCHITECTURE.md`, `TECH_STACK.md`, `DATABASE_SCHEMA.md`, `API_DOCUMENTATION.md`, `SECURITY.md`, `CHANGELOG.md` — устройство приложения и ограничения.
+## Data safety and reset
+
+A Neon snapshot was created before the v1.8.0 user reset. The reset is guarded by `SOLVI_PURGE_NON_OWNER_USERS=1` and proceeds only when `OWNER_PUBLIC_ID` matches a permanent registered account. It preserves that owner's account, password and public identifier, deletes other user accounts and user data, then writes an audit marker so later restarts do not repeat it. Enable this flag only after checking the production health fields `ownerConfigured` and `ownerAccountPresent`; turn it back off after the reset has completed.
+
+## Quality checks
+
+```bash
+yarn check
+yarn test
+yarn verify
+```

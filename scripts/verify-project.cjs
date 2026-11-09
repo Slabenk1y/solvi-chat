@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.7.3') fail(`Ожидалась версия 1.7.3, получена ${pkg.version}`);
+  if (pkg.version !== '1.8.0') fail(`Ожидалась версия 1.8.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -79,6 +79,8 @@ try {
   else pass('Daily bonus endpoint отсутствует');
 
   const owner = read('scripts/owner-console.cjs');
+  const ownerPanel = read('public/owner.js');
+  const ownerHtml = read('public/owner.html');
   const ownerRoutes = [
     '/api/admin/overview', '/api/admin/users', '/api/admin/users/:id/tokens',
     '/api/admin/promos', '/api/admin/matches', '/api/admin/matches/:id/end',
@@ -94,15 +96,25 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v21/.test(sw)) fail('Service Worker cache version не соответствует v1.7.3');
+  if (!/sovli-shell-v22/.test(sw)) fail('Service Worker cache version не соответствует v1.8.0');
   else pass('Service Worker cache version обновлён');
-  if (!html.includes('/styles.css?v=21') || !html.includes('/app.js?v=21')) fail('Версии клиентских CSS/JS assets не обновлены');
+  if (!html.includes('/styles.css?v=22') || !html.includes('/app.js?v=22')) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
   else pass('Ответы на собственные сообщения блокируются сервером');
   if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
   else pass('У каждого предмета магазина доступен отдельный предпросмотр');
+  if (!server.includes('support_tickets') || !server.includes("app.post('/api/tickets'") || !server.includes("app.get('/api/admin/tickets'") || !html.includes('id="ticketCreateForm"') || !ownerHtml.includes('data-page="tickets"') || !ownerPanel.includes("api('/api/admin/tickets')")) fail('Система тикетов не подключена ко всем слоям');
+  else pass('Идеи и баг-репорты подключены к пользовательской и owner-панели');
+  if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
+  else pass('Новый зарегистрированный аккаунт получает 50 ✦');
+  if (!server.includes('favorite_chat_drafts') || !server.includes("app.get('/api/favorite-chats/:id'") || !app.includes('function openFavoriteChat')) fail('Архив избранных переписок не подключён');
+  else pass('Завершённые диалоги можно сохранить и читать в Избранном');
+  if (!server.includes("voiceSeconds: tier === 'premium' ? 60 : (tier === 'vip' ? 45 : 30)") || !server.includes("attachmentLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3)")) fail('Лимиты фото и голосовых не совпадают с тарифами');
+  else pass('Лимиты медиа Free/VIP/Premium проверены');
+  if (!server.includes('const STORE_BUNDLES') || !server.includes("app.post('/api/store/bundle'") || !app.includes('customizationBundles')) fail('VIP/Premium наборы кастомизаций не подключены');
+  else pass('Фирменные VIP и Premium наборы доступны через магазин');
   if (!html.includes('id="sessionBootScreen"') || !app.includes("classList.remove('session-checking')")) fail('Экран восстановления сессии не настроен');
   else pass('При перезагрузке отображается экран восстановления сессии, а не форма входа');
   if (!server.includes('Гостевой профиль может менять только аватар.') || !app.includes('DEFAULT_AVATARS')) fail('Гостевые и стандартные аватары не восстановлены');

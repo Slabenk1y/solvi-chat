@@ -121,7 +121,7 @@
       const health=r.health||{};
       stateEl.textContent=r.suspended?'Приостановлен':(health.reachable?'Работает':'Нет ответа');
       stateEl.className=`status-pill ${health.reachable?'good':(r.suspended?'bad':'')}`;
-      const rows=[['Сервис',r.name||'SOVLI'],['Состояние Render',r.suspended?'suspended':'active'],['Регион',r.region||'—'],['План',r.plan||'—'],['Проверка приложения',health.reachable?`OK · v${health.version||'?'}`:(health.error||`HTTP ${health.status||'нет ответа'}`)],['Онлайн',health.reachable?String(health.online??'—'):'—'],['Публичный адрес',r.publicUrl||'—']];
+      const rows=[['Сервис',r.name||'SOLVI'],['Состояние Render',r.suspended?'suspended':'active'],['Регион',r.region||'—'],['План',r.plan||'—'],['Проверка приложения',health.reachable?`OK · v${health.version||'?'}`:(health.error||`HTTP ${health.status||'нет ответа'}`)],['Онлайн',health.reachable?String(health.online??'—'):'—'],['Публичный адрес',r.publicUrl||'—']];
       detailsEl.innerHTML=rows.map(([a,b])=>`<div class="detail-row"><span>${esc(a)}</span><strong>${esc(b)}</strong></div>`).join('');
       $('#renderRestartButton').disabled=!!r.suspended;
       $('#renderDashboardButton').disabled=!r.dashboardUrl;
@@ -135,14 +135,14 @@
   }
   $('#renderRefreshButton').addEventListener('click',()=>loadRenderPlatform());
   $('#renderRestartButton').addEventListener('click',async()=>{
-    if(!confirm('Перезапустить облачный SOVLI? Текущие звонки/сокеты оборвутся, временные чаты могут завершиться.'))return;
+    if(!confirm('Перезапустить облачный SOLVI? Текущие звонки/сокеты оборвутся, временные чаты могут завершиться.'))return;
     $('#renderRestartButton').disabled=true;
     try{const r=await api('/api/admin/platform/render/restart',{method:'POST',body:'{}'});toast(r.message||'Команда перезапуска отправлена.');setTimeout(()=>loadRenderPlatform(),8000);}
     catch(error){toast(error.message);$('#renderRestartButton').disabled=false;}
   });
   $('#renderDashboardButton').addEventListener('click',()=>{const url=$('#renderDashboardButton').dataset.url;if(url && /^https:\/\/dashboard\.render\.com\//.test(url))window.open(url,'_blank','noopener,noreferrer');else toast('Ссылка Render Dashboard пока не настроена.');});
   $('#renderSuspendButton').addEventListener('click',async()=>{
-    if(!confirm('Приостановить SOVLI? Сайт, чат и эта панель станут недоступны до возобновления через Render или GitHub Actions.'))return;
+    if(!confirm('Приостановить SOLVI? Сайт, чат и эта панель станут недоступны до возобновления через Render или GitHub Actions.'))return;
     $('#renderSuspendButton').disabled=true;
     try{const r=await api('/api/admin/platform/render/suspend',{method:'POST',body:'{}'});toast(r.message||'Команда остановки отправлена.');}
     catch(error){toast(error.message);$('#renderSuspendButton').disabled=false;}
@@ -232,6 +232,35 @@
   window.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#dialogInspector').hidden)closeDialogInspector();});
   async function loadReports(){const r=await api('/api/admin/reports');$('#reportList').innerHTML=(r.reports||[]).map(p=>`<div class="user-card"><div class="user-main"><strong>${esc(p.category)} · ${esc(p.status)}</strong><small>${esc(p.reporter)} → ${esc(p.reported)} · ${esc(p.createdAt)}</small><small>${esc(p.details||'Без описания')}</small>${p.context?.length?`<small>Приложенный контекст: ${p.context.length} элемента(ов)</small>`:''}</div><div class="user-actions"><button class="secondary mini" data-resolve-report="${esc(p.id)}">Закрыть</button><button class="danger mini" data-suspend-reported="${esc(p.reportedId)}">Ограничить</button></div></div>`).join('')||'<p class="hint">Жалоб нет.</p>';}
   $('#reportList').addEventListener('click',async e=>{const r=e.target.closest('[data-resolve-report]');const s=e.target.closest('[data-suspend-reported]');try{if(r){const resolution=prompt('Решение по жалобе:','Проверено');if(resolution===null)return;await api(`/api/admin/reports/${encodeURIComponent(r.dataset.resolveReport)}/resolve`,{method:'POST',body:JSON.stringify({resolution})});}else if(s){if(!confirm('Ограничить пользователя на 1 час?'))return;await api(`/api/admin/users/${encodeURIComponent(s.dataset.suspendReported)}/suspend`,{method:'POST',body:JSON.stringify({minutes:60,reason:'Решение по жалобе'})});}else return;await loadReports();toast('Готово.');}catch(err){toast(err.message);}});
+  let activeSupportTicketId = null;
+  async function loadTickets(){
+    const result = await api('/api/admin/tickets');
+    const root = $('#adminTicketList');
+    root.innerHTML = (result.tickets || []).map(ticket => {
+      const kind = ticket.category === 'bug' ? 'Ошибка' : 'Идея';
+      const status = ({open:'Открыт',in_progress:'В работе',closed:'Закрыт'})[ticket.status] || ticket.status;
+      return `<div class="admin-ticket-row${ticket.id===activeSupportTicketId?' active':''}"><button type="button" data-admin-ticket="${esc(ticket.id)}"><strong>${esc(ticket.title)}</strong><small>${esc(kind)} · ${esc(status)} · ${esc(ticket.username)} · ${esc(ticket.public_id)}</small><small>${esc(ticket.last_message || '')}</small></button></div>`;
+    }).join('') || '<p class="hint">Пока нет обращений.</p>';
+  }
+  async function openSupportTicket(id){
+    const result = await api(`/api/admin/tickets/${encodeURIComponent(id)}`);
+    activeSupportTicketId = id;
+    $('#adminTicketTitle').textContent = result.ticket.title;
+    $('#adminTicketMeta').textContent = `${result.ticket.category==='bug'?'Ошибка':'Идея'} · ${result.ticket.username} · ${result.ticket.public_id} · ${result.ticket.status}`;
+    $('#adminTicketMessages').innerHTML = (result.messages || []).map(message => `<article class="ticket-message"><strong>${esc(message.sender_name)}</strong><p>${esc(message.body)}</p><time>${esc(message.created_at)}</time></article>`).join('') || '<p class="hint">Нет сообщений.</p>';
+    $('#adminTicketStatus').value = result.ticket.status === 'closed' ? 'closed' : (result.ticket.status === 'open' ? 'in_progress' : result.ticket.status);
+    $('#adminTicketReply').value = '';
+    $('#adminTicketReplyForm').hidden = false;
+    await loadTickets();
+  }
+  $('#refreshTicketsButton').addEventListener('click',()=>loadTickets().catch(error=>toast(error.message)));
+  $('#adminTicketList').addEventListener('click',event=>{const button=event.target.closest('[data-admin-ticket]');if(button)openSupportTicket(button.dataset.adminTicket).catch(error=>toast(error.message));});
+  $('#adminTicketReplyForm').addEventListener('submit',async event=>{
+    event.preventDefault(); if(!activeSupportTicketId)return;
+    const button=$('#adminTicketReplyButton');button.disabled=true;
+    try{await api(`/api/admin/tickets/${encodeURIComponent(activeSupportTicketId)}/reply`,{method:'POST',body:JSON.stringify({body:$('#adminTicketReply').value,status:$('#adminTicketStatus').value})});await openSupportTicket(activeSupportTicketId);toast('Ответ отправлен.');}
+    catch(error){toast(error.message);}finally{button.disabled=false;}
+  });
   async function loadAudit(){const r=await api('/api/admin/audit');$('#auditList').textContent=(r.entries||[]).map(e=>`${e.created_at}  ${e.action}\n target: ${e.target_id||'—'}\n ${JSON.stringify(e.details||{})}`).join('\n\n')||'Записей пока нет.';}
   $('#startTunnelButton').addEventListener('click',async()=>{try{const r=await api('/api/admin/runtime/public/start',{method:'POST',body:JSON.stringify({protocol:$('#tunnelProtocol').value,matching:$('#matchingToggle').checked})});$('#inviteCode').textContent=r.inviteCode||'—';toast('Запрос на запуск туннеля отправлен.');await loadRuntime();clearInterval(state.poll);state.poll=setInterval(()=>loadRuntime().catch(()=>{}),2500);}catch(error){toast(error.message);$('#tunnelError').textContent=error.message;}});
   $('#stopTunnelButton').addEventListener('click',async()=>{if(!confirm('Остановить публичный доступ?'))return;try{await api('/api/admin/runtime/public/stop',{method:'POST',body:'{}'});clearInterval(state.poll);await loadRuntime();toast('Публичный туннель остановлен.');}catch(e){toast(e.message);}});
@@ -249,7 +278,7 @@
     document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
     document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
     if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
-    const loaders={overview:refreshAll,public:loadRuntime,cloud:loadRenderPlatform,users:()=>loadUsers($('#userSearchInput').value.trim()),promos:loadPromos,dialogs:loadMatches,reports:loadReports,audit:loadAudit};
+    const loaders={overview:refreshAll,public:loadRuntime,cloud:loadRenderPlatform,users:()=>loadUsers($('#userSearchInput').value.trim()),promos:loadPromos,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,audit:loadAudit};
     loaders[name]?.().catch?.(e=>toast(e.message));
     if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(e=>toast(e.message)),12000);
   }

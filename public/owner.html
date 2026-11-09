@@ -7,13 +7,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/owner-manifest.webmanifest">
-  <title>SOVLI · Панель владельца</title>
-  <link rel="stylesheet" href="/owner.css?v=17">
+  <title>SOLVI · Панель владельца</title>
+  <link rel="stylesheet" href="/owner.css?v=18">
 </head>
 <body>
   <div class="owner-shell">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="SOVLI"><span class="brand-mark">S</span><span>SOVLI <small>OWNER</small></span></a>
+      <a class="brand" href="/" aria-label="SOLVI"><span class="brand-mark">S</span><span>SOLVI <small>OWNER</small></span></a>
       <div class="top-actions"><span id="connectionBadge" class="status-pill">Проверяем сервер…</span><button id="logoutButton" class="ghost" hidden>Выйти</button></div>
     </header>
 
@@ -36,7 +36,7 @@
 
       <section id="dashboardView" hidden>
         <div class="welcome-row">
-          <div><div class="eyebrow">ЦЕНТР УПРАВЛЕНИЯ</div><h1>Привет, владелец 👋</h1><p>Управляй SOVLI с компьютера или телефона.</p></div>
+          <div><div class="eyebrow">ЦЕНТР УПРАВЛЕНИЯ</div><h1>Привет, владелец 👋</h1><p>Управляй SOLVI с компьютера или телефона.</p></div>
           <button id="refreshAllButton" class="secondary">↻ Обновить</button>
         </div>
         <nav class="tabs" aria-label="Разделы панели">
@@ -47,13 +47,14 @@
           <button class="tab" data-tab="promos">Промокоды</button>
           <button class="tab" data-tab="dialogs">Диалоги</button>
           <button class="tab" data-tab="reports">Жалобы</button>
+          <button class="tab" data-tab="tickets">Идеи и баги</button>
           <button class="tab" data-tab="audit">Журнал</button>
         </nav>
 
         <section class="tab-page" data-page="overview">
           <div id="statsGrid" class="stats-grid"></div>
           <div class="grid-two">
-            <article class="card"><div class="card-head"><div><div class="eyebrow">СЕРВЕР</div><h2>Состояние SOVLI</h2></div><span id="serverState" class="status-pill">—</span></div><div id="serverDetails" class="detail-list"></div><button id="checkHealthButton" class="secondary wide">Проверить сервер</button><p class="hint">Эта панель работает внутри уже запущенного сервера. Если компьютер выключен или Node.js остановлен, сначала запусти start.bat на компьютере.</p></article>
+            <article class="card"><div class="card-head"><div><div class="eyebrow">СЕРВЕР</div><h2>Состояние SOLVI</h2></div><span id="serverState" class="status-pill">—</span></div><div id="serverDetails" class="detail-list"></div><button id="checkHealthButton" class="secondary wide">Проверить сервер</button><p class="hint">Эта панель работает внутри уже запущенного сервера. Если компьютер выключен или Node.js остановлен, сначала запусти start.bat на компьютере.</p></article>
             <article class="card"><div class="card-head"><div><div class="eyebrow">ЭКОНОМИКА</div><h2>Токены</h2></div><span class="coin">✦</span></div><div id="economyDetails" class="detail-list"></div></article>
           </div>
           <article class="card"><div class="card-head"><div><div class="eyebrow">ПОСЛЕДНИЕ АККАУНТЫ</div><h2>Новые пользователи</h2></div><button class="text-button" data-go="users">Все пользователи →</button></div><div id="recentUsers" class="user-list"></div></article>
@@ -61,7 +62,7 @@
 
         <section class="tab-page" data-page="public" hidden>
           <div class="section-intro"><div class="eyebrow">ДОСТУП И ССЫЛКА</div><h2>Публичный режим</h2><p>Включает временную ссылку Cloudflare Quick Tunnel и код доступа. Для постоянного адреса нужен именованный Tunnel в твоём Cloudflare аккаунте.</p></div>
-          <div id="renderHostedNotice" class="card cloud-status-card" hidden><h3>Облачный SOVLI уже опубликован</h3><p class="hint">На Render отдельный Cloudflare Tunnel не нужен. Этот адрес работает независимо от твоего ноутбука, пока облачный сервис активен.</p><div id="cloudPublicUrl" class="url-box">Адрес загружается…</div><div class="button-row"><button id="copyCloudUrlButton" class="secondary">Копировать адрес</button></div><div class="invite-box"><span>Код доступа для тестовой группы</span><strong id="cloudInviteCode">—</strong><button id="copyCloudInviteButton" class="text-button">Копировать код</button></div></div>
+          <div id="renderHostedNotice" class="card cloud-status-card" hidden><h3>Облачный SOLVI уже опубликован</h3><p class="hint">На Render отдельный Cloudflare Tunnel не нужен. Этот адрес работает независимо от твоего ноутбука, пока облачный сервис активен.</p><div id="cloudPublicUrl" class="url-box">Адрес загружается…</div><div class="button-row"><button id="copyCloudUrlButton" class="secondary">Копировать адрес</button></div><div class="invite-box"><span>Код доступа для тестовой группы</span><strong id="cloudInviteCode">—</strong><button id="copyCloudInviteButton" class="text-button">Копировать код</button></div></div>
           <div id="localTunnelGrid" class="grid-two">
             <article class="card tunnel-card"><div class="card-head"><h3>Состояние туннеля</h3><span id="tunnelState" class="status-pill">Остановлен</span></div><div id="tunnelUrl" class="url-box">Публичная ссылка ещё не создана</div><div class="button-row"><button id="copyUrlButton" class="secondary" disabled>Копировать ссылку</button><button id="stopTunnelButton" class="danger" disabled>Остановить</button></div><div class="invite-box"><span>Код приглашения</span><strong id="inviteCode">—</strong><button id="copyInviteButton" class="text-button" disabled>Копировать</button></div><p id="tunnelError" class="error"></p></article>
             <article class="card"><h3>Запустить публичный доступ</h3><label>Транспорт<select id="tunnelProtocol"><option value="auto">Авто (рекомендуется)</option><option value="http2">HTTP/2 (TCP)</option><option value="quic">QUIC (UDP)</option></select></label><label class="check-row"><input id="matchingToggle" type="checkbox" checked><span>Разрешить случайный подбор в публичном режиме</span></label><button id="startTunnelButton" class="primary wide">Запустить туннель</button><p class="hint">Для работы нужен cloudflared.exe рядом с проектом. Панель может включать/выключать туннель, пока компьютер и сервер работают.</p></article>
@@ -70,15 +71,15 @@
         </section>
 
         <section class="tab-page" data-page="cloud" hidden>
-          <div class="section-intro"><div class="eyebrow">УПРАВЛЕНИЕ БЕЗ НОУТБУКА</div><h2>Облачный сервер</h2><p>Когда SOVLI размещён в Render, он работает независимо от твоего компьютера. Эту страницу можно добавить на главный экран телефона.</p></div>
+          <div class="section-intro"><div class="eyebrow">УПРАВЛЕНИЕ БЕЗ НОУТБУКА</div><h2>Облачный сервер</h2><p>Когда SOLVI размещён в Render, он работает независимо от твоего компьютера. Эту страницу можно добавить на главный экран телефона.</p></div>
           <article class="card cloud-status-card">
             <div class="card-head"><div><div class="eyebrow">RENDER CONTROL PLANE</div><h3>Состояние облака</h3></div><span id="renderState" class="status-pill">Не проверено</span></div>
             <div id="renderDetails" class="detail-list"><div class="hint">Нажми «Проверить облако», чтобы получить состояние Render.</div></div>
             <div class="button-row"><button id="renderRefreshButton" class="secondary">↻ Проверить облако</button><button id="renderRestartButton" class="primary" disabled>Перезапустить сервер</button><button id="renderSuspendButton" class="danger" disabled>Остановить сервис</button><button id="renderDashboardButton" class="secondary" disabled>Открыть Render</button><a id="renderActionsButton" class="secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">Запуск через GitHub Actions ↗</a></div>
             <p id="renderMessage" class="hint">Ключ Render API хранится только на сервере и никогда не отправляется в браузер.</p>
           </article>
-          <article class="card"><h3>Если сервис остановлен</h3><p class="hint">Если Render-сервис полностью приостановлен, сама панель SOVLI недоступна. Возобновить его можно с телефона через Render Dashboard → Resume или GitHub Actions → SOVLI cloud control. API-ключ Render не хранится в браузере.</p><div class="button-row"><a id="renderDashboardHelpLink" class="secondary" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Открыть Render Dashboard ↗</a><a id="renderActionsHelpLink" class="secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">Открыть GitHub Actions ↗</a></div></article>
-          <article class="card"><h3>Как добавить на телефон</h3><ol class="mobile-install-steps"><li>Открой эту страницу в Chrome или Safari.</li><li>Открой меню браузера.</li><li>Выбери «Добавить на главный экран» или «Установить приложение».</li><li>Открывай SOVLI Owner как отдельное приложение.</li></ol></article>
+          <article class="card"><h3>Если сервис остановлен</h3><p class="hint">Если Render-сервис полностью приостановлен, сама панель SOLVI недоступна. Возобновить его можно с телефона через Render Dashboard → Resume или GitHub Actions → SOLVI cloud control. API-ключ Render не хранится в браузере.</p><div class="button-row"><a id="renderDashboardHelpLink" class="secondary" href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Открыть Render Dashboard ↗</a><a id="renderActionsHelpLink" class="secondary" href="https://github.com/" target="_blank" rel="noopener noreferrer">Открыть GitHub Actions ↗</a></div></article>
+          <article class="card"><h3>Как добавить на телефон</h3><ol class="mobile-install-steps"><li>Открой эту страницу в Chrome или Safari.</li><li>Открой меню браузера.</li><li>Выбери «Добавить на главный экран» или «Установить приложение».</li><li>Открывай SOLVI Owner как отдельное приложение.</li></ol></article>
         </section>
 
         <section class="tab-page" data-page="users" hidden>
@@ -90,7 +91,7 @@
         <section class="tab-page" data-page="promos" hidden>
           <div class="section-intro"><div class="eyebrow">НАГРАДЫ</div><h2>Промокоды</h2><p>Создавай ограниченные по сроку и числу активаций коды для токенов, предметов и статусов.</p></div>
           <form id="promoForm" class="card form-grid">
-            <label>Код промокода<input id="promoCode" maxlength="32" placeholder="SOVLI-FRIENDS"></label>
+            <label>Код промокода<input id="promoCode" maxlength="32" placeholder="SOLVI-FRIENDS"></label>
             <label>Токены<input id="promoTokens" type="number" min="0" max="1000000" value="0"></label>
             <label>Предмет магазина<select id="promoItem"><option value="">Без предмета</option></select></label>
             <label>Привилегия<select id="promoTier"><option value="">Без привилегии</option><option value="vip">VIP</option><option value="premium">Premium</option></select></label>
@@ -105,6 +106,21 @@
         <section class="tab-page" data-page="dialogs" hidden><div class="section-intro"><div class="eyebrow">АКТИВНОСТЬ И БЕЗОПАСНОСТЬ</div><h2>Активные диалоги</h2><p>Можно проверить последние сообщения только активного диалога. Для каждого просмотра нужна причина; обе стороны получат уведомление, а действие попадёт в журнал. Медиа и вложения не открываются.</p></div><div class="card"><div class="card-head"><div><h3>Сейчас общаются</h3><p class="hint">Список обновляется по запросу · до 200 активных диалогов</p></div><button id="refreshMatchesButton" class="text-button">↻ Обновить</button></div><div id="matchList" class="user-list"></div></div></section>
 
         <section class="tab-page" data-page="reports" hidden><div class="section-intro"><div class="eyebrow">БЕЗОПАСНОСТЬ</div><h2>Жалобы</h2><p>Проверяй обращения, фиксируй решение и ограничивай доступ при необходимости.</p></div><div class="card"><div class="card-head"><h3>Входящие обращения</h3><button id="refreshReportsButton" class="text-button">Обновить</button></div><div id="reportList" class="user-list"></div></div></section>
+        <section class="tab-page" data-page="tickets" hidden>
+          <div class="section-intro"><div class="eyebrow">ОБРАТНАЯ СВЯЗЬ</div><h2>Идеи и баг-репорты</h2><p>Смотри обращения пользователей и отвечай в приватном треде. Статус обновляется вместе с ответом.</p></div>
+          <div class="ticket-admin-layout">
+            <article class="card"><div class="card-head"><h3>Все обращения</h3><button id="refreshTicketsButton" class="text-button">Обновить</button></div><div id="adminTicketList" class="user-list"></div></article>
+            <article class="card">
+              <div class="card-head"><div><h3 id="adminTicketTitle">Выбери обращение</h3><p id="adminTicketMeta" class="hint">Идеи и баги пользователей</p></div></div>
+              <div id="adminTicketMessages" class="ticket-thread-messages"></div>
+              <form id="adminTicketReplyForm" class="owner-ticket-reply" hidden>
+                <label>Ответ владельца<textarea id="adminTicketReply" maxlength="1500" rows="4" required placeholder="Напиши ответ пользователю…"></textarea></label>
+                <label>Новый статус<select id="adminTicketStatus"><option value="in_progress">В работе</option><option value="open">Открыт</option><option value="closed">Закрыт</option></select></label>
+                <button id="adminTicketReplyButton" class="primary" type="submit">Отправить ответ</button>
+              </form>
+            </article>
+          </div>
+        </section>
 
         <section class="tab-page" data-page="audit" hidden><div class="section-intro"><div class="eyebrow">ПРОЗРАЧНОСТЬ</div><h2>Журнал действий</h2><p>Здесь фиксируются административные изменения, выдача токенов, привилегий и промокодов.</p></div><div class="card"><div class="card-head"><h3>Последние операции</h3><button id="refreshAuditButton" class="text-button">Обновить</button></div><pre id="auditList" class="logs">Загрузка…</pre></div></section>
       </section>
@@ -128,15 +144,15 @@
           <label class="inspector-label" for="inspectReason">Причина просмотра · обязательно<input id="inspectReason" maxlength="240" placeholder="Например: проверка жалобы или безопасности"></label>
           <button id="inspectDialogButton" class="primary" type="button">Открыть последние сообщения</button>
           <div id="dialogMessages" class="inspector-messages"><p class="hint">Укажи причину и нажми «Открыть последние сообщения».</p></div>
-          <label class="inspector-label" for="dialogNoticeText">Сообщение обоим участникам<textarea id="dialogNoticeText" rows="3" maxlength="240" placeholder="Короткое уведомление от команды SOVLI"></textarea></label>
+          <label class="inspector-label" for="dialogNoticeText">Сообщение обоим участникам<textarea id="dialogNoticeText" rows="3" maxlength="240" placeholder="Короткое уведомление от команды SOLVI"></textarea></label>
           <div class="button-row"><button id="sendDialogNoticeButton" class="secondary" type="button">Отправить уведомление</button><button id="endInspectedMatch" class="danger" type="button">Завершить диалог</button></div>
           <p class="hint">Просмотр доступен только пока диалог активен. Каждое открытие регистрируется в журнале владельца и автоматически уведомляет участников.</p>
         </section>
       </div>
     </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <footer> SOVLI OWNER · Управление доступно только назначенному владельцу.</footer>
+    <footer> SOLVI OWNER · Управление доступно только назначенному владельцу.</footer>
   </div>
-  <script src="/owner.js?v=17" defer></script>
+  <script src="/owner.js?v=18" defer></script>
 </body>
 </html>

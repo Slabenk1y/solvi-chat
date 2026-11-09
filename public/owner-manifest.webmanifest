@@ -1,7 +1,7 @@
 {
-  "name": "SOVLI Owner — Панель управления",
-  "short_name": "SOVLI Owner",
-  "description": "Мобильная панель владельца SOVLI",
+  "name": "SOLVI Owner — Панель управления",
+  "short_name": "SOLVI Owner",
+  "description": "Мобильная панель владельца SOLVI",
   "lang": "ru",
   "start_url": "/owner",
   "scope": "/",

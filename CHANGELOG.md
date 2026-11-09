@@ -1,13 +1,14 @@
 # Changelog
 
-## v1.7.3 — live previews and membership upgrades (2026-11-09)
+## v1.8.0 — SOLVI community launch preparation (2026-11-09)
 
-- Enlarged the store preview and clarified that it shows the actual in-app chat/profile styling; added a clear live try-on explanation.
-- Personalised theme previews with the signed-in user's nickname and avatar.
-- Kept the existing one-click temporary try-on and restore flow; no tokens are charged and paid limits are not activated by preview.
-- VIP: 5 photos per message (up to 8 MB each), voice notes up to 2:30, avatar uploads up to 4 MB, 3,000-character messages, 5 languages and 8 interests.
-- Premium: 8 photos per message (up to 12 MB each), voice notes up to 4 minutes, avatar uploads up to 8 MB, 5,000-character messages, 10 languages and 12 interests.
-- The server enforces message length, attachment count, and uploaded file-size limits; voice recording duration is capped in the client recorder.
-- Pricing remains 180 ✦ per VIP hour (3 hours of active dialogue) and 360 ✦ per Premium hour (6 hours of active dialogue). Existing balances and active subscription time are preserved.
-- No database migration is required; Neon continues to store the existing persistent snapshot.
-
+- Standardized public-facing branding to **SOLVI** across the main app, owner console, page titles and PWA manifests. Existing `solvi-chat` hostname already matches and is retained.
+- Added private support tickets for ideas and bug reports, with user threads and an owner-only inbox, replies and status changes.
+- Added a 50 ✦ registration welcome credit with a ledger entry.
+- Completed-chat favorites now require explicit user confirmation and preserve transcript text/stickers. Temporary photo and audio media is still deleted when a chat ends.
+- Updated media limits: Free 3 photos / 30 seconds voice; VIP 5 photos / 45 seconds; Premium 10 photos / 60 seconds.
+- Tuned voice capture for speech: mono, noise suppression, echo cancellation, automatic gain control and compact Opus recording bitrate.
+- Added two themed cosmetic sets: VIP “Звёздный след” (five collectible items) and Premium “Квантовый портал” (five mythic items). Each set is a tier-gated one-time purchase.
+- Added server-side enforcement for attachment counts, ticket ownership and bundle eligibility.
+- Added a guarded one-time user reset that keeps the verified permanent owner account and writes an audit marker. Run only after verifying the production owner.
+- Neon snapshot created before reset; existing owner account, password and owner identifier are preserved. No manual destructive Neon SQL is required.

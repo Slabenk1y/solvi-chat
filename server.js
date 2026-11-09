@@ -35,7 +35,9 @@ const STICKER_PACKS = Object.freeze({
   'stickers-chaos': ['🤪', '🫠', '🫨', '💥', '🙃', '🌀'],
   'stickers-food': ['🍔', '🍟', '🍕', '🌮', '🍩', '🥤'],
   'stickers-sausage-mouse': ['🐭', '🌭', '🧀', '😳', '🏃', '💨', '👑', '🥹'],
-  'stickers-deep-sea': ['🐠', '🐙', '🪼', '🐬', '🦀', '🐚']
+  'stickers-deep-sea': ['🐠', '🐙', '🪼', '🐬', '🦀', '🐚'],
+  'stickers-vip-comet': ['🌌', '💫', '🪐', '☄️', '✨', '🌠'],
+  'stickers-premium-quantum': ['🪩', '🌀', '💎', '🔮', '⚛️', '🌌']
 });
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -196,12 +198,26 @@ const STORE_CATALOG = Object.freeze([
   { id: "title-first-contact", name: "Первый контакт", description: "Для тех, кто не боится начать разговор.", category: "Титулы", slot: "title", price: 480, rarity: "Редкий", preview: "title-first-contact", value: "first-contact", collection: "Стартовая коллекция" },
   { id: "title-sakura-keeper", name: "Хранитель сакуры", description: "Титул из коллекции японского сада.", category: "Титулы", slot: "title", price: 3510, rarity: "Легендарный", preview: "title-sakura", value: "sakura-keeper", collection: "Японский сад" },
   { id: "title-night-circuit", name: "Ночной контур", description: "Титул цифрового города.", category: "Титулы", slot: "title", price: 3920, rarity: "Легендарный", preview: "title-circuit", value: "night-circuit", collection: "Цифровой город" },
+  { id: "theme-vip-nebula", name: "Туманность VIP", description: "Эксклюзивная глубокая космическая тема с пульсирующими созвездиями.", category: "Темы", slot: "theme", price: 0, rarity: "Легендарный", preview: "theme-vip-nebula", value: "vip-nebula", collection: "VIP · Звёздный след", bundleOnly: true },
+  { id: "bubble-vip-meteor", name: "Метеоритный след", description: "Исходящие сообщения с медным свечением и лёгким хвостом.", category: "Пузырьки", slot: "bubble", price: 0, rarity: "Легендарный", preview: "bubble-vip-meteor", value: "vip-meteor", collection: "VIP · Звёздный след", bundleOnly: true },
+  { id: "frame-vip-aurora", name: "Полярное кольцо", description: "Рамка профиля с переливом северного сияния.", category: "Рамки", slot: "frame", price: 0, rarity: "Легендарный", preview: "frame-vip-aurora", value: "vip-aurora", collection: "VIP · Звёздный след", bundleOnly: true },
+  { id: "stickers-vip-comet", name: "Кометный экипаж", description: "Шесть эксклюзивных стикеров звёздного путешественника.", category: "Стикеры", slot: "stickers", price: 0, rarity: "Легендарный", preview: "stickers-vip-comet", value: "vip-comet", collection: "VIP · Звёздный след", bundleOnly: true },
+  { id: "title-vip-stardust", name: "Пыльца комет", description: "Особый титул для профиля и чата.", category: "Титулы", slot: "title", price: 0, rarity: "Легендарный", preview: "title-vip-stardust", value: "vip-stardust", collection: "VIP · Звёздный след", bundleOnly: true },
+  { id: "theme-premium-event-horizon", name: "Горизонт событий", description: "Премиальная тема с тёмной материей и стеклянными поверхностями.", category: "Темы", slot: "theme", price: 0, rarity: "Мифический", preview: "theme-premium-event-horizon", value: "premium-event-horizon", collection: "Premium · Квантовый портал", bundleOnly: true },
+  { id: "bubble-premium-prism", name: "Призматический импульс", description: "Многослойные исходящие сообщения с оптическим переливом.", category: "Пузырьки", slot: "bubble", price: 0, rarity: "Мифический", preview: "bubble-premium-prism", value: "premium-prism", collection: "Premium · Квантовый портал", bundleOnly: true },
+  { id: "frame-premium-portal", name: "Портал измерений", description: "Объёмная рамка аватара с контрастным свечением.", category: "Рамки", slot: "frame", price: 0, rarity: "Мифический", preview: "frame-premium-portal", value: "premium-portal", collection: "Premium · Квантовый портал", bundleOnly: true },
+  { id: "stickers-premium-quantum", name: "Квантовые эмоции", description: "Шесть эксклюзивных стикеров из другой галактики.", category: "Стикеры", slot: "stickers", price: 0, rarity: "Мифический", preview: "stickers-premium-quantum", value: "premium-quantum", collection: "Premium · Квантовый портал", bundleOnly: true },
+  { id: "title-premium-singularity", name: "Сингулярность", description: "Редкий титул для коллекции Premium.", category: "Титулы", slot: "title", price: 0, rarity: "Мифический", preview: "title-premium-singularity", value: "premium-singularity", collection: "Premium · Квантовый портал", bundleOnly: true },
+]);
+const STORE_BUNDLES = Object.freeze([
+  { id: 'vip-signature-pack', name: 'VIP · Звёздный след', tier: 'vip', price: 2400, description: '5 эксклюзивных предметов: туманность, метеоритные сообщения, полярная рамка, кометные стикеры и титул «Пыльца комет». Нужен активный VIP или Premium.', itemIds: ['theme-vip-nebula','bubble-vip-meteor','frame-vip-aurora','stickers-vip-comet','title-vip-stardust'] },
+  { id: 'premium-quantum-pack', name: 'Premium · Квантовый портал', tier: 'premium', price: 4800, description: '5 мифических предметов: горизонт событий, призматические сообщения, портал измерений, квантовые стикеры и титул «Сингулярность». Нужен активный Premium.', itemIds: ['theme-premium-event-horizon','bubble-premium-prism','frame-premium-portal','stickers-premium-quantum','title-premium-singularity'] }
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
-  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 2:30, аватар до 4 МБ, 5 языков и 8 интересов.' },
+  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов.' },
   { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Все возможности VIP на 6 часов. 180 ✦ за час статуса — эквивалент 3 часов активного диалога.' },
   { id: 'vip-24h', tier: 'vip', hours: 24, price: 4320, name: 'VIP · 24 часа', description: 'Полные сутки VIP со всеми расширенными лимитами. Срок прибавляется к оставшемуся времени.' },
-  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс Premium-ореол, до 5 000 символов, 8 фото до 12 МБ, голосовые до 4 минут, аватар до 8 МБ, 10 языков и 12 интересов.' },
+  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс Premium-ореол, до 5 000 символов, 10 фото до 12 МБ, голосовые до 1 минуты, аватар до 8 МБ, 10 языков и 12 интересов.' },
   { id: 'premium-6h', tier: 'premium', hours: 6, price: 2160, name: 'Premium · 6 часов', description: 'Все возможности Premium на 6 часов. 360 ✦ за час статуса — эквивалент 6 часов активного диалога.' },
   { id: 'premium-24h', tier: 'premium', hours: 24, price: 8640, name: 'Premium · 24 часа', description: 'Полные сутки Premium со всеми максимальными лимитами. Срок прибавляется к оставшемуся времени.' }
 ]);
@@ -220,6 +236,7 @@ function getJwtSecret() {
   return secret;
 }
 const JWT_SECRET = getJwtSecret();
+let startupUserResetStatus = 'not_started';
 
 let db;
 let io;
@@ -413,11 +430,11 @@ function membershipLimits(user) {
     messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH),
     languageLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
     interestLimit: tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5),
-    attachmentLimit: tier === 'premium' ? 8 : (tier === 'vip' ? 5 : 3),
+    attachmentLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
     imageBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 6 * 1024 * 1024),
     audioBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 5 * 1024 * 1024),
     avatarBytes: tier === 'premium' ? 8 * 1024 * 1024 : (tier === 'vip' ? 4 * 1024 * 1024 : 2 * 1024 * 1024),
-    voiceSeconds: tier === 'premium' ? 240 : (tier === 'vip' ? 150 : 90)
+    voiceSeconds: tier === 'premium' ? 60 : (tier === 'vip' ? 45 : 30)
   };
 }
 function mediaPublic(row) {
@@ -520,14 +537,38 @@ function endMatch(matchId, reason = 'ended', actorId = null) {
   const match = dbGet("SELECT * FROM matches WHERE id = ? AND status = 'active'", [matchId]);
   if (!match) return false;
   const mediaToDelete = dbAll('SELECT stored_name FROM media_files WHERE match_id = ?', [matchId]);
+  const canArchive = ['user_ended', 'user_next'].includes(reason);
+  const archivedMessages = canArchive ? dbAll(
+    'SELECT m.sender_id, u.username AS sender_name, m.content, m.message_type, m.sticker_code, m.attachments_json, m.created_at FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.match_id = ? ORDER BY m.created_at ASC',
+    [matchId]
+  ).map(row => ({
+    senderId: row.sender_id,
+    senderName: row.sender_name,
+    content: row.content || '',
+    type: row.message_type || 'text',
+    sticker: row.sticker_code || null,
+    attachments: safeJsonArray(row.attachments_json).map(file => file.kind === 'audio' ? 'Голосовое сообщение' : 'Фотография'),
+    createdAt: row.created_at
+  })) : [];
   for (const socket of io.sockets.sockets.values()) if (socket.data.activeMatchId === matchId) socket.data.activeMatchId = null;
   transaction(() => {
+    if (canArchive) {
+      const user1 = getUserById(match.user1_id);
+      const user2 = getUserById(match.user2_id);
+      const createdAt = nowIso();
+      const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+      for (const [user, partner] of [[user1, user2], [user2, user1]]) {
+        if (!user || !partner) continue;
+        dbRun('INSERT OR IGNORE INTO favorite_chat_drafts (id, user_id, match_id, partner_id, partner_username, partner_avatar, messages_json, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [crypto.randomUUID(), user.id, matchId, partner.id, partner.username, partner.avatar || '◉', JSON.stringify(archivedMessages), createdAt, expiresAt]);
+      }
+    }
     dbRun("UPDATE matches SET status = 'ended', ended_at = ?, end_reason = ? WHERE id = ?", [nowIso(), reason, matchId]);
     dbRun('DELETE FROM media_files WHERE match_id = ?', [matchId]);
     dbRun('DELETE FROM messages WHERE match_id = ?', [matchId]);
   });
   removeStoredFiles(mediaToDelete);
-  emitToPair(match, 'chat:ended', { matchId, reason, actorId });
+  emitToPair(match, 'chat:ended', { matchId, reason, actorId, canFavorite: canArchive });
   return true;
 }
 function removeFromQueue(userId) { queue.delete(userId); }
@@ -699,6 +740,32 @@ async function main() {
     CREATE TABLE IF NOT EXISTS store_equipped (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, slot TEXT NOT NULL, item_id TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(user_id, slot));
     CREATE TABLE IF NOT EXISTS token_transactions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, kind TEXT NOT NULL, amount INTEGER NOT NULL, description TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS favorites (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, target_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at TEXT NOT NULL, PRIMARY KEY(user_id, target_user_id), CHECK(user_id != target_user_id));
+    CREATE TABLE IF NOT EXISTS favorite_chat_drafts (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      match_id TEXT NOT NULL, partner_id TEXT NOT NULL, partner_username TEXT NOT NULL, partner_avatar TEXT NOT NULL DEFAULT '◉',
+      messages_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+      UNIQUE(user_id, match_id)
+    );
+    CREATE INDEX IF NOT EXISTS favorite_chat_drafts_expiry ON favorite_chat_drafts(expires_at);
+    CREATE TABLE IF NOT EXISTS favorite_chats (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      match_id TEXT NOT NULL, partner_id TEXT NOT NULL, partner_username TEXT NOT NULL, partner_avatar TEXT NOT NULL DEFAULT '◉',
+      messages_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL,
+      UNIQUE(user_id, match_id)
+    );
+    CREATE INDEX IF NOT EXISTS favorite_chats_created ON favorite_chats(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      category TEXT NOT NULL CHECK(category IN ('idea','bug')), title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','in_progress','closed')),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS support_tickets_user ON support_tickets(user_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS support_ticket_messages (
+      id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+      sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, body TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS support_ticket_messages_thread ON support_ticket_messages(ticket_id, created_at);
     CREATE TABLE IF NOT EXISTS moderation_actions (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, action TEXT NOT NULL, reason TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reports_status (report_id TEXT PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'open', reviewed_by TEXT REFERENCES users(id), reviewed_at TEXT, resolution TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS promo_codes (
@@ -815,6 +882,53 @@ async function main() {
     dbRun(`DELETE FROM reports WHERE reporter_id IN (${placeholders}) OR reported_id IN (${placeholders})`, [...expiredGuests, ...expiredGuests]);
     dbRun(`DELETE FROM users WHERE id IN (${placeholders})`, expiredGuests);
   }
+  startupUserResetStatus = 'not_requested';
+  const resetAlreadyDone = Boolean(dbGet("SELECT id FROM admin_audit_log WHERE action = 'solvi_initial_user_reset' LIMIT 1"));
+  if (resetAlreadyDone) startupUserResetStatus = 'completed';
+  else if (String(process.env.SOLVI_PURGE_NON_OWNER_USERS || '') === '1') {
+    const ownerPublicId = String(process.env.OWNER_PUBLIC_ID || '').trim();
+    const owner = ownerPublicId ? dbGet("SELECT id FROM users WHERE public_id = ? AND account_type = 'registered'", [ownerPublicId]) : null;
+    if (!owner) {
+      startupUserResetStatus = ownerPublicId ? 'skipped_owner_not_found' : 'skipped_owner_not_configured';
+      console.error('[SOLVI] User reset skipped: the configured permanent owner account could not be verified.');
+    } else {
+      const removed = dbAll('SELECT id, avatar_file FROM users WHERE id != ?', [owner.id]);
+      if (removed.length) {
+        const ids = removed.map(row => row.id), marks = ids.map(() => '?').join(',');
+        const matchIds = dbAll(`SELECT id FROM matches WHERE user1_id IN (${marks}) OR user2_id IN (${marks})`, [...ids, ...ids]).map(row => row.id);
+        const matchMarks = matchIds.map(() => '?').join(',');
+        const avatarFiles = removed.map(row => row.avatar_file).filter(Boolean);
+        const mediaFiles = dbAll(`SELECT stored_name FROM media_files WHERE owner_id IN (${marks})${matchIds.length ? ` OR match_id IN (${matchMarks})` : ''}`, matchIds.length ? [...ids, ...matchIds] : ids);
+        transaction(() => {
+          dbRun(`DELETE FROM support_ticket_messages WHERE sender_id IN (${marks}) OR ticket_id IN (SELECT id FROM support_tickets WHERE user_id IN (${marks}))`, [...ids, ...ids]);
+          dbRun(`DELETE FROM support_tickets WHERE user_id IN (${marks})`, ids);
+          dbRun(`DELETE FROM favorite_chat_drafts WHERE user_id IN (${marks}) OR partner_id IN (${marks})`, [...ids, ...ids]);
+          dbRun(`DELETE FROM favorite_chats WHERE user_id IN (${marks}) OR partner_id IN (${marks})`, [...ids, ...ids]);
+          dbRun(`DELETE FROM messages WHERE sender_id IN (${marks})${matchIds.length ? ` OR match_id IN (${matchMarks})` : ''}`, matchIds.length ? [...ids, ...matchIds] : ids);
+          dbRun(`DELETE FROM media_files WHERE owner_id IN (${marks})${matchIds.length ? ` OR match_id IN (${matchMarks})` : ''}`, matchIds.length ? [...ids, ...matchIds] : ids);
+          dbRun(`DELETE FROM matches WHERE user1_id IN (${marks}) OR user2_id IN (${marks})`, [...ids, ...ids]);
+          dbRun(`DELETE FROM reports WHERE reporter_id IN (${marks}) OR reported_id IN (${marks})`, [...ids, ...ids]);
+          dbRun(`DELETE FROM reports_status WHERE reviewed_by IN (${marks})`, ids);
+          dbRun(`DELETE FROM blocks WHERE blocker_id IN (${marks}) OR blocked_id IN (${marks})`, [...ids, ...ids]);
+          dbRun(`DELETE FROM moderation_actions WHERE actor_id IN (${marks}) OR target_id IN (${marks})`, [...ids, ...ids]);
+          dbRun(`DELETE FROM promo_codes WHERE created_by IN (${marks})`, ids);
+          dbRun(`DELETE FROM store_price_overrides WHERE updated_by IN (${marks})`, ids);
+          dbRun(`DELETE FROM admin_audit_log WHERE actor_id IN (${marks})`, ids);
+          dbRun(`DELETE FROM sessions WHERE user_id IN (${marks})`, ids);
+          dbRun(`DELETE FROM users WHERE id IN (${marks})`, ids);
+          dbRun('INSERT INTO admin_audit_log (id, actor_id, action, target_id, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), owner.id, 'solvi_initial_user_reset', null, JSON.stringify({ removedUsers: removed.length, ownerPreserved: true }), nowIso()]);
+        });
+        for (const file of avatarFiles) { try { fs.unlinkSync(path.join(AVATAR_DIR, path.basename(file))); } catch { /* best-effort */ } }
+        removeStoredFiles(mediaFiles);
+      } else {
+        dbRun('INSERT INTO admin_audit_log (id, actor_id, action, target_id, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), owner.id, 'solvi_initial_user_reset', null, JSON.stringify({ removedUsers: 0, ownerPreserved: true }), nowIso()]);
+      }
+      startupUserResetStatus = 'completed';
+      console.log(`[SOLVI] Owner-preserving reset complete; removed ${removed.length} non-owner account(s).`);
+    }
+  }
+  dbRun('DELETE FROM favorite_chat_drafts WHERE expires_at <= ?', [nowIso()]);
+
   // Remove legacy timestamp-based age assertions; current registration collects no age data.
   db.exec("UPDATE users SET adult_asserted_at = 'NOT_COLLECTED' WHERE adult_asserted_at IS NULL OR adult_asserted_at != 'NOT_COLLECTED'");
 
@@ -868,8 +982,13 @@ async function main() {
   app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много попыток. Попробуйте позже.' } }));
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'sovli-chat', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral', persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE }));
-  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, media: { images: true, voice: true, maxImagesPerMessage: 3, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: 90 }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
+  app.get('/api/health', (_req, res) => {
+    const ownerConfigured = Boolean(String(process.env.OWNER_PUBLIC_ID || '').trim());
+    const ownerAccountPresent = ownerConfigured && Boolean(dbGet("SELECT id FROM users WHERE public_id = ? AND account_type = 'registered'", [process.env.OWNER_PUBLIC_ID]));
+    const resetCompleted = Boolean(dbGet("SELECT id FROM admin_audit_log WHERE action = 'solvi_initial_user_reset' LIMIT 1"));
+    res.json({ ok: true, service: 'solvi-chat', brand: 'SOLVI', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral', persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE, ownerConfigured, ownerAccountPresent, resetCompleted, users: Number(dbGet('SELECT COUNT(*) AS n FROM users').n) });
+  });
+  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
   function checkPublicInvite(req, res) {
     if (!PUBLIC_MODE) return true;
@@ -903,7 +1022,8 @@ async function main() {
     const createdAt = nowIso();
     try {
       transaction(() => {
-        dbRun('INSERT INTO users (id, public_id, username, username_key, password_hash, avatar, adult_asserted_at, settings_json, tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)', [id, publicId, username, key, passwordHash, AVATARS[crypto.randomInt(AVATARS.length)], 'NOT_COLLECTED', JSON.stringify(DEFAULT_SETTINGS), createdAt]);
+        dbRun('INSERT INTO users (id, public_id, username, username_key, password_hash, avatar, adult_asserted_at, settings_json, tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)', [id, publicId, username, key, passwordHash, AVATARS[crypto.randomInt(AVATARS.length)], 'NOT_COLLECTED', JSON.stringify(DEFAULT_SETTINGS), createdAt]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), id, 'registration_bonus', 50, 'Бонус за регистрацию', createdAt]);
       });
     } catch (error) {
       if (String(error.message).includes('username_key')) return res.status(409).json({ error: 'Этот ник уже занят. Попробуй другой.' });
@@ -1032,7 +1152,8 @@ async function main() {
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
     res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
-      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, current: effectiveSubscription(user) === item.tier })) });
+      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, current: effectiveSubscription(user) === item.tier })),
+      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectiveSubscription(user)) : effectiveSubscription(user) === 'premium' })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
@@ -1047,6 +1168,7 @@ async function main() {
   app.post('/api/store/buy', authMiddleware, (req, res) => {
     const item = STORE_CATALOG.find(row => row.id === req.body?.itemId);
     if (!item) return res.status(404).json({ error: 'Товар не найден.' });
+    if (item.bundleOnly) return res.status(403).json({ error: 'Этот предмет доступен только в составе фирменного набора.' });
     ensureStarterInventory(req.user.id);
     const priceInfo = storePrice(item.id, item.price);
     if (!priceInfo.enabled) return res.status(404).json({ error: 'Этот предмет временно снят с продажи.' });
@@ -1065,6 +1187,25 @@ async function main() {
       });
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.json({ ok: true, balance: Number(getUserById(req.user.id).tokens || 0), itemId: item.id });
+  });
+  app.post('/api/store/bundle', authMiddleware, (req, res) => {
+    const bundle = STORE_BUNDLES.find(item => item.id === req.body?.bundleId);
+    if (!bundle) return res.status(404).json({ error: 'Фирменный набор не найден.' });
+    const tier = effectiveSubscription(req.user);
+    if (bundle.tier === 'premium' ? tier !== 'premium' : !['vip', 'premium'].includes(tier)) return res.status(403).json({ error: 'Для покупки этого набора нужна активная соответствующая привилегия.' });
+    try {
+      transaction(() => {
+        if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])) throw new Error('Этот набор уже приобретён.');
+        const current = dbGet('SELECT tokens FROM users WHERE id = ?', [req.user.id]);
+        if (!current || Number(current.tokens) < bundle.price) throw new Error('Недостаточно токенов для покупки набора.');
+        const createdAt = nowIso();
+        dbRun('UPDATE users SET tokens = tokens - ? WHERE id = ? AND tokens >= ?', [bundle.price, req.user.id, bundle.price]);
+        dbRun('INSERT INTO store_purchases (id, user_id, item_id, price, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, bundle.id, bundle.price, createdAt]);
+        for (const itemId of bundle.itemIds) dbRun('INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, ?)', [req.user.id, itemId, createdAt, bundle.id]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), req.user.id, 'bundle_purchase', -bundle.price, `Фирменный набор: ${bundle.name}`, createdAt]);
+      });
+    } catch (error) { return res.status(400).json({ error: error.message }); }
+    res.json({ ok: true, balance: Number(getUserById(req.user.id).tokens || 0), itemIds: bundle.itemIds });
   });
   app.post('/api/store/membership', authMiddleware, (req, res) => {
     const pack = MEMBERSHIP_PACKAGES.find(item => item.id === req.body?.packageId);
@@ -1127,6 +1268,38 @@ async function main() {
     if (!['theme', 'wallpaper', 'bubble', 'frame', 'sound', 'stickers', 'title'].includes(req.params.slot)) return res.status(400).json({ error: 'Неизвестная категория оформления.' });
     transaction(() => dbRun('DELETE FROM store_equipped WHERE user_id = ? AND slot = ?', [req.user.id, req.params.slot]));
     res.json({ ok: true, equipped: getEquippedItems(req.user.id) });
+  });
+
+  app.get('/api/favorite-chats', authMiddleware, (req, res) => {
+    dbRun('DELETE FROM favorite_chat_drafts WHERE user_id = ? AND expires_at <= ?', [req.user.id, nowIso()]);
+    const rows = dbAll('SELECT id, match_id, partner_username, partner_avatar, created_at, messages_json FROM favorite_chats WHERE user_id = ? ORDER BY created_at DESC LIMIT 100', [req.user.id]);
+    const drafts = dbAll('SELECT match_id, partner_username, partner_avatar, created_at, messages_json, expires_at FROM favorite_chat_drafts WHERE user_id = ? ORDER BY created_at DESC LIMIT 100', [req.user.id]);
+    res.json({
+      chats: rows.map(row => ({ id: row.id, matchId: row.match_id, partnerUsername: row.partner_username, partnerAvatar: row.partner_avatar, createdAt: row.created_at, messageCount: safeJsonArray(row.messages_json).length })),
+      drafts: drafts.map(row => ({ matchId: row.match_id, partnerUsername: row.partner_username, partnerAvatar: row.partner_avatar, createdAt: row.created_at, messageCount: safeJsonArray(row.messages_json).length, expiresAt: row.expires_at }))
+    });
+  });
+  app.post('/api/favorite-chats', authMiddleware, (req, res) => {
+    const matchId = typeof req.body?.matchId === 'string' ? req.body.matchId.slice(0, 64) : '';
+    if (!matchId) return res.status(400).json({ error: 'Не указан завершённый диалог.' });
+    const draft = dbGet('SELECT * FROM favorite_chat_drafts WHERE user_id = ? AND match_id = ? AND expires_at > ?', [req.user.id, matchId, nowIso()]);
+    if (!draft) return res.status(404).json({ error: 'Архив не найден или срок сохранения истёк.' });
+    const id = crypto.randomUUID();
+    transaction(() => {
+      dbRun('INSERT OR IGNORE INTO favorite_chats (id, user_id, match_id, partner_id, partner_username, partner_avatar, messages_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, req.user.id, draft.match_id, draft.partner_id, draft.partner_username, draft.partner_avatar, draft.messages_json, draft.created_at]);
+      dbRun('DELETE FROM favorite_chat_drafts WHERE user_id = ? AND match_id = ?', [req.user.id, matchId]);
+    });
+    const saved = dbGet('SELECT id FROM favorite_chats WHERE user_id = ? AND match_id = ?', [req.user.id, matchId]);
+    res.status(201).json({ ok: true, id: saved?.id || id });
+  });
+  app.get('/api/favorite-chats/:id', authMiddleware, (req, res) => {
+    const row = dbGet('SELECT id, match_id, partner_username, partner_avatar, created_at, messages_json FROM favorite_chats WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!row) return res.status(404).json({ error: 'Сохранённый диалог не найден.' });
+    res.json({ chat: { id: row.id, matchId: row.match_id, partnerUsername: row.partner_username, partnerAvatar: row.partner_avatar, createdAt: row.created_at }, messages: safeJsonArray(row.messages_json) });
+  });
+  app.delete('/api/favorite-chats/:id', authMiddleware, (req, res) => {
+    const result = dbRun('DELETE FROM favorite_chats WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    res.json({ ok: true, removed: Number(result.changes || 0) > 0 });
   });
 
   app.get('/api/favorites', authMiddleware, (req, res) => {
@@ -1295,6 +1468,49 @@ async function main() {
     res.type(file.mime_type).sendFile(path.join(UPLOAD_DIR, storedName), error => {
       if (error && !res.headersSent) res.status(404).end();
     });
+  });
+
+  const ticketCreateLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много новых обращений. Попробуй позже.' } });
+  app.get('/api/tickets', authMiddleware, (req, res) => {
+    const rows = dbAll(`SELECT t.id, t.category, t.title, t.status, t.created_at, t.updated_at,
+      (SELECT COUNT(*) FROM support_ticket_messages m WHERE m.ticket_id = t.id) AS message_count,
+      (SELECT body FROM support_ticket_messages m WHERE m.ticket_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_message
+      FROM support_tickets t WHERE t.user_id = ? ORDER BY t.updated_at DESC LIMIT 100`, [req.user.id]);
+    res.json({ tickets: rows });
+  });
+  app.post('/api/tickets', authMiddleware, ticketCreateLimiter, (req, res) => {
+    const category = ['idea','bug'].includes(req.body?.category) ? req.body.category : '';
+    const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 100) : '';
+    const body = typeof req.body?.body === 'string' ? req.body.body.trim().slice(0, 1500) : '';
+    if (!category) return res.status(400).json({ error: 'Выбери идею или сообщение об ошибке.' });
+    if (title.length < 5) return res.status(400).json({ error: 'Заголовок должен содержать хотя бы 5 символов.' });
+    if (body.length < 15) return res.status(400).json({ error: 'Опиши обращение подробнее (минимум 15 символов).' });
+    const id = crypto.randomUUID(), createdAt = nowIso();
+    transaction(() => {
+      dbRun('INSERT INTO support_tickets (id, user_id, category, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, req.user.id, category, title, 'open', createdAt, createdAt]);
+      dbRun('INSERT INTO support_ticket_messages (id, ticket_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), id, req.user.id, body, createdAt]);
+    });
+    res.status(201).json({ ok: true, id });
+  });
+  app.get('/api/tickets/:id', authMiddleware, (req, res) => {
+    const ticket = dbGet('SELECT id, category, title, status, created_at, updated_at FROM support_tickets WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!ticket) return res.status(404).json({ error: 'Обращение не найдено.' });
+    const messages = dbAll('SELECT m.id, m.sender_id, u.username AS sender_name, m.body, m.created_at FROM support_ticket_messages m JOIN users u ON u.id = m.sender_id WHERE m.ticket_id = ? ORDER BY m.created_at ASC', [ticket.id])
+      .map(m => ({ id: m.id, senderId: m.sender_id, senderName: m.sender_name, fromOwner: isOwner(getUserById(m.sender_id)), body: m.body, createdAt: m.created_at }));
+    res.json({ ticket, messages });
+  });
+  app.post('/api/tickets/:id/messages', authMiddleware, (req, res) => {
+    const ticket = dbGet('SELECT id, status FROM support_tickets WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!ticket) return res.status(404).json({ error: 'Обращение не найдено.' });
+    if (ticket.status === 'closed') return res.status(409).json({ error: 'Обращение закрыто. Создай новое, чтобы продолжить.' });
+    const body = typeof req.body?.body === 'string' ? req.body.body.trim().slice(0, 1500) : '';
+    if (body.length < 3) return res.status(400).json({ error: 'Сообщение должно содержать хотя бы 3 символа.' });
+    const createdAt = nowIso();
+    transaction(() => {
+      dbRun('INSERT INTO support_ticket_messages (id, ticket_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), ticket.id, req.user.id, body, createdAt]);
+      dbRun('UPDATE support_tickets SET status = ?, updated_at = ? WHERE id = ?', ['open', createdAt, ticket.id]);
+    });
+    res.status(201).json({ ok: true });
   });
 
   app.post('/api/report', authMiddleware, (req, res) => {
@@ -1665,6 +1881,34 @@ async function main() {
     const tokenTotal = Number(dbGet('SELECT COALESCE(SUM(tokens),0) AS n FROM users').n);
     res.json({ users, guests, activeMatches, openReports, tokenTotal, recentUsers: dbAll("SELECT id, public_id, username, account_type, CASE WHEN public_id = ? THEN 'owner' ELSE role END AS role, subscription_tier, subscription_expires_at, created_at FROM users ORDER BY created_at DESC LIMIT 12", [process.env.OWNER_PUBLIC_ID || '']) });
   });
+  app.get('/api/admin/tickets', authMiddleware, ownerOnly, (_req, res) => {
+    const tickets = dbAll(`SELECT t.id, t.category, t.title, t.status, t.created_at, t.updated_at, u.username, u.public_id,
+      (SELECT COUNT(*) FROM support_ticket_messages m WHERE m.ticket_id = t.id) AS message_count,
+      (SELECT body FROM support_ticket_messages m WHERE m.ticket_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_message
+      FROM support_tickets t JOIN users u ON u.id = t.user_id ORDER BY t.updated_at DESC LIMIT 200`);
+    res.json({ tickets });
+  });
+  app.get('/api/admin/tickets/:id', authMiddleware, ownerOnly, (req, res) => {
+    const ticket = dbGet('SELECT t.*, u.username, u.public_id FROM support_tickets t JOIN users u ON u.id = t.user_id WHERE t.id = ?', [req.params.id]);
+    if (!ticket) return res.status(404).json({ error: 'Обращение не найдено.' });
+    const messages = dbAll('SELECT m.id, m.sender_id, u.username AS sender_name, m.body, m.created_at FROM support_ticket_messages m JOIN users u ON u.id = m.sender_id WHERE m.ticket_id = ? ORDER BY m.created_at ASC', [ticket.id]);
+    res.json({ ticket, messages });
+  });
+  app.post('/api/admin/tickets/:id/reply', authMiddleware, ownerOnly, (req, res) => {
+    const ticket = dbGet('SELECT id FROM support_tickets WHERE id = ?', [req.params.id]);
+    if (!ticket) return res.status(404).json({ error: 'Обращение не найдено.' });
+    const body = typeof req.body?.body === 'string' ? req.body.body.trim().slice(0, 1500) : '';
+    const status = ['open','in_progress','closed'].includes(req.body?.status) ? req.body.status : 'in_progress';
+    if (body.length < 3) return res.status(400).json({ error: 'Ответ должен содержать хотя бы 3 символа.' });
+    const createdAt = nowIso();
+    transaction(() => {
+      dbRun('INSERT INTO support_ticket_messages (id, ticket_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)', [crypto.randomUUID(), ticket.id, req.user.id, body, createdAt]);
+      dbRun('UPDATE support_tickets SET status = ?, updated_at = ? WHERE id = ?', [status, createdAt, ticket.id]);
+      auditAdmin(req.user.id, 'support_ticket_reply', ticket.id, { status });
+    });
+    res.json({ ok: true });
+  });
+
   app.get('/api/admin/reports', authMiddleware, ownerOnly, (_req, res) => {
     const reports = dbAll(`SELECT r.id, r.category, r.details, r.context_json, r.created_at, r.reporter_id, r.reported_id,
       reporter.username AS reporter_name, reported.username AS reported_name, COALESCE(rs.status, 'open') AS status
@@ -1812,7 +2056,9 @@ async function main() {
       const equippedStickerPack = getEquippedItems(userId).stickers;
       const allowedStickers = new Set([...BASE_STICKERS, ...(STICKER_PACKS[equippedStickerPack] || [])]);
       const sticker = allowedStickers.has(requestedSticker) ? requestedSticker : null;
-      const attachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))].slice(0, membership.attachmentLimit) : [];
+      const requestedAttachmentIds = Array.isArray(payload?.attachments) ? [...new Set(payload.attachments.filter(id => typeof id === 'string' && id.length <= 64))] : [];
+      if (requestedAttachmentIds.length > membership.attachmentLimit) return ack({ ok: false, error: `Для твоего статуса можно отправить до ${membership.attachmentLimit} фото за раз.` });
+      const attachmentIds = requestedAttachmentIds;
       if (!clientId || content.length > messageLimit || (!content && !sticker && !attachmentIds.length)) {
         return ack({ ok: false, error: `Добавь текст, стикер или вложение. Твой лимит — до ${messageLimit.toLocaleString('ru-RU')} символов.` });
       }

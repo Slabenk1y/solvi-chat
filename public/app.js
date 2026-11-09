@@ -148,7 +148,7 @@ function createStorePreview(item) {
   } else if (item.slot === 'title') {
     const title = document.createElement('span'); title.className = 'preview-title-pill'; title.textContent = item.name; scene.append(title);
   } else {
-    const fallback = document.createElement('span'); fallback.className = 'preview-title-pill'; fallback.textContent = 'SOVLI'; scene.append(fallback);
+    const fallback = document.createElement('span'); fallback.className = 'preview-title-pill'; fallback.textContent = 'SOLVI'; scene.append(fallback);
   }
   preview.append(scene);
   return preview;
@@ -170,6 +170,8 @@ function createThemeStorePreview(item) {
     pixel: ['#18263a','#263a54','#e1a64b','#fff5dc','#b9c6d8'],
     clouds: ['#e9f2fa','#ffffff','#6fa9d0','#31475c','#8ba1b3'],
     default: ['#f2f1f8','#ffffff','#8278d8','#302d45','#918ca7'],
+    'vip-nebula': ['#101a2e','#172941','#72c9d6','#eafaff','#9ab9cf'],
+    'premium-event-horizon': ['#171027','#24183a','#c78cff','#fff5ff','#c4aed8']
     dark: ['#181827','#232337','#8d86ff','#f0efff','#a2a2ba'],
     light: ['#f5f6fb','#ffffff','#756ee8','#29263e','#88859e']
   };
@@ -184,7 +186,7 @@ function createThemeStorePreview(item) {
   root.style.setProperty('--mock-muted', colors[4]);
   const shell = document.createElement('div'); shell.className = 'theme-mock-shell';
   const top = document.createElement('div'); top.className = 'theme-mock-top';
-  const brand = document.createElement('strong'); brand.textContent = 'SOVLI';
+  const brand = document.createElement('strong'); brand.textContent = 'SOLVI';
   const topLabel = document.createElement('span'); topLabel.textContent = 'ТВОЁ ПРОСТРАНСТВО';
   top.append(brand, topLabel);
   const body = document.createElement('div'); body.className = 'theme-mock-body';
@@ -228,7 +230,7 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '8 фото до 12 МБ', 'Голосовые до 4 минут', 'Аватар до 8 МБ', '10 языков · 12 интересов', 'Premium-ореол профиля'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 2:30', 'Аватар до 4 МБ', '5 языков · 8 интересов'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 8 МБ', '10 языков · 12 интересов', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 4 МБ', '5 языков · 8 интересов', 'Набор «Звёздный след»'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
@@ -240,9 +242,9 @@ function openStorePreview(item) {
   }
   $('#storePreviewBadge').textContent = item.category || (item.tier === 'premium' ? 'PREMIUM' : 'VIP');
   $('#storePreviewTitle').textContent = item.name || 'Предпросмотр';
-  $('#storePreviewDescription').textContent = item.description || 'Посмотри, как предмет будет выглядеть в SOVLI.';
+  $('#storePreviewDescription').textContent = item.description || 'Посмотри, как предмет будет выглядеть в SOLVI.';
   const effects = {
-    theme: 'Полностью меняет оформление SOVLI: фон, палитру, панели, карточки и область диалога.',
+    theme: 'Полностью меняет оформление SOLVI: фон, палитру, панели, карточки и область диалога.',
     bubble: 'Меняет цвет и визуальный стиль твоих исходящих сообщений.',
     frame: 'Добавляет декоративную рамку к аватару профиля.',
     sound: 'Меняет короткий звуковой сигнал интерфейса.',
@@ -349,7 +351,7 @@ function renderStore(data) {
   });
   const root = $('#storeItems'); root.replaceChildren();
   const query = state.storeSearch.trim().toLocaleLowerCase('ru-RU');
-  const visible = data.items.filter(item => item.enabled !== false && (state.storeCategory === 'Все' || item.category === state.storeCategory) && (!state.storeCollectionOnly || item.owned) && (!state.storeCollectionFilter || item.collection === state.storeCollectionFilter) && (!query || `${item.name} ${item.description} ${item.collection}`.toLocaleLowerCase('ru-RU').includes(query)));
+  const visible = data.items.filter(item => !item.bundleOnly && item.enabled !== false && (state.storeCategory === 'Все' || item.category === state.storeCategory) && (!state.storeCollectionOnly || item.owned) && (!state.storeCollectionFilter || item.collection === state.storeCollectionFilter) && (!query || `${item.name} ${item.description} ${item.collection}`.toLocaleLowerCase('ru-RU').includes(query)));
   if (!visible.length) { const empty = document.createElement('div'); empty.className = 'store-empty'; empty.textContent = state.storeCollectionOnly ? 'В этой категории пока нет купленных предметов.' : 'Ничего не найдено. Попробуй изменить фильтр.'; root.append(empty); }
   visible.forEach(item => {
     const card = document.createElement('article'); card.className = `store-item-card rarity-${String(item.rarity).toLowerCase()}`;
@@ -358,7 +360,7 @@ function renderStore(data) {
     const category = document.createElement('span'); category.className = 'store-item-category'; category.textContent = `${item.category} · ${item.rarity}`;
     const title = document.createElement('h3'); title.textContent = item.name;
     const description = document.createElement('p'); description.textContent = item.description;
-    const collection = document.createElement('small'); collection.className = 'store-item-collection'; collection.textContent = `Коллекция: ${item.collection || 'SOVLI'}`;
+    const collection = document.createElement('small'); collection.className = 'store-item-collection'; collection.textContent = `Коллекция: ${item.collection || 'SOLVI'}`;
     meta.append(category, title, description, collection);
     const footer = document.createElement('div'); footer.className = 'store-item-footer';
     const price = document.createElement('strong'); price.className = 'store-item-price'; price.textContent = item.owned ? (item.equipped ? 'Уже используется' : 'В коллекции') : `${Number(item.price).toLocaleString('ru-RU')} ✦`;
@@ -390,6 +392,29 @@ function renderStore(data) {
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
     footer.append(previewButton, price, action); card.append(preview, meta, footer); root.append(card);
+  });
+  const bundleRoot = $('#customizationBundles');
+  bundleRoot.replaceChildren();
+  (data.bundles || []).forEach(bundle => {
+    const card = document.createElement('article'); card.className = `bundle-card bundle-${bundle.tier}`;
+    const label = document.createElement('span'); label.className = 'bundle-kicker'; label.textContent = bundle.tier === 'premium' ? 'PREMIUM · МИФИЧЕСКАЯ СЕРИЯ' : 'VIP · ЛЕГЕНДАРНАЯ СЕРИЯ';
+    const title = document.createElement('h3'); title.textContent = bundle.name;
+    const copy = document.createElement('p'); copy.textContent = bundle.description;
+    const contents = document.createElement('div'); contents.className = 'bundle-contents';
+    bundle.itemIds.forEach(id => { const item = data.items.find(entry => entry.id === id); if (item) { const chip = document.createElement('span'); chip.textContent = `${item.name} · ${item.category}`; contents.append(chip); } });
+    const footer = document.createElement('div'); footer.className = 'bundle-footer';
+    const price = document.createElement('strong'); price.textContent = `${Number(bundle.price).toLocaleString('ru-RU')} ✦`;
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary';
+    button.textContent = bundle.owned ? 'Уже в коллекции' : (bundle.available ? 'Купить набор' : 'Нужен статус');
+    button.disabled = bundle.owned || !bundle.available;
+    button.addEventListener('click', async () => {
+      const approved = await confirmStorePurchase({ title: `Купить ${bundle.name}?`, description: bundle.description, price: bundle.price, balance: data.balance, confirmLabel: 'Забрать набор' });
+      if (!approved) return;
+      button.disabled = true;
+      try { const result = await api('/api/store/bundle', { method: 'POST', body: JSON.stringify({ bundleId: bundle.id }) }); if (state.user) state.user.tokens = result.balance; showToast(`${bundle.name}: 5 предметов добавлено в инвентарь.`); await loadStore(); }
+      catch (error) { showToast(error.message); button.disabled = false; }
+    });
+    footer.append(price, button); card.append(label, title, copy, contents, footer); bundleRoot.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
   (data.memberships || []).forEach(pack => {
@@ -534,53 +559,112 @@ async function loadAdmin() {
 }
 
 async function loadFavorites() {
-  try {
-    const data = await api('/api/favorites');
-    state.favorites = data.favorites || [];
-    renderFavorites();
-    if (state.activeMatch) renderChatHeader();
-  } catch (error) { showToast(error.message); }
+  try { const data = await api('/api/favorite-chats'); state.favoriteChats = data.chats || []; state.favoriteChatDrafts = data.drafts || []; renderFavorites(); }
+  catch (error) { showToast(error.message); }
 }
 function renderFavorites() {
   const root = $('#favoritesList'); if (!root) return;
   root.replaceChildren();
-  if (!state.favorites.length) {
+  if (state.favoriteChatDrafts?.length) {
+    const draftHeading = document.createElement('h2'); draftHeading.className = 'favorite-drafts-heading'; draftHeading.textContent = 'Недавно завершённые · готовы к сохранению'; root.append(draftHeading);
+    state.favoriteChatDrafts.forEach(draft => {
+      const card = document.createElement('article'); card.className = 'favorite-contact-card favorite-chat-card';
+      const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; avatar.textContent = draft.partnerAvatar || '◉';
+      const details = document.createElement('div'); details.className = 'favorite-card-details';
+      const name = document.createElement('strong'); name.textContent = draft.partnerUsername || 'Собеседник';
+      const note = document.createElement('p'); note.className = 'favorite-card-note'; note.textContent = `${draft.messageCount || 0} сообщений · доступно до ${new Date(draft.expiresAt).toLocaleDateString('ru-RU')}`;
+      details.append(name, note);
+      const save = document.createElement('button'); save.type = 'button'; save.className = 'button button-primary'; save.textContent = 'Сохранить';
+      save.addEventListener('click', async () => {
+        save.disabled = true;
+        try { await api('/api/favorite-chats', { method: 'POST', body: JSON.stringify({ matchId: draft.matchId }) }); await loadFavorites(); showToast('Переписка сохранена в Избранное.'); }
+        catch (error) { showToast(error.message); save.disabled = false; }
+      });
+      card.append(avatar, details, save); root.append(card);
+    });
+  }
+  if (!state.favoriteChats.length && !state.favoriteChatDrafts?.length) {
     const empty = document.createElement('div'); empty.className = 'favorites-empty';
     const icon = document.createElement('span'); icon.textContent = '♡';
-    const title = document.createElement('strong'); title.textContent = 'Пока здесь никого нет';
-    const copy = document.createElement('p'); copy.textContent = 'Во время приятного разговора нажми «В избранное» — собеседник появится здесь.';
-    empty.append(icon,title,copy); root.append(empty); return;
+    const title = document.createElement('strong'); title.textContent = 'Сохранённых разговоров пока нет';
+    const copy = document.createElement('p'); copy.textContent = 'Заверши диалог и подтверди сохранение — переписка появится здесь.';
+    empty.append(icon, title, copy); root.append(empty); return;
   }
-  state.favorites.forEach(person => {
-    const card = document.createElement('article'); card.className = 'favorite-contact-card';
-    const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; setAvatarContent(avatar, person);
+  state.favoriteChats.forEach(chat => {
+    const card = document.createElement('article'); card.className = 'favorite-contact-card favorite-chat-card';
+    const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; avatar.textContent = chat.partnerAvatar || '◉';
     const details = document.createElement('div'); details.className = 'favorite-card-details';
-    const name = document.createElement('strong'); name.textContent = person.username;
-    const note = document.createElement('p'); note.className = 'favorite-card-note'; note.textContent = 'Сохранённый контакт · чат пока недоступен';
+    const name = document.createElement('strong'); name.textContent = chat.partnerUsername || 'Собеседник';
+    const note = document.createElement('p'); note.className = 'favorite-card-note'; note.textContent = `${chat.messageCount || 0} сообщений · ${new Date(chat.createdAt).toLocaleString('ru-RU')}`;
     details.append(name, note);
-    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button button-secondary'; remove.textContent = 'Убрать';
-    remove.addEventListener('click', async () => { remove.disabled = true; try { await api(`/api/favorites/${encodeURIComponent(person.id)}`, { method: 'DELETE' }); state.favorites = state.favorites.filter(row => row.id !== person.id); renderFavorites(); if (state.activeMatch) renderChatHeader(); } catch (error) { remove.disabled = false; showToast(error.message); } });
-    card.append(avatar, details, remove); root.append(card);
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'button button-primary'; open.textContent = 'Открыть'; open.addEventListener('click', () => openFavoriteChat(chat.id));
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button button-secondary'; remove.textContent = 'Удалить';
+    remove.addEventListener('click', async () => { if (!window.confirm('Удалить сохранённую переписку?')) return; remove.disabled = true; try { await api(`/api/favorite-chats/${encodeURIComponent(chat.id)}`, { method: 'DELETE' }); state.favoriteChats = state.favoriteChats.filter(row => row.id !== chat.id); renderFavorites(); } catch (error) { showToast(error.message); remove.disabled = false; } });
+    card.append(avatar, details, open, remove); root.append(card);
   });
 }
-async function toggleFavoritePartner() {
-  const partner = state.activeMatch?.partner;
-  if (!partner) return;
-  const isFavorite = state.favorites.some(row => row.id === partner.id);
-  const button = $('#favoritePartnerButton'); button.disabled = true;
+async function openFavoriteChat(id) {
   try {
-    if (isFavorite) {
-      await api(`/api/favorites/${encodeURIComponent(partner.id)}`, { method: 'DELETE' });
-      state.favorites = state.favorites.filter(row => row.id !== partner.id);
-      showToast('Собеседник удалён из избранного.');
-    } else {
-      await api('/api/favorites', { method: 'POST', body: JSON.stringify({ matchId: state.activeMatch.matchId }) });
-      state.favorites.push({ ...partner, createdAt: new Date().toISOString() });
-      showToast('Собеседник добавлен в избранное.');
-    }
-    renderChatHeader(); renderFavorites();
+    const data = await api(`/api/favorite-chats/${encodeURIComponent(id)}`);
+    state.activeFavoriteChatId = id;
+    $('#favoriteChatTitle').textContent = `Диалог с ${data.chat.partnerUsername}`;
+    $('#favoriteChatMeta').textContent = new Date(data.chat.createdAt).toLocaleString('ru-RU');
+    const root = $('#favoriteChatMessages'); root.replaceChildren();
+    (data.messages || []).forEach(message => {
+      const row = document.createElement('article'); row.className = `favorite-transcript-message${message.senderId === state.user?.id ? ' mine' : ''}`;
+      const head = document.createElement('div'); head.className = 'favorite-transcript-head';
+      const sender = document.createElement('strong'); sender.textContent = message.senderId === state.user?.id ? 'Ты' : (message.senderName || 'Собеседник');
+      const time = document.createElement('time'); time.textContent = new Date(message.createdAt).toLocaleString('ru-RU'); head.append(sender, time); row.append(head);
+      if (message.content) { const body = document.createElement('p'); body.textContent = message.content; row.append(body); }
+      if (message.sticker) { const sticker = document.createElement('p'); sticker.className = 'favorite-transcript-sticker'; sticker.textContent = message.sticker; row.append(sticker); }
+      (message.attachments || []).forEach(label => { const attachment = document.createElement('small'); attachment.className = 'favorite-transcript-attachment'; attachment.textContent = `[ ${label} — медиа удалено после завершения чата ]`; row.append(attachment); });
+      root.append(row);
+    });
+    if (!root.children.length) { const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'В этой переписке нет сообщений.'; root.append(empty); }
+    $('#favoriteChatModal').hidden = false;
   } catch (error) { showToast(error.message); }
-  finally { button.disabled = false; }
+}
+async function loadTickets() {
+  try { const data = await api('/api/tickets'); state.tickets = data.tickets || []; renderTicketList(); }
+  catch (error) { showToast(error.message); }
+}
+function renderTicketList() {
+  const root = $('#ticketList'); if (!root) return;
+  root.replaceChildren();
+  if (!state.tickets.length) {
+    const empty = document.createElement('div'); empty.className = 'favorites-empty';
+    const title = document.createElement('strong'); title.textContent = 'Обращений пока нет';
+    const copy = document.createElement('p'); copy.textContent = 'Предложи улучшение или сообщи о проблеме — команда увидит обращение в панели владельца.';
+    empty.append(title, copy); root.append(empty); return;
+  }
+  state.tickets.forEach(ticket => {
+    const card = document.createElement('button'); card.type = 'button'; card.className = `ticket-list-card${state.activeTicketId === ticket.id ? ' active' : ''}`;
+    const kind = document.createElement('span'); kind.className = 'ticket-kind'; kind.textContent = ticket.category === 'bug' ? 'Ошибка' : 'Идея';
+    const title = document.createElement('strong'); title.textContent = ticket.title;
+    const status = document.createElement('span'); status.className = `ticket-status ${ticket.status}`; status.textContent = ({open:'Открыт',in_progress:'В работе',closed:'Закрыт'})[ticket.status] || ticket.status;
+    const last = document.createElement('small'); last.textContent = ticket.last_message || 'Нет ответов';
+    card.append(kind, title, status, last); card.addEventListener('click', () => openTicket(ticket.id)); root.append(card);
+  });
+}
+async function openTicket(id) {
+  try {
+    const data = await api(`/api/tickets/${encodeURIComponent(id)}`);
+    state.activeTicketId = id;
+    $('#ticketThreadTitle').textContent = data.ticket.title;
+    $('#ticketThreadMeta').textContent = `${data.ticket.category === 'bug' ? 'Сообщение об ошибке' : 'Идея'} · ${({open:'Открыт',in_progress:'В работе',closed:'Закрыт'})[data.ticket.status] || data.ticket.status}`;
+    const root = $('#ticketThreadMessages'); root.replaceChildren();
+    (data.messages || []).forEach(message => {
+      const row = document.createElement('article'); row.className = `ticket-message${message.fromOwner ? ' owner' : ''}`;
+      const head = document.createElement('strong'); head.textContent = message.fromOwner ? 'Команда Solvi' : message.senderName;
+      const body = document.createElement('p'); body.textContent = message.body;
+      const time = document.createElement('time'); time.textContent = new Date(message.createdAt).toLocaleString('ru-RU');
+      row.append(head, body, time); root.append(row);
+    });
+    $('#ticketReplyForm').hidden = data.ticket.status === 'closed';
+    $('#ticketReplyInput').value = '';
+    $('#ticketThread').hidden = false;
+    renderTicketList(); root.scrollTop = root.scrollHeight;
+  } catch (error) { showToast(error.message); }
 }
 
 async function loadBlockedUsers() {
@@ -605,7 +689,7 @@ function renderBlockedUsers() {
     const avatar = document.createElement('div'); avatar.className = 'avatar avatar-medium'; setAvatarContent(avatar, person);
     const details = document.createElement('div'); details.className = 'favorite-card-details';
     const name = document.createElement('strong'); name.textContent = person.username;
-    const description = document.createElement('p'); description.textContent = person.description || 'Пользователь SOVLI';
+    const description = document.createElement('p'); description.textContent = person.description || 'Пользователь SOLVI';
     details.append(name, description);
     const unblock = document.createElement('button'); unblock.type = 'button'; unblock.className = 'button button-secondary'; unblock.textContent = 'Разблокировать';
     unblock.addEventListener('click', async () => {
@@ -643,11 +727,11 @@ async function loadSessions() {
 
 function setAuthError(message = '') { $('#authError').textContent = message; }
 function currentView() {
-  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'blocked', 'admin'].find(name => !$(`#${name}Panel`).hidden) || 'home';
+  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'blocked', 'admin'].find(name => !$(`#${name}Panel`).hidden) || 'home';
 }
 function setView(view) {
   if (view === 'home' && state.activeMatch) view = 'chat';
-  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'blocked', 'admin'].forEach(name => {
+  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'blocked', 'admin'].forEach(name => {
     const panel = $(`#${name}Panel`);
     if (panel) panel.hidden = name !== view;
   });
@@ -662,6 +746,7 @@ function setView(view) {
   if (view === 'store') loadStore();
   if (view === 'inventory') loadInventory();
   if (view === 'favorites') loadFavorites();
+  if (view === 'feedback') loadTickets();
   if (view === 'blocked') loadBlockedUsers();
 }
 function setAvatarContent(element, user) {
@@ -699,7 +784,7 @@ function setUser(user) {
   $('#profileRoleBadge').textContent = user.badge || 'Участник';
   $('#profileMembershipLine').textContent = user.subscriptionTier === 'free' ? 'Стандартный участник' : `${user.subscriptionTier.toUpperCase()} до ${user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}`;
   $('#profileTokenBalance').textContent = Number(user.tokens || 0).toLocaleString('ru-RU');
-  $('#profileCreatedAt').textContent = `В SOVLI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
+  $('#profileCreatedAt').textContent = `В SOLVI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
   $('#profileUsername').value = user.username;
   if ($('#profileDescription')) $('#profileDescription').value = user.description || '';
   $('#profileUsername').disabled = user.accountType === 'guest';
@@ -757,7 +842,7 @@ function switchAuthMode(mode) {
     : 'Войди, используя свой никнейм и пароль.';
   $('#authUsernameLabel').textContent = 'Никнейм';
   $('#authUsername').placeholder = isRegister ? 'Придумай никнейм' : 'Твой никнейм';
-  $('#authSubmit').querySelector('span:first-child').textContent = isRegister ? 'Создать аккаунт' : 'Войти в SOVLI';
+  $('#authSubmit').querySelector('span:first-child').textContent = isRegister ? 'Создать аккаунт' : 'Войти в SOLVI';
   $('#authPassword').autocomplete = isRegister ? 'new-password' : 'current-password';
   $('#authPassword').placeholder = 'Не менее 8 символов';
   $$('[data-auth-tab]').forEach(button => button.classList.toggle('active', button.dataset.authTab === mode));
@@ -857,7 +942,7 @@ function connectSocket() {
   socket.on('wallet:updated', data => { if (state.user) state.user.tokens = Number(data.balance || 0); const balance = $('#storeBalance'); if (balance) balance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); const profileBalance = $('#profileTokenBalance'); if (profileBalance) profileBalance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); if (data.earned) showToast(`+${data.earned} токен(ов) за активное общение ✦`, 2200); });
   socket.on('moderation:notice', payload => {
     const message = String(payload?.message || '').trim();
-    if (message) showToast(`Сообщение от команды SOVLI: ${message}`, 7500);
+    if (message) showToast(`Сообщение от команды SOLVI: ${message}`, 7500);
   });
   socket.on('queue:waiting', () => {
     if (state.searching) $('#searchStatusText').textContent = 'Подбираем человека с похожими интересами.';
@@ -904,7 +989,7 @@ function connectSocket() {
   socket.on('chat:recording', data => {
     if (data.userId === state.activeMatch?.partner?.id) $('#recordingIndicator').hidden = !data.recording;
   });
-  socket.on('chat:ended', data => {
+  socket.on('chat:ended', async data => {
     if (state.activeMatch?.matchId !== data.matchId) return;
     state.activeMatch = null;
     state.messages = [];
@@ -917,6 +1002,10 @@ function connectSocket() {
     stopVoiceRecording(true);
     if (!state.searching) setView('home');
     if (data.reason !== 'user_next') showToast(endReasonText(data.reason));
+    if (data.canFavorite && window.confirm('Сохранить текст этой переписки в Избранное? Фото и аудио после завершения чата удаляются.')) {
+      try { await api('/api/favorite-chats', { method: 'POST', body: JSON.stringify({ matchId: data.matchId }) }); await loadFavorites(); showToast('Переписка сохранена в Избранное.'); }
+      catch (error) { showToast(error.message); }
+    }
   });
   socket.on('auth:expired', () => {
     logout(false, false);
@@ -926,12 +1015,12 @@ function connectSocket() {
 }
 function endReasonText(reason) {
   const messages = {
-    user_ended: 'Диалог завершён. Переписка удалена.',
+    user_ended: 'Диалог завершён. Теперь можно сохранить его в Избранное.',
     user_next: 'Ищем следующего собеседника…',
     reported: 'Жалоба отправлена. Диалог завершён.',
     blocked: 'Пользователь заблокирован.',
     connection_lost: 'Соединение потеряно. Диалог завершён.',
-    server_restart: 'Сервер перезапустился. Диалог завершён, переписка удалена.',
+    server_restart: 'Сервер перезапустился. Диалог завершён.',
     account_deleted: 'Аккаунт удалён.',
     guest_expired: 'Гостевой доступ завершился.'
   };
@@ -964,9 +1053,6 @@ function renderChatHeader() {
   $('#partnerName').textContent = partner.username || 'Собеседник';
   $('#partnerStateText').textContent = [partner.badge, partner.cosmeticTitle].filter(Boolean).join(' · ') || 'На связи';
   $('#partnerName').title = partner.description || partner.username || '';
-  const favorite = state.favorites.some(row => row.id === partner.id);
-  $('#favoritePartnerButton').textContent = favorite ? '★ В избранном' : '☆ В избранное';
-  $('#favoritePartnerButton').classList.toggle('active', favorite);
   const common = state.activeMatch.commonInterests || [];
   const container = $('#commonInterests');
   container.replaceChildren();
@@ -1383,7 +1469,7 @@ function setUploadStatus(text) { $('#uploadStatus').textContent = text; }
 async function sendSelectedPhotos(files) {
   if (!state.activeMatch) return showToast('Сначала найди собеседника.');
   const tier = state.user?.subscriptionTier || 'free';
-  const attachmentLimit = tier === 'premium' ? 8 : (tier === 'vip' ? 5 : 3);
+  const attachmentLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
   const selected = [...files].slice(0, attachmentLimit);
   if (!selected.length) return;
   if (files.length > attachmentLimit) showToast(`За один раз можно отправить не больше ${attachmentLimit} фотографий.`);
@@ -1447,10 +1533,10 @@ async function startVoiceRecording() {
   }
   try {
     state.discardVoice = false;
-    state.voiceStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    state.voiceStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 48000, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     const candidates = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'];
     const mimeType = candidates.find(type => { try { return MediaRecorder.isTypeSupported(type); } catch { return false; } });
-    state.mediaRecorder = new MediaRecorder(state.voiceStream, mimeType ? { mimeType } : undefined);
+    state.mediaRecorder = new MediaRecorder(state.voiceStream, mimeType ? { mimeType, audioBitsPerSecond: 48000 } : { audioBitsPerSecond: 48000 });
     state.voiceChunks = [];
     state.voiceStartedAt = Date.now();
     state.mediaRecorder.addEventListener('dataavailable', event => { if (event.data?.size) state.voiceChunks.push(event.data); });
@@ -1483,7 +1569,7 @@ async function startVoiceRecording() {
       const seconds = Math.floor((Date.now() - state.voiceStartedAt) / 1000);
       $('#recordingTimer').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
       const tier = state.user?.subscriptionTier || 'free';
-      const voiceLimit = tier === 'premium' ? 240 : (tier === 'vip' ? 150 : 90);
+      const voiceLimit = tier === 'premium' ? 60 : (tier === 'vip' ? 45 : 30);
       if (seconds >= voiceLimit) { stopVoiceRecording(false); showToast(`Достигнут лимит голосового — ${Math.floor(voiceLimit / 60)}:${String(voiceLimit % 60).padStart(2, '0')}.`); }
     }, 250);
   } catch (error) {
@@ -1723,7 +1809,7 @@ $('#authForm').addEventListener('submit', async event => {
   } catch (error) { setAuthError(error.message); }
   finally {
     button.disabled = false;
-    button.querySelector('span:first-child').textContent = isRegister ? 'Создать аккаунт' : 'Войти в SOVLI';
+    button.querySelector('span:first-child').textContent = isRegister ? 'Создать аккаунт' : 'Войти в SOLVI';
   }
 });
 $$('[data-auth-tab]').forEach(button => button.addEventListener('click', () => switchAuthMode(button.dataset.authTab)));
@@ -1791,7 +1877,7 @@ $('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePre
 $$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; }));
 $('#endChatButton').addEventListener('click', () => {
   if (!state.activeMatch) return;
-  if (!window.confirm('Завершить диалог? Переписка будет удалена.')) return;
+  if (!window.confirm('Завершить диалог? После этого можно будет сохранить текст переписки в Избранное.')) return;
   state.socket?.emit('chat:end', { matchId: state.activeMatch.matchId }, result => {
     if (!result?.ok) showToast(result?.error || 'Не удалось завершить диалог.');
   });
@@ -1808,7 +1894,28 @@ $('#promoRedeemButton')?.addEventListener('click', redeemPromo);
 $('#promoCodeInput')?.addEventListener('keydown', event => { if (event.key === 'Enter') redeemPromo(); });
 $('#refreshReportsButton')?.addEventListener('click', loadAdmin);
 $('#loadSessionsButton')?.addEventListener('click', loadSessions);
-$('#favoritePartnerButton').addEventListener('click', toggleFavoritePartner);
+$('#ticketCreateForm')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = $('#ticketCreateButton'); button.disabled = true;
+  try {
+    const result = await api('/api/tickets', { method: 'POST', body: JSON.stringify({ category: $('#ticketCategory').value, title: $('#ticketTitle').value, body: $('#ticketBody').value }) });
+    $('#ticketCreateForm').reset(); showToast('Обращение отправлено. Ответ появится в этой вкладке.');
+    await loadTickets(); await openTicket(result.id);
+  } catch (error) { showToast(error.message); }
+  finally { button.disabled = false; }
+});
+$('#ticketReplyForm')?.addEventListener('submit', async event => {
+  event.preventDefault(); if (!state.activeTicketId) return;
+  const button = $('#ticketReplyButton'); button.disabled = true;
+  try {
+    await api(`/api/tickets/${encodeURIComponent(state.activeTicketId)}/messages`, { method: 'POST', body: JSON.stringify({ body: $('#ticketReplyInput').value }) });
+    $('#ticketReplyInput').value = ''; await openTicket(state.activeTicketId); await loadTickets();
+  } catch (error) { showToast(error.message); }
+  finally { button.disabled = false; }
+});
+$('#favoriteChatClose')?.addEventListener('click', () => { $('#favoriteChatModal').hidden = true; });
+
+
 $('#messageForm').addEventListener('submit', event => {
   event.preventDefault();
   const input = $('#messageInput');

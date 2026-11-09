@@ -1,8 +1,8 @@
 {
   "name": "sovli-random-chat",
-  "version": "1.7.3",
+  "version": "1.8.0",
   "private": true,
-  "description": "SOVLI v1.7.3 — live store previews and expanded memberships",
+  "description": "SOLVI v1.8.0 — community tickets, saved chats and signature memberships",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
