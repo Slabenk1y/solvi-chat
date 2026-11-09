@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'sovli-shell-v44-0';
+const CACHE_NAME = 'sovli-shell-v45-0';
 const SHELL = [
   '/',
   '/styles.css?v=31',
