@@ -1,8 +1,8 @@
 {
   "name": "solvi-chat",
-  "version": "1.10.3",
+  "version": "1.10.4",
   "private": true,
-  "description": "SOLVI v1.10.3 — guest account expiry and owner console dark mode",
+  "description": "SOLVI v1.10.4 — Russian-only matching and shop UX fixes",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
