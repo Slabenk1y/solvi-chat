@@ -1835,7 +1835,7 @@ async function blockPartner() {
 function closeModals() {
   if (state.storePreviewSnapshot) restoreStorePreview(false);
   state.storePreviewItem = null;
-  $('.modal-backdrop').forEach(modal => { modal.hidden = true; });
+  $$('.modal-backdrop').forEach(modal => { modal.hidden = true; });
   document.body.classList.remove('store-preview-open', 'purchase-confirm-open');
 }
 function logout(showMessage = true, revokeServer = true) {
@@ -2103,7 +2103,7 @@ $('#authRulesButton').addEventListener('click', () => { $('#rulesModal').hidden 
 $$('[data-close-modal]').forEach(button => button.addEventListener('click', closeModals));
 $('#storePreviewTryOnButton')?.addEventListener('click', startStorePreview);
 $('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePreview(true));
-$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeModals(); }));
+$$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeModals(); }));
 $('#endChatButton').addEventListener('click', async () => {
   if (!state.activeMatch) return;
   if (!await appDialog({title:'Завершить диалог?',message:'После завершения ты сможешь сохранить текст переписки в Избранное.',confirmText:'Завершить',danger:true})) return;
