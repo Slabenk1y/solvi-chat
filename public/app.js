@@ -498,8 +498,25 @@ async function redeemPromo() {
   } catch (error) { $('#promoRedeemError').classList.remove('success-text'); $('#promoRedeemError').textContent = error.message; }
   finally { button.disabled = false; }
 }
+async function loadPaidMemberships(){
+  const root=$('#paidMembershipOffers');if(!root)return;
+  try{
+    const data=await api('/api/billing/catalog');root.replaceChildren();
+    (data.products||[]).forEach(product=>{
+      const card=document.createElement('article');card.className='paid-membership-card paid-'+product.tier;
+      const kicker=document.createElement('span');kicker.className='membership-kicker';kicker.textContent=product.tier==='premium'?'PREMIUM · 30 ДНЕЙ':'VIP · 30 ДНЕЙ';
+      const title=document.createElement('h3');title.textContent=product.name;
+      const description=document.createElement('p');description.textContent=product.description;
+      const price=document.createElement('strong');price.textContent=(Number(product.amountMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(product.currency).toUpperCase()});
+      const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Оплатить картой':'Онлайн-оплата не подключена';button.disabled=!data.configured;
+      button.addEventListener('click',async()=>{button.disabled=true;try{const checkout=await api('/api/billing/checkout',{method:'POST',body:JSON.stringify({productId:product.id})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
+      card.append(kicker,title,description,price,button);root.append(card);
+    });
+    if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Stripe подключается владельцем через секреты STRIPE_SECRET_KEY и STRIPE_WEBHOOK_SECRET в Render. До этого кнопки оплаты выключены.';root.append(note);}
+  }catch(error){const note=document.createElement('p');note.className='muted';note.textContent='Денежные тарифы временно недоступны.';root.append(note);}
+}
 async function loadStore() {
-  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); }
+  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadPaidMemberships(); }
   catch (error) { showToast(error.message); }
 }
 async function loadTokenHistory() {
@@ -774,7 +791,7 @@ function currentView() {
 }
 function setView(view) {
   if (view === 'home' && state.activeMatch) view = 'chat';
-  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'blocked', 'admin'].forEach(name => {
+  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked', 'admin'].forEach(name => {
     const panel = $(`#${name}Panel`);
     if (panel) panel.hidden = name !== view;
   });
@@ -1783,6 +1800,15 @@ async function boot() {
   try { state.config = await api('/api/config'); }
   catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] }; }
   renderSocialLinks();
+  const billingResult = new URL(window.location.href).searchParams.get('billing');
+  if (billingResult === 'success' && state.token) {
+    try { const latest = await api('/api/me'); setUser(latest.user); showToast('Платёж принят. Если Stripe ещё отправляет подтверждение, статус активируется автоматически.'); }
+    catch { showToast('Платёж завершён. Статус обновится после подтверждения платёжного сервиса.'); }
+    history.replaceState({}, '', window.location.pathname + window.location.hash);
+  } else if (billingResult === 'cancelled') {
+    showToast('Оплата отменена. Списание не выполнено.');
+    history.replaceState({}, '', window.location.pathname + window.location.hash);
+  }
   const tier = state.user?.subscriptionTier || 'free';
   const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
   const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);

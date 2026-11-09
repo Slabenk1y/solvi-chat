@@ -1,20 +1,20 @@
 # Changelog
 
-## v1.9.0 — SOLVI growth and monetization foundation (2026-11-09)
+## v1.9.1 — SOLVI payments and growth hardening (2026-11-09)
 
-- Added owner-managed social links; enabled links appear as branded buttons in the app footer.
-- Added owner-managed reward tasks for creator channels and sponsored placements. Users submit HTTPS proof links; owners approve or reject. Token rewards are recorded in the ledger only after approval.
-- Added per-task reward caps, submission rate limits, one submission per account and owner audit events.
-- Added a growth workspace in the owner console for social profiles, campaign tasks and pending proof reviews.
-- Added a separate paid-membership entitlement. VIP/Premium cosmetic bundles are now locked unless a paid subscription has been explicitly verified and recorded; token-only membership does not qualify.
-- Added owner payment-verification controls with a required payment reference. This is a manual reconciliation step, not an automated card checkout.
-- Improved ticket workflow: max five open tickets per user, close action, rate-limited replies and live owner-reply notifications.
-- Replaced native browser confirm/prompt dialogs used by app and owner actions with SOLVI-styled dialogs.
-- Updated asset cache to v23 and application version to 1.9.0.
+- Added Stripe Checkout for 30-day VIP (€4.99) and Premium (€8.99) subscriptions.
+- Added signed Stripe webhook verification with timestamp tolerance, amount/currency/metadata validation and unique payment references to prevent duplicate activation.
+- Added a persistent payment ledger visible in the owner growth workspace; webhook payments and owner-verified manual receipts are recorded separately by provider.
+- Paid status is distinct from token-earned status. VIP/Premium cosmetic bundles require a current paid entitlement.
+- Added user-facing checkout cards with disabled states until Stripe keys and the canonical HTTPS return URL are configured.
+- Expanded owner payment reconciliation to require a payment reference and amount.
+- Improved owner ticket inbox with search, status/category filters and open-ticket counters.
+- Added URL editing for existing social links and payment totals to the owner growth workspace.
+- Bumped static asset cache to v24.
 
-## v1.8.0 — SOLVI community launch preparation
+## v1.9.0 — SOLVI growth and monetization foundation
 
-- Standardized public-facing branding to SOLVI. Existing solvi-chat.onrender.com hostname already matches and is retained.
-- Added private support tickets, a 50 ✦ registration bonus and completed-chat favorites.
-- Updated media limits: Free 3 photos / 30 seconds voice; VIP 5 photos / 45 seconds; Premium 10 photos / 60 seconds.
-- Added speech-focused microphone capture settings and signature VIP/Premium cosmetic collections.
+- Added owner-managed social links, owner-created reward tasks and manual task-proof review.
+- Added max reward counts, rate limits and audited token payouts.
+- Improved tickets with open-ticket limits, close action and live reply events.
+- Replaced native browser confirmation dialogs with branded SOLVI dialogs.

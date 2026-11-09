@@ -68,7 +68,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890' },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', APP_PUBLIC_URL: '', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let stderr = '';
@@ -83,6 +83,11 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.match(user2.user.publicId, /^[A-F0-9]{10}$/);
     assert.equal(user1.user.tokens, 50, 'new accounts receive the 50-token registration bonus');
     assert.equal(user2.user.tokens, 50, 'new accounts receive the 50-token registration bonus');
+    const billingCatalog = await fetch(`${baseUrl}/api/billing/catalog`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(billingCatalog.configured, false, 'Stripe stays disabled until server secrets are set');
+    assert.deepEqual(billingCatalog.products.map(product => [product.id, product.amountMinor]), [['vip-30d', 499], ['premium-30d', 899]]);
+    const billingCheckout = await fetch(`${baseUrl}/api/billing/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: 'vip-30d' }) });
+    assert.equal(billingCheckout.status, 503, 'checkout must remain disabled without Stripe secrets');
     const publicConfig = await fetch(`${baseUrl}/api/config`).then(response => response.json());
     assert.deepEqual(publicConfig.socialLinks, [], 'social links are owner-configured and empty by default');
     const growth = await fetch(`${baseUrl}/api/growth`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
@@ -96,6 +101,14 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const closedTicketReply = await fetch(`${baseUrl}/api/tickets/${initialTicket.id}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: 'Ответ после закрытия тикета' }) });
     assert.equal(closedTicketReply.status, 409, 'closed tickets cannot receive replies');
     testDb = new DatabaseSync(path.join(dataDir, 'orbit.sqlite'));
+    const taskNow = new Date().toISOString();
+    testDb.prepare('INSERT INTO reward_tasks (id,title,description,platform,url,reward_tokens,sponsor_name,active,max_claims,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,?,?,?)').run('integration-task', 'Подпишись на канал', 'Тестовое задание с ручной проверкой доказательства.', 'Telegram', 'https://t.me/example', 40, 'SOLVI Test', 1, taskNow, taskNow);
+    const taskSubmission = await postJson(baseUrl, '/api/tasks/integration-task/submit', { proofUrl: 'https://example.com/proof.png' }, user1.token);
+    assert.equal(taskSubmission.status, 'pending');
+    const duplicateTaskSubmission = await fetch(`${baseUrl}/api/tasks/integration-task/submit`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ proofUrl: 'https://example.com/another-proof.png' }) });
+    assert.equal(duplicateTaskSubmission.status, 409, 'one account must only submit a reward task once');
+    const cappedTaskSubmission = await fetch(`${baseUrl}/api/tasks/integration-task/submit`, { method: 'POST', headers: { Authorization: `Bearer ${user2.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ proofUrl: 'https://example.com/proof-2.png' }) });
+    assert.equal(cappedTaskSubmission.status, 409, 'task max_claims must be enforced');
     testDb.prepare('UPDATE users SET tokens = 1000 WHERE id IN (?, ?)').run(user1.user.id, user2.user.id);
     testDb.prepare("INSERT OR IGNORE INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, 'wallpaper-deep-space', ?, 'purchase')").run(user1.user.id, new Date().toISOString());
     testDb.prepare("DELETE FROM store_equipped WHERE user_id = ? AND slot = 'theme'").run(user1.user.id);
@@ -137,8 +150,12 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
     assert.equal(storeBefore.dailyAvailable, undefined, 'daily rewards are not part of v1 economy');
     assert.ok(storeBefore.collections.length >= 8, 'catalog is grouped into collections');
+    const tokenStatus = await postJson(baseUrl, '/api/store/membership', { packageId: 'vip-1h' }, user1.token);
+    assert.equal(tokenStatus.user.subscriptionTier, 'vip');
+    const tokenOnlyBundle = await fetch(`${baseUrl}/api/store/bundle`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ bundleId: 'vip-signature-pack' }) });
+    assert.equal(tokenOnlyBundle.status, 403, 'a VIP status bought only with tokens must not unlock the VIP cosmetic bundle');
     const bought = await postJson(baseUrl, '/api/store/buy', { itemId: 'theme-aurora' }, user1.token);
-    assert.equal(bought.balance, 700);
+    assert.equal(bought.balance, 520);
     const stickerPackPurchase = await postJson(baseUrl, '/api/store/buy', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackPurchase.balance, 670);
     const stickerPackEquipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'stickers-night-owl' }, user2.token);

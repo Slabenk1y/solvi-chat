@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.9.0') fail(`Ожидалась версия 1.9.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.9.1') fail(`Ожидалась версия 1.9.1, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const html = read('public/index.html');
@@ -96,9 +96,9 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v23/.test(sw)) fail('Service Worker cache version не соответствует v1.9.0');
+  if (!/sovli-shell-v24/.test(sw)) fail('Service Worker cache version не соответствует v1.9.1');
   else pass('Service Worker cache version обновлён');
-  if (!html.includes('/styles.css?v=23') || !html.includes('/app.js?v=23')) fail('Версии клиентских CSS/JS assets не обновлены');
+  if (!html.includes('/styles.css?v=24') || !html.includes('/app.js?v=24')) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
@@ -115,6 +115,10 @@ try {
   else pass('VIP/Premium наборы закрыты для подписок, купленных только за токены');
   if (/\b(confirm|prompt|alert)\(/.test(app) || /\b(confirm|prompt|alert)\(/.test(ownerPanel)) fail('В интерфейсе остались нативные диалоги браузера');
   else pass('Подтверждения и текстовые запросы используют фирменные диалоги');
+  if (!server.includes("app.post('/api/billing/checkout'") || !server.includes("app.post('/api/billing/stripe/webhook'") || !server.includes('STRIPE_WEBHOOK_SECRET') || !server.includes('payment_records')) fail('Stripe Checkout и журнал подтверждённых платежей не подключены');
+  else pass('Stripe Checkout, подпись webhook и защита от повторного зачисления подключены');
+  if (!html.includes('id="paidMembershipOffers"') || !app.includes('loadPaidMemberships')) fail('Денежные тарифы не отображаются в магазине');
+  else pass('Денежные подписки VIP/Premium отображаются отдельно от токеновых тарифов');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
   else pass('Новый зарегистрированный аккаунт получает 50 ✦');
   if (!server.includes('favorite_chat_drafts') || !server.includes("app.get('/api/favorite-chats/:id'") || !app.includes('function openFavoriteChat')) fail('Архив избранных переписок не подключён');

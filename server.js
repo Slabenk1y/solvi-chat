@@ -213,6 +213,10 @@ const STORE_BUNDLES = Object.freeze([
   { id: 'vip-signature-pack', name: 'VIP · Звёздный след', tier: 'vip', price: 2400, description: '5 эксклюзивных предметов: туманность, метеоритные сообщения, полярная рамка, кометные стикеры и титул «Пыльца комет». Нужен активный VIP или Premium.', itemIds: ['theme-vip-nebula','bubble-vip-meteor','frame-vip-aurora','stickers-vip-comet','title-vip-stardust'] },
   { id: 'premium-quantum-pack', name: 'Premium · Квантовый портал', tier: 'premium', price: 4800, description: '5 мифических предметов: горизонт событий, призматические сообщения, портал измерений, квантовые стикеры и титул «Сингулярность». Нужен активный Premium.', itemIds: ['theme-premium-event-horizon','bubble-premium-prism','frame-premium-portal','stickers-premium-quantum','title-premium-singularity'] }
 ]);
+const BILLING_PRODUCTS = Object.freeze([
+  { id: 'vip-30d', tier: 'vip', days: 30, amountMinor: 499, currency: 'eur', name: 'VIP · 30 дней', description: '30 дней VIP: расширенные лимиты, голосовые до 45 секунд и 5 фото за сообщение.' },
+  { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: 899, currency: 'eur', name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
+]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
   { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов.' },
   { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Все возможности VIP на 6 часов. 180 ✦ за час статуса — эквивалент 3 часов активного диалога.' },
@@ -790,6 +794,13 @@ async function main() {
       UNIQUE(task_id, user_id)
     );
     CREATE INDEX IF NOT EXISTS reward_task_submissions_status ON reward_task_submissions(status, created_at DESC);
+    CREATE TABLE IF NOT EXISTS payment_records (
+      id TEXT PRIMARY KEY, provider TEXT NOT NULL, provider_reference TEXT NOT NULL UNIQUE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tier TEXT NOT NULL CHECK(tier IN ('vip','premium')), days INTEGER NOT NULL,
+      amount_minor INTEGER NOT NULL, currency TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS payment_records_user ON payment_records(user_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS moderation_actions (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, action TEXT NOT NULL, reason TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS reports_status (report_id TEXT PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'open', reviewed_by TEXT REFERENCES users(id), reviewed_at TEXT, resolution TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS promo_codes (
@@ -1004,6 +1015,52 @@ async function main() {
     },
     crossOriginEmbedderPolicy: false
   }));
+  app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), (req, res) => {
+    const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+    if (!webhookSecret) return res.status(503).send('Stripe webhook is not configured');
+    const signature = String(req.get('stripe-signature') || '');
+    const timestampPart = signature.split(',').find(part => part.startsWith('t='));
+    const signatures = signature.split(',').filter(part => part.startsWith('v1=')).map(part => part.slice(3));
+    const timestamp = Number(timestampPart?.slice(2));
+    if (!Number.isInteger(timestamp) || Math.abs(Date.now() / 1000 - timestamp) > 300 || !signatures.length || !Buffer.isBuffer(req.body)) return res.status(400).send('Invalid Stripe signature');
+    const signedPayload = Buffer.concat([Buffer.from(String(timestamp) + '.'), req.body]);
+    const expected = crypto.createHmac('sha256', webhookSecret).update(signedPayload).digest();
+    const validSignature = signatures.some(value => {
+      let actual; try { actual = Buffer.from(value, 'hex'); } catch { return false; }
+      return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+    });
+    if (!validSignature) return res.status(400).send('Invalid Stripe signature');
+    let event; try { event = JSON.parse(req.body.toString('utf8')); } catch { return res.status(400).send('Invalid payload'); }
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data?.object || {};
+      if (session.payment_status === 'paid' && session.mode === 'payment') {
+        const userId = String(session.metadata?.userId || '');
+        const product = BILLING_PRODUCTS.find(item => item.id === session.metadata?.productId);
+        const user = userId ? getUserById(userId) : null;
+        const amount = Number(session.amount_total);
+        const currency = String(session.currency || '').toLowerCase();
+        if (!product || session.metadata?.tier !== product.tier || Number(session.metadata?.days) !== product.days || amount !== product.amountMinor || currency !== product.currency || !user || user.account_type === 'guest') return res.status(400).send('Invalid checkout metadata or payment amount');
+        const reference = String(session.id || '');
+        if (!reference) return res.status(400).send('Missing checkout reference');
+        if (!dbGet('SELECT id FROM payment_records WHERE provider_reference = ?', [reference])) {
+          const at = nowIso();
+          const currentExpiry = user.paid_subscription_expires_at && Date.parse(user.paid_subscription_expires_at) > Date.now() ? Date.parse(user.paid_subscription_expires_at) : Date.now();
+          const nextTier = user.paid_subscription_tier === 'premium' && currentExpiry > Date.now() || product.tier === 'premium' ? 'premium' : 'vip';
+          const expires = new Date(currentExpiry + product.days * 86400000).toISOString();
+          try {
+            transaction(() => {
+              dbRun('INSERT INTO payment_records (id,provider,provider_reference,user_id,tier,days,amount_minor,currency,created_at) VALUES (?,?,?,?,?,?,?,?,?)', [crypto.randomUUID(), 'stripe', reference, userId, product.tier, product.days, amount, currency.toUpperCase(), at]);
+              dbRun('UPDATE users SET paid_subscription_tier = ?, paid_subscription_expires_at = ? WHERE id = ?', [nextTier, expires, userId]);
+            });
+          } catch (error) {
+            if (!dbGet('SELECT id FROM payment_records WHERE provider_reference = ?', [reference])) throw error;
+          }
+          io?.to?.(userRoom(userId))?.emit('billing:completed', { tier: nextTier, expiresAt: expires });
+        }
+      }
+    }
+    res.json({ received: true });
+  });
   app.use(express.json({ limit: '32kb' }));
   app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много попыток. Попробуйте позже.' } }));
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
@@ -1013,6 +1070,41 @@ async function main() {
     const ownerAccountPresent = ownerConfigured && Boolean(dbGet("SELECT id FROM users WHERE public_id = ? AND account_type = 'registered'", [process.env.OWNER_PUBLIC_ID]));
     const resetCompleted = Boolean(dbGet("SELECT id FROM admin_audit_log WHERE action = 'solvi_initial_user_reset' LIMIT 1"));
     res.json({ ok: true, service: 'solvi-chat', brand: 'SOLVI', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral', persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE, ownerConfigured, ownerAccountPresent, resetCompleted, users: Number(dbGet('SELECT COUNT(*) AS n FROM users').n) });
+  });
+  app.get('/api/billing/catalog', authMiddleware, (_req, res) => {
+    const configured = Boolean(String(process.env.STRIPE_SECRET_KEY || '').trim() && String(process.env.STRIPE_WEBHOOK_SECRET || '').trim() && String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim());
+    res.json({ configured, currency: 'EUR', products: BILLING_PRODUCTS });
+  });
+  app.post('/api/billing/checkout', authMiddleware, async (req, res) => {
+    const secret = String(process.env.STRIPE_SECRET_KEY || '').trim();
+    if (!secret || !String(process.env.STRIPE_WEBHOOK_SECRET || '').trim()) return res.status(503).json({ error: 'Онлайн-оплата пока не подключена. Владелец должен добавить STRIPE_SECRET_KEY и STRIPE_WEBHOOK_SECRET в Render.' });
+    if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Покупка доступна постоянным пользовательским аккаунтам.' });
+    const product = BILLING_PRODUCTS.find(item => item.id === req.body?.productId);
+    if (!product) return res.status(404).json({ error: 'Тариф оплаты не найден.' });
+    const baseUrl = String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
+    if (!/^https:\/\//i.test(baseUrl)) return res.status(503).json({ error: 'Владелец должен указать APP_PUBLIC_URL для возврата после оплаты.' });
+    const form = new URLSearchParams({
+      mode: 'payment',
+      'payment_method_types[0]': 'card',
+      success_url: baseUrl + '/?billing=success&session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: baseUrl + '/?billing=cancelled',
+      client_reference_id: req.user.id,
+      'line_items[0][quantity]': '1',
+      'line_items[0][price_data][currency]': product.currency,
+      'line_items[0][price_data][unit_amount]': String(product.amountMinor),
+      'line_items[0][price_data][product_data][name]': product.name,
+      'line_items[0][price_data][product_data][description]': product.description,
+      'metadata[userId]': req.user.id,
+      'metadata[tier]': product.tier,
+      'metadata[days]': String(product.days),
+      'metadata[productId]': product.id
+    });
+    try {
+      const response = await fetch('https://api.stripe.com/v1/checkout/sessions', { method: 'POST', headers: { Authorization: 'Bearer ' + secret, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form });
+      const result = await response.json();
+      if (!response.ok || !result.url) return res.status(502).json({ error: result.error?.message || 'Не удалось создать платёжную сессию.' });
+      res.json({ url: result.url });
+    } catch { res.status(502).json({ error: 'Платёжный сервис временно недоступен.' }); }
   });
   app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
@@ -1940,17 +2032,26 @@ async function main() {
     const tokenTotal = Number(dbGet('SELECT COALESCE(SUM(tokens),0) AS n FROM users').n);
     res.json({ users, guests, activeMatches, openReports, tokenTotal, recentUsers: dbAll("SELECT id, public_id, username, account_type, CASE WHEN public_id = ? THEN 'owner' ELSE role END AS role, subscription_tier, subscription_expires_at, created_at FROM users ORDER BY created_at DESC LIMIT 12", [process.env.OWNER_PUBLIC_ID || '']) });
   });
-  app.post('/api/admin/users/:id/paid-membership', authMiddleware, ownerOnly, (req,res)=>{
-    const target=getUserById(req.params.id);if(!target||target.account_type==='guest')return res.status(404).json({error:'Постоянный аккаунт не найден.'});
-    const tier=['vip','premium'].includes(req.body?.tier)?req.body.tier:'';
-    const days=Number(req.body?.days);
-    const paymentReference=String(req.body?.paymentReference||'').trim().slice(0,120);
-    if(!tier||!Number.isInteger(days)||days<1||days>365||paymentReference.length<4)return res.status(400).json({error:'Укажи тариф, срок и подтверждённый номер платежа.'});
-    const current=target.paid_subscription_expires_at&&Date.parse(target.paid_subscription_expires_at)>Date.now()?Date.parse(target.paid_subscription_expires_at):Date.now();
-    const expires=new Date(current+days*86400000).toISOString();
-    dbRun('UPDATE users SET paid_subscription_tier=?,paid_subscription_expires_at=? WHERE id=?',[tier,expires,target.id]);
-    auditAdmin(req.user.id,'paid_membership_verified',target.id,{tier,days,paymentReference,expires});
-    res.json({ok:true,expiresAt:expires});
+  app.post('/api/admin/users/:id/paid-membership', authMiddleware, ownerOnly, (req, res) => {
+    const target = getUserById(req.params.id);
+    if (!target || target.account_type === 'guest' || isOwner(target)) return res.status(404).json({ error: 'Постоянный пользовательский аккаунт не найден.' });
+    const tier = ['vip', 'premium'].includes(req.body?.tier) ? req.body.tier : '';
+    const days = Number(req.body?.days);
+    const amountMinor = Number(req.body?.amountMinor);
+    const currency = String(req.body?.currency || 'EUR').trim().toUpperCase().slice(0, 3);
+    const paymentReference = String(req.body?.paymentReference || '').trim().slice(0, 120);
+    if (!tier || !Number.isInteger(days) || days < 1 || days > 365 || !Number.isInteger(amountMinor) || amountMinor < 1 || paymentReference.length < 4 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Укажи тариф, срок, фактически полученную сумму и подтверждённый ID платежа.' });
+    const current = target.paid_subscription_expires_at && Date.parse(target.paid_subscription_expires_at) > Date.now() ? Date.parse(target.paid_subscription_expires_at) : Date.now();
+    const nextTier = target.paid_subscription_tier === 'premium' && current > Date.now() || tier === 'premium' ? 'premium' : 'vip';
+    const expires = new Date(current + days * 86400000).toISOString();
+    try {
+      transaction(() => {
+        dbRun('INSERT INTO payment_records (id,provider,provider_reference,user_id,tier,days,amount_minor,currency,created_at) VALUES (?,?,?,?,?,?,?,?,?)', [crypto.randomUUID(), 'manual', paymentReference, target.id, tier, days, amountMinor, currency, nowIso()]);
+        dbRun('UPDATE users SET paid_subscription_tier = ?, paid_subscription_expires_at = ? WHERE id = ?', [nextTier, expires, target.id]);
+        auditAdmin(req.user.id, 'paid_membership_verified', target.id, { tier, days, amountMinor, currency, paymentReference, expires });
+      });
+    } catch (error) { return res.status(409).json({ error: String(error.message).includes('provider_reference') ? 'Этот платёж уже был учтён.' : error.message }); }
+    res.json({ ok: true, expiresAt: expires });
   });
   app.get('/api/admin/growth', authMiddleware, ownerOnly, (_req, res) => {
     res.json({
@@ -1960,7 +2061,8 @@ async function main() {
         FROM reward_tasks t ORDER BY t.created_at DESC`),
       submissions: dbAll(`SELECT s.*, t.title AS task_title, t.reward_tokens, u.username, u.public_id
         FROM reward_task_submissions s JOIN reward_tasks t ON t.id = s.task_id JOIN users u ON u.id = s.user_id
-        ORDER BY CASE s.status WHEN 'pending' THEN 0 ELSE 1 END, s.created_at DESC LIMIT 300`)
+        ORDER BY CASE s.status WHEN 'pending' THEN 0 ELSE 1 END, s.created_at DESC LIMIT 300`),
+      revenue: dbAll('SELECT currency, COALESCE(SUM(amount_minor), 0) AS amount_minor, COUNT(*) AS payments FROM payment_records GROUP BY currency')
     });
   });
   app.post('/api/admin/social-links', authMiddleware, ownerOnly, (req, res) => {
