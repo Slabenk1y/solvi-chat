@@ -148,6 +148,21 @@ function createStorePreview(item) {
   preview.append(scene);
   return preview;
 }
+function openStoreItemPreview(item) {
+  const modal = $('#storePreviewModal');
+  const visual = $('#storePreviewVisual');
+  visual.replaceChildren();
+  if (item.slot === 'membership') {
+    const mark = document.createElement('div'); mark.className = 'store-membership-preview-mark';
+    mark.textContent = item.tier === 'premium' ? 'PREMIUM' : 'VIP';
+    visual.append(mark);
+  } else visual.append(createStorePreview(item));
+  $('#storePreviewTitle').textContent = item.name || 'Предпросмотр';
+  $('#storePreviewDescription').textContent = item.description || 'Посмотри, как предмет будет выглядеть в SOVLI.';
+  $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
+  $('#storePreviewCategory').textContent = item.category || (item.tier === 'premium' ? 'Premium' : 'VIP');
+  modal.hidden = false;
+}
 function renderStore(data) {
   state.storeData = data;
   $('#storeBalance').textContent = Number(data.balance || 0).toLocaleString('ru-RU');
@@ -207,6 +222,8 @@ function renderStore(data) {
     meta.append(category, title, description, collection);
     const footer = document.createElement('div'); footer.className = 'store-item-footer';
     const price = document.createElement('strong'); price.className = 'store-item-price'; price.textContent = item.owned ? (item.equipped ? 'Уже используется' : 'В коллекции') : `${Number(item.price).toLocaleString('ru-RU')} ✦`;
+    const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Предпросмотр';
+    previewButton.addEventListener('click', () => openStoreItemPreview(item));
     const action = document.createElement('button'); action.type = 'button'; action.className = 'button button-secondary store-action';
     if (item.equipped) action.textContent = 'Снять';
     else if (item.owned) action.textContent = 'Применить';
@@ -232,7 +249,7 @@ function renderStore(data) {
         await loadStore();
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
-    footer.append(price, action); card.append(preview, meta, footer); root.append(card);
+    footer.append(previewButton, price, action); card.append(preview, meta, footer); root.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
   (data.memberships || []).forEach(pack => {
@@ -241,6 +258,8 @@ function renderStore(data) {
     const title = document.createElement('h3'); title.textContent = pack.name;
     const copy = document.createElement('p'); copy.textContent = pack.description;
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
+    const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
+    previewButton.addEventListener('click', () => openStoreItemPreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
@@ -249,7 +268,7 @@ function renderStore(data) {
       try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    card.append(label, title, copy, price, button); membershipRoot.append(card);
+    card.append(label, title, copy, previewButton, price, button); membershipRoot.append(card);
   });
 }
 async function loadInventory() {
@@ -1235,7 +1254,8 @@ function clearVoiceRecording() {
   $('#voicePreview').removeAttribute('src');
   $('#voicePreview').hidden = true;
   $('#voiceRecordPanel').hidden = true;
-  $('#voiceButton').textContent = '◉ Голосовое';
+  $('#voiceButton').querySelector('.composer-label').textContent = 'Голосовое';
+  $('#voiceButton').classList.remove('recording');
   $('#voiceSendButton').disabled = true;
   $('#voiceRecordLabel').textContent = 'Идёт запись';
   $('#recordingTimer').textContent = '00:00';
@@ -1281,7 +1301,8 @@ async function startVoiceRecording() {
       $('#voicePreview').hidden = false;
       $('#voiceRecordLabel').textContent = 'Прослушай запись перед отправкой';
       $('#voiceSendButton').disabled = false;
-      $('#voiceButton').textContent = '◉ Голосовое';
+      $('#voiceButton').querySelector('.composer-label').textContent = 'Голосовое';
+  $('#voiceButton').classList.remove('recording');
     }, { once: true });
     state.mediaRecorder.start(250);
     state.socket?.emit('chat:recording', { matchId: state.activeMatch.matchId, recording: true });
@@ -1289,7 +1310,8 @@ async function startVoiceRecording() {
     $('#voicePreview').hidden = true;
     $('#voiceRecordLabel').textContent = 'Идёт запись';
     $('#voiceSendButton').disabled = true;
-    $('#voiceButton').textContent = '■ Остановить';
+    $('#voiceButton').querySelector('.composer-label').textContent = 'Остановить';
+    $('#voiceButton').classList.add('recording');
     state.voiceTimer = setInterval(() => {
       const seconds = Math.floor((Date.now() - state.voiceStartedAt) / 1000);
       $('#recordingTimer').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -1633,6 +1655,9 @@ $('#messageInput').addEventListener('input', () => {
 $('#messageInput').addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && state.settings.enterToSend !== false) { event.preventDefault(); $('#messageForm').requestSubmit(); }
 });
+$('#storePreviewClose').addEventListener('click', () => { $('#storePreviewModal').hidden = true; });
+$('#storePreviewCloseBottom').addEventListener('click', () => { $('#storePreviewModal').hidden = true; });
+$('#storePreviewModal').addEventListener('click', event => { if (event.target === $('#storePreviewModal')) $('#storePreviewModal').hidden = true; });
 $('#photoButton').addEventListener('click', () => $('#photoInput').click());
 $('#photoInput').addEventListener('change', () => sendSelectedPhotos($('#photoInput').files));
 $('#stickerButton').addEventListener('click', () => { $('#stickerPanel').hidden = !$('#stickerPanel').hidden; });
