@@ -242,8 +242,8 @@ function openStorePreview(item) {
     stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
     membership: item.tier === 'premium'
-      ? 'Premium: до 5 000 символов в одном сообщении, заметный Premium-бейдж и особое оформление карточки профиля. Включает все возможности VIP.'
-      : 'VIP: до 3 000 символов в одном сообщении, VIP-бейдж и золотистое оформление карточки профиля. Обычный лимит — 2 000 символов.'
+      ? 'Premium: до 5 000 символов и 6 вложений в сообщении, до 10 языков и 12 интересов в фильтрах поиска, Premium-бейдж и особое оформление профиля. Включает все возможности VIP.'
+      : 'VIP: до 3 000 символов и 4 вложений в сообщении, до 5 языков и 8 интересов в фильтрах поиска, VIP-бейдж и золотистое оформление профиля.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
@@ -628,7 +628,8 @@ function setUser(user) {
   document.documentElement.dataset.membership = user.subscriptionTier || 'free';
   const messageLimit = user.subscriptionTier === 'premium' ? 5000 : (user.subscriptionTier === 'vip' ? 3000 : 2000);
   $('#messageInput').maxLength = messageLimit;
-  $('#messageHint').textContent = `До ${messageLimit.toLocaleString('ru-RU')} символов · Enter — отправить · Shift + Enter — новая строка`;
+  $('#messageHint').textContent = `До ${messageLimit.toLocaleString('ru-RU')} символов · ${user.subscriptionTier === 'premium' ? 'до 6 вложений' : (user.subscriptionTier === 'vip' ? 'до 4 вложений' : 'до 3 вложений')} · Enter — отправить`;
+  if ($('#languageOptions')) renderFilters();
   if (isNewAccount) state.selectedAvatar = user.avatarUrl ? null : user.avatar;
   setAvatarContent($('#sideAvatar'), user);
   setAvatarContent($('#topAvatar'), user);
@@ -727,14 +728,17 @@ function toggleChoice(listName, value, container, values, limit) {
   renderFilters();
 }
 function renderFilters() {
-  renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, 3));
-  renderChoices($('#interestOptions'), state.config.interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), state.config.interests, 5));
+  const tier = state.user?.subscriptionTier || 'free';
+  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
+  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+  renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, languageLimit));
+  renderChoices($('#interestOptions'), state.config.interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), state.config.interests, interestLimit));
   const languageSummary = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
   const interestSummary = state.selectedInterests.length ? state.selectedInterests.slice(0, 2).join(', ') + (state.selectedInterests.length > 2 ? ` +${state.selectedInterests.length - 2}` : '') : 'Любые интересы';
   $('#languageSummary').textContent = languageSummary;
-  $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / 3` : 'Не ограничивать';
+  $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / ${languageLimit}` : 'Не ограничивать';
   $('#interestSummary').textContent = interestSummary;
-  $('#interestCount').textContent = state.selectedInterests.length ? `${state.selectedInterests.length} / 5` : 'Без фильтра';
+  $('#interestCount').textContent = state.selectedInterests.length ? `${state.selectedInterests.length} / ${interestLimit}` : 'Без фильтра';
   try {
     localStorage.setItem('sovli_languages', JSON.stringify(state.selectedLanguages));
     localStorage.setItem('sovli_interests', JSON.stringify(state.selectedInterests));
@@ -1741,7 +1745,8 @@ $('#messageForm').addEventListener('submit', event => {
   const input = $('#messageInput');
   const content = input.value.trim();
   if (!content) return;
-  if (content.length > 2000) { showToast('Сообщение слишком длинное.'); return; }
+  const messageLimit = state.user?.subscriptionTier === 'premium' ? 5000 : (state.user?.subscriptionTier === 'vip' ? 3000 : 2000);
+  if (content.length > messageLimit) { showToast(`Сообщение слишком длинное. Лимит: ${messageLimit.toLocaleString('ru-RU')} символов.`); return; }
   const clientId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   sendMessage(content, clientId);
   $('#stickerPanel').hidden = true;
