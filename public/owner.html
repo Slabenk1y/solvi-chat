@@ -110,7 +110,7 @@
         <section class="tab-page" data-page="tickets" hidden>
           <div class="section-intro"><div class="eyebrow">ОБРАТНАЯ СВЯЗЬ</div><h2>Идеи и баг-репорты</h2><p>Смотри обращения пользователей и отвечай в приватном треде. Статус обновляется вместе с ответом.</p></div>
           <div class="ticket-admin-layout">
-            <article class="card"><div class="card-head"><h3>Все обращения</h3><button id="refreshTicketsButton" class="text-button">Обновить</button></div><div id="adminTicketList" class="user-list"></div></article>
+            <article class="card"><div class="card-head"><div><h3>Все обращения</h3><p id="ticketCounters" class="hint">Загрузка…</p></div><button id="refreshTicketsButton" class="text-button">Обновить</button></div><input id="ticketAdminSearch" class="owner-ticket-search" type="search" placeholder="Поиск по теме, автору или ID"><div id="ticketAdminFilters" class="ticket-admin-filters"><button type="button" class="active" data-ticket-filter="all">Все</button><button type="button" data-ticket-filter="open">Открытые</button><button type="button" data-ticket-filter="in_progress">В работе</button><button type="button" data-ticket-filter="closed">Закрытые</button><button type="button" data-ticket-filter="bug">Ошибки</button><button type="button" data-ticket-filter="idea">Идеи</button></div><div id="adminTicketList" class="user-list"></div></article>
             <article class="card">
               <div class="card-head"><div><h3 id="adminTicketTitle">Выбери обращение</h3><p id="adminTicketMeta" class="hint">Идеи и баги пользователей</p></div></div>
               <div id="adminTicketMessages" class="ticket-thread-messages"></div>
@@ -148,7 +148,7 @@
               <div id="rewardTaskList" class="growth-list"></div>
             </form>
           </div>
-          <article class="card growth-submissions"><div class="card-head"><h3>Проверка заявок на награду</h3><button id="refreshGrowthButton" class="text-button">Обновить</button></div><div id="taskSubmissionList" class="growth-list"></div></article>
+          <article class="card growth-submissions"><div class="card-head"><div><h3>Проверка заявок на награду</h3><p id="revenueSummary" class="hint">Полученные оплаты загрузятся вместе с данными.</p></div><button id="refreshGrowthButton" class="text-button">Обновить</button></div><div id="taskSubmissionList" class="growth-list"></div></article>
         </section>
         <section class="tab-page" data-page="audit" hidden><div class="section-intro"><div class="eyebrow">ПРОЗРАЧНОСТЬ</div><h2>Журнал действий</h2><p>Здесь фиксируются административные изменения, выдача токенов, привилегий и промокодов.</p></div><div class="card"><div class="card-head"><h3>Последние операции</h3><button id="refreshAuditButton" class="text-button">Обновить</button></div><pre id="auditList" class="logs">Загрузка…</pre></div></section>
       </section>
