@@ -1042,7 +1042,7 @@ async function main() {
     const started = Date.now();
     res.on('finish', () => {
       const forwarded = req.get('cf-connecting-ip') ? ' via-cloudflare' : '';
-      if (req.path !== '/api/health' && !req.path.startsWith('/socket.io/')) console.log(`[HTTP] ${req.method} ${req.path} -> ${res.statusCode} ${Date.now() - started}ms${forwarded}`);
+      if (!['/api/health', '/api/ping'].includes(req.path) && !req.path.startsWith('/socket.io/')) console.log(`[HTTP] ${req.method} ${req.path} -> ${res.statusCode} ${Date.now() - started}ms${forwarded}`);
     });
     next();
   });
@@ -1112,6 +1112,8 @@ async function main() {
   app.use(express.json({ limit: '32kb' }));
   app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много попыток. Попробуйте позже.' } }));
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+
+  app.get('/api/ping', (_req, res) => res.status(200).json({ ok: true, service: 'solvi-chat' }));
 
   app.get('/api/health', (_req, res) => {
     const ownerConfigured = Boolean(String(process.env.OWNER_PUBLIC_ID || '').trim());
