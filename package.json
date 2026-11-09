@@ -1,8 +1,8 @@
 {
   "name": "sovli-random-chat",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
-  "description": "SOVLI v1.6.0 — richer previews, reliable profiles and refined chat",
+  "description": "SOVLI v1.7.0 — realistic store previews and hourly memberships",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
