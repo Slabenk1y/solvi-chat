@@ -1417,7 +1417,7 @@ async function main() {
     }
   });
   app.get('/api/billing/paymentwall/pingback', (req, res) => {
-    const privateKey = String(process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
+    const privateKey = String(process.env.PAYMENTWALL_VC_PRIVATE_KEY || process.env.PAYMENTWALL_PRIVATE_KEY || '').trim();
     if (!privateKey) return res.status(503).type('text/plain').send('Paymentwall is not configured');
     const params = Object.fromEntries(Object.entries(req.query || {}).map(([key, value]) => [key, Array.isArray(value) ? (value.length === 1 ? value[0] : '') : value]));
     if (!verifyPingback(params, privateKey)) return res.status(400).type('text/plain').send('Invalid signature');
