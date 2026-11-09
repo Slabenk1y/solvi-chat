@@ -587,3 +587,22 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 .purchase-confirm-backdrop{position:fixed!important;inset:0!important;overflow-y:auto;overscroll-behavior:contain;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .purchase-confirm-card{margin:auto;animation:none}
 .store-preview-modal{position:fixed!important;inset:0!important;overflow-y:auto;overscroll-behavior:contain;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+
+/* SOLVI social links — compact glass buttons with platform-aware glow */
+.footer-social-links{gap:10px}
+.footer-social-link{position:relative;display:inline-flex;align-items:center;gap:9px;min-height:42px;padding:5px 13px 5px 6px;border:1px solid color-mix(in srgb,var(--primary) 25%,var(--line));border-radius:14px;background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 88%,var(--primary) 12%),var(--surface));color:var(--ink);font-size:11px;font-weight:750;letter-spacing:.01em;box-shadow:0 5px 16px rgba(20,10,45,.10);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.footer-social-link:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--primary) 62%,var(--line));background:linear-gradient(145deg,var(--surface),color-mix(in srgb,var(--primary) 13%,var(--surface)));box-shadow:0 9px 22px color-mix(in srgb,var(--primary) 18%,transparent);color:var(--ink)}
+.footer-social-icon{display:grid;place-items:center;width:30px;height:30px;flex:0 0 30px;border-radius:10px;background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 28%,var(--surface)),color-mix(in srgb,var(--primary) 12%,var(--surface)));color:var(--primary);box-shadow:inset 0 1px rgba(255,255,255,.18)}
+.footer-social-icon svg{display:block;width:17px;height:17px;fill:currentColor}
+.footer-social-label{line-height:1.1}
+.footer-social-link[data-platform="telegram"] .footer-social-icon{color:#48aeea}
+.footer-social-link[data-platform="youtube"] .footer-social-icon{color:#ff5353}
+.footer-social-link[data-platform="instagram"] .footer-social-icon{color:#df69aa}
+.footer-social-link[data-platform="tiktok"] .footer-social-icon{color:#70e5df}
+.footer-social-link[data-platform="discord"] .footer-social-icon{color:#8997ff}
+.footer-social-link[data-platform="vk"] .footer-social-icon{color:#6aa9ff}
+.footer-social-link[data-platform="twitch"] .footer-social-icon{color:#a98aff}
+.footer-social-link[data-platform="x"] .footer-social-icon{color:var(--ink)}
+.footer-social-link[data-platform="facebook"] .footer-social-icon{color:#6b9eff}
+@media(max-width:620px){.footer-social-links{gap:8px}.footer-social-link{min-height:40px;padding-right:10px}.footer-social-icon{width:28px;height:28px;flex-basis:28px}}
+@media(prefers-reduced-motion:reduce){.footer-social-link{transition:none}.footer-social-link:hover{transform:none}}
