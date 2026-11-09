@@ -39,7 +39,7 @@ One active match per user. Queue candidates are checked for blocks and supported
 
 ## Data lifecycle
 
-Account/profile/store data is persisted in Neon snapshots. Active conversations, messages and temporary media are intentionally removed during server restart cleanup. Avatar image files are included in the snapshot within the configured size cap.
+Account/profile/store data is persisted in Neon snapshots. Active conversations, messages and temporary media are intentionally removed during server restart cleanup. Avatar image files are stored separately in Neon and uploaded only when created or changed (maximum 2 MB per file).
 
 ## Owner tooling
 
