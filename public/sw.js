@@ -1,10 +1,10 @@
 'use strict';
 
-const CACHE_NAME = 'sovli-shell-v31-0';
+const CACHE_NAME = 'sovli-shell-v32-0';
 const SHELL = [
   '/',
-  '/styles.css?v=28',
-  '/app.js?v=30',
+  '/styles.css?v=29',
+  '/app.js?v=31',
   '/favicon.svg',
   '/manifest.webmanifest',
   '/socket.io/socket.io.js',
