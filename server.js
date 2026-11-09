@@ -730,7 +730,7 @@ async function startAiFallback(userId) {
 }
 function fallbackAiReply(session, isGreeting = false) {
   const options = isGreeting
-    ? [`привет! я ${session.persona.name} ✨ вижу, тебе интересны ${session.interests.slice(0, 2).join(' и ') || 'разные темы'} — с чего начнём?`, `хей! я ${session.persona.name} 🙂 давай найдём тему, от которой не захочется закрыть чат`]
+    ? [`привет! я ${session.persona.name} ✨ а как тебя зовут?`]
     : ['ахах, понимаю 😄', 'о, вот это поворот', 'звучит интересно, мне нравится как ты это описываешь', 'да, понимаю о чём ты', 'прикольно, продолжай, я слушаю', 'неожиданно, но в этом есть своя логика'];
   return options[Math.floor(Math.random() * options.length)];
 }
