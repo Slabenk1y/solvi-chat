@@ -797,7 +797,6 @@ function queueAiTurn(userId, session, text) {
     console.error('[SOLVI] AI conversation queue failed:', error.message);
   }).finally(() => {
     session.processing = false;
-    if (session.pending.length && aiSessions.get(userId) === session) queueAiTurn(userId, session, session.pending.shift());
   });
 }
 function issueToken(user) {
