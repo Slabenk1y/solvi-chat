@@ -29,7 +29,7 @@ The current hostname already matches SOLVI. Keep it for launch; attach a custom 
 
 Paymentwall is integrated through two separate Widget API projects because each project has one API type:
 
-- **Virtual Currency:** users buy SOLVI tokens on Paymentwall's hosted page. SOLVI credits tokens only after a valid signed type=1 pingback; type=2 reversals subtract the original credit.
+- **Virtual Currency:** users buy SOLVI tokens on Paymentwall's hosted page. SOLVI credits tokens only after a valid signed type=0 pingback; type=2 reversals subtract the original credit.
 - **Digital Goods:** users buy selected catalogue items and 30-day VIP/Premium for money. The server fixes the amount and currency, creates a unique order, and grants the product only after a valid signed type=0 pingback; type=2 reversals revoke the purchase.
 
 Direct cash prices for catalogue items are set in the owner panel under Monetization. They are separate from token prices. VIP/Premium money prices use VIP_PRICE_MINOR and PREMIUM_PRICE_MINOR (defaults EUR 4.99 / EUR 8.99 when BILLING_CURRENCY=eur). The store asks for a billing email for receipts.
