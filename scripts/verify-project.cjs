@@ -173,7 +173,7 @@ try {
   if (!guestServer.includes("3 * 24 * 60 * 60 * 1000") || guestServer.includes("180 * 24 * 60 * 60 * 1000") || guestServer.includes("'180d'")) fail('Guest lifetime must be three days everywhere');
   else pass('Гостевой срок и серверные сессии ограничены тремя днями');
   if (!guestServer.includes('Гостевой аккаунт нельзя превратить в постоянный') || !appJs.includes('Гостевой профиль · 3 дня'.toUpperCase()) && !appJs.includes('ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ')) fail('Guest identity restrictions or UI copy missing');
-  if (!ownerHtml.includes('themeToggleButton') || !ownerJs.includes('applyOwnerTheme') || !ownerCss.includes(':root[data-theme="dark"]')) fail('Owner dark theme toggle is incomplete');
+  if (!ownerHtml.includes('data-theme="dark"') || !ownerHtml.includes('themeToggleButton') || !ownerJs.includes('applyOwnerTheme') || !ownerCss.includes(':root[data-theme="dark"]')) fail('Owner dark theme toggle is incomplete');
   else pass('Тёмная тема панели владельца подключена');
   if (!ownerCss.includes('animation:none!important') || !ownerCss.includes('transition-duration:.08s')) fail('Owner motion optimization missing');
   else pass('Анимации панели владельца облегчены');

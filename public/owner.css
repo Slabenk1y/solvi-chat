@@ -235,3 +235,14 @@ button,input,select,textarea,.tab,.user-card,.secondary,.ghost,.primary,.danger{
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}
 }
+
+:root[data-theme="dark"] .sidebar-note{background:#20263a;border-color:#3a4260;color:var(--ink)}
+:root[data-theme="dark"] .tab>span{background:#272e40;color:#b4b9d0}
+:root[data-theme="dark"] .coin{background:#3a3424;color:#f0c36a}
+:root[data-theme="dark"] .tag{background:#293244;color:#c6cede}
+:root[data-theme="dark"] .tag.warning,:root[data-theme="dark"] .user-main em{background:#3b3324;color:#f0c36a}
+:root[data-theme="dark"] .form-grid label,:root[data-theme="dark"] .growth-form label,
+:root[data-theme="dark"] .modal-card label,:root[data-theme="dark"] .owner-ticket-reply label,
+:root[data-theme="dark"] .login-card label{color:#bdc5d7}
+:root[data-theme="dark"] .report-main p,:root[data-theme="dark"] .optional{color:#a8b2c7}
+:root[data-theme="dark"] .error{color:#ff929f}
