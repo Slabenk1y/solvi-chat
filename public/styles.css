@@ -581,3 +581,9 @@ body.store-preview-open{overflow:hidden}
   body,.app-view,.auth-layout{min-height:100dvh}
   .app-shell{min-height:calc(100dvh - 125px)}
 }
+
+/* v1.10.4: keep shop dialogs independent from transformed/scrolling panels. */
+body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
+.purchase-confirm-backdrop{position:fixed!important;inset:0!important;overflow-y:auto;overscroll-behavior:contain;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.purchase-confirm-card{margin:auto;animation:none}
+.store-preview-modal{position:fixed!important;inset:0!important;overflow-y:auto;overscroll-behavior:contain;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
