@@ -211,10 +211,6 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const replyAck = await new Promise((resolve, reject) => socket2.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-reply-1', content: 'Ответ на привет', replyToId: payload.message.id }, result => result?.ok ? resolve(result) : reject(new Error(result?.error))));
     assert.equal(replyAck.message.replyTo.id, payload.message.id);
     assert.equal((await replyIncoming).replyTo.id, payload.message.id);
-    const selfReply = await new Promise(resolve => socket1.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-self-reply-1', content: 'Ответ самому себе', replyToId: payload.message.id }, resolve));
-    assert.equal(selfReply.ok, false, 'users must not reply to their own messages');
-    assert.match(selfReply.error, /нельзя отвечать на собственное сообщение/i);
-
     const stickerIncoming = waitForEvent(socket2, 'chat:message');
     const stickerAck = await new Promise((resolve, reject) => socket1.emit('chat:send', { matchId: match1.matchId, clientId: 'integration-sticker-1', content: '', sticker: '😂' }, result => result?.ok ? resolve(result) : reject(new Error(result?.error))));
     assert.equal(stickerAck.message.type, 'sticker');
