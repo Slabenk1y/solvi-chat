@@ -112,10 +112,12 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.items.some(item => item.id === 'wallpaper-deep-space' && item.category === 'Темы' && item.slot === 'theme' && item.owned && item.equipped));
     assert.equal(storeBefore.equipped.theme, 'wallpaper-deep-space', 'legacy wallpaper equipment should migrate into full interface themes');
     assert.equal(storeBefore.equipped.wallpaper, undefined, 'legacy wallpaper slot should be retired');
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1d')?.price, 270);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1d')?.price, 480);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-30d')?.price, 4200);
-    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-30d')?.price, 7200);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-1h')?.price, 180);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-6h')?.price, 1080);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'vip-24h')?.price, 4320);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-1h')?.price, 360);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-6h')?.price, 2160);
+    assert.equal(storeBefore.memberships.find(item => item.id === 'premium-24h')?.price, 8640);
     assert.equal(storeBefore.items.find(item => item.id === 'theme-aurora')?.price, 300);
     assert.equal(storeBefore.items.find(item => item.id === 'stickers-night-owl')?.price, 330);
     assert.ok(storeBefore.items.some(item => item.id === 'title-star-guide'));
@@ -125,6 +127,13 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(bought.balance, 700);
     const stickerPackPurchase = await postJson(baseUrl, '/api/store/buy', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackPurchase.balance, 670);
+    const vipHour = await postJson(baseUrl, '/api/store/membership', { packageId: 'vip-1h' }, user2.token);
+    assert.equal(vipHour.user.subscriptionTier, 'vip');
+    assert.equal(vipHour.user.tokens, 490);
+    const premiumHour = await postJson(baseUrl, '/api/store/membership', { packageId: 'premium-1h' }, user2.token);
+    assert.equal(premiumHour.user.subscriptionTier, 'premium', 'upgrading to Premium preserves the higher tier');
+    assert.equal(premiumHour.user.tokens, 130);
+    assert.ok(Date.parse(premiumHour.user.subscriptionExpiresAt) > Date.now() + 115 * 60 * 1000, 'the second purchase extends the existing hour instead of replacing it');
     const stickerPackEquipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackEquipped.equipped.stickers, 'stickers-night-owl');
     const equipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'theme-aurora' }, user1.token);
@@ -192,6 +201,18 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal(payload.message.content, 'Привет из интеграционного теста');
     assert.equal(received.content, payload.message.content);
     assert.equal(received.sender_id, user1.user.id);
+
+    const freeLongMessage = await new Promise(resolve => socket1.emit('chat:send', {
+      matchId: match1.matchId, clientId: 'integration-free-long-message', content: 'x'.repeat(2001)
+    }, resolve));
+    assert.equal(freeLongMessage.ok, false, 'free accounts keep the 2,000-character message limit');
+    assert.match(freeLongMessage.error, /2 000/);
+    const premiumLongIncoming = waitForEvent(socket1, 'chat:message');
+    const premiumLongMessage = await new Promise((resolve, reject) => socket2.emit('chat:send', {
+      matchId: match1.matchId, clientId: 'integration-premium-long-message', content: 'x'.repeat(2500)
+    }, result => result?.ok ? resolve(result) : reject(new Error(result?.error))));
+    assert.equal(premiumLongMessage.message.content.length, 2500, 'Premium accounts can send up to 5,000 characters');
+    assert.equal((await premiumLongIncoming).content.length, 2500);
 
     const selfReply = await new Promise(resolve => socket1.emit('chat:send', {
       matchId: match1.matchId, clientId: 'integration-self-reply-1', content: 'Ответ самому себе', replyToId: payload.message.id
