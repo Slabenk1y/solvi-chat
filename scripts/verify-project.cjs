@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.10.0') fail(`Ожидалась версия 1.10.0, получена ${pkg.version}`);
+  if (pkg.version !== '1.10.1') fail(`Ожидалась версия 1.10.1, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const matchingHtml = read('public/index.html');

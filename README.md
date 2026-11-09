@@ -50,7 +50,7 @@ yarn verify
 ```
 
 
-## Matching modes and age assurance (v1.10.0)
+## Matching modes and age assurance (v1.10.1)
 
 SOLVI has three separate queues: standard Chat, Flirt 18+, and Roleplay 18+. Standard Chat keeps the existing language and interest filters and adds reciprocal desired-gender matching. Roleplay uses the two intentions “Ищу сюжет” and “Предлагаю сюжет”; only opposite intentions are paired. Flirt and Roleplay have separate topic lists.
 

@@ -1,4 +1,4 @@
-# PROJECT_PROGRESS — SOLVI v1.10.0
+# PROJECT_PROGRESS — SOLVI v1.10.1
 
 Последнее обновление: 2026-11-09.
 

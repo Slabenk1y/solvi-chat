@@ -1,8 +1,8 @@
 {
   "name": "solvi-chat",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "private": true,
-  "description": "SOLVI v1.10.0 — three matching modes, age consent and configurable currency billing",
+  "description": "SOLVI v1.10.1 — three matching modes, age consent and configurable currency billing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

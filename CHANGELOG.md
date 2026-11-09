@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.10.1 — complete SOLVI brand cleanup (2026-11-09)
+
+- Replaced the remaining user-facing SOVLI spelling in store item descriptions, owner notices and runtime labels with SOLVI.
+
 ## v1.10.0 — three matching modes and configurable billing (2026-11-09)
 
 - Added separate random matching queues for standard chat, Flirt 18+ and Roleplay 18+.

@@ -139,19 +139,19 @@ function stopCloudflareQuickTunnel() {
   return { ok: true };
 }
 const STORE_CATALOG = Object.freeze([
-  { id: "theme-light", name: "Светлая тема", description: "Чистое светлое оформление SOVLI. Всегда доступно бесплатно.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-light", value: "light", collection: "Базовые темы", starter: true },
-  { id: "theme-dark", name: "Тёмная тема", description: "Комфортное тёмное оформление SOVLI. Всегда доступно бесплатно.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-dark", value: "dark", collection: "Базовые темы", starter: true },
+  { id: "theme-light", name: "Светлая тема", description: "Чистое светлое оформление SOLVI. Всегда доступно бесплатно.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-light", value: "light", collection: "Базовые темы", starter: true },
+  { id: "theme-dark", name: "Тёмная тема", description: "Комфортное тёмное оформление SOLVI. Всегда доступно бесплатно.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-dark", value: "dark", collection: "Базовые темы", starter: true },
   { id: "theme-default", name: "Чистый старт", description: "Спокойное базовое оформление.", category: "Темы", slot: "theme", price: 0, rarity: "Базовый", preview: "theme-default", value: "default", collection: "Стартовая коллекция" , starter: true },
   { id: "theme-aurora", name: "Северное сияние", description: "Лавандовые и бирюзовые переливы.", category: "Темы", slot: "theme", price: 300, rarity: "Редкий", preview: "theme-aurora", value: "aurora", collection: "Космическая экспедиция" },
   { id: "theme-sunset", name: "Тёплый закат", description: "Персиковый свет и мягкие тени.", category: "Темы", slot: "theme", price: 260, rarity: "Редкий", preview: "theme-sunset", value: "sunset", collection: "Тёплые истории" },
   { id: "theme-midnight", name: "Полночный импульс", description: "Глубокий графит с электрической лавандой.", category: "Темы", slot: "theme", price: 810, rarity: "Эпический", preview: "theme-midnight", value: "midnight", collection: "Ночной город" },
   { id: "theme-candy", name: "Малиновый мармелад", description: "Розово-лиловая конфетная палитра.", category: "Темы", slot: "theme", price: 570, rarity: "Редкий", preview: "theme-candy", value: "candy", collection: "Сахарный космос" },
   { id: "theme-arcade", name: "Аркадный режим", description: "Пиксельные акценты и ретро-цвета.", category: "Темы", slot: "theme", price: 1020, rarity: "Легендарный", preview: "theme-arcade", value: "arcade", collection: "Ретро-аркада" },
-  { id: "wallpaper-deep-space", name: "Тема — Глубокий космос", description: "Полное оформление всего интерфейса SOVLI в стиле «Мягкая звёздная текстура.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 200, rarity: "Обычный", preview: "wallpaper-space", value: "space", collection: "Космическая экспедиция" },
-  { id: "wallpaper-paper", name: "Тема — Тёплая бумага", description: "Полное оформление всего интерфейса SOVLI в стиле «Фактурный спокойный фон.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 120, rarity: "Обычный", preview: "wallpaper-paper", value: "paper", collection: "Тихий уголок" },
-  { id: "wallpaper-aurora", name: "Тема — Туманность Лиры", description: "Полное оформление всего интерфейса SOVLI в стиле «Бирюзовая космическая дымка.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 350, rarity: "Редкий", preview: "wallpaper-aurora", value: "aurora", collection: "Космическая экспедиция" },
-  { id: "wallpaper-neon-city", name: "Тема — Неоновый квартал", description: "Полное оформление всего интерфейса SOVLI в стиле «Ночной город после дождя.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 650, rarity: "Эпический", preview: "wallpaper-neon", value: "neon", collection: "Ночной город" },
-  { id: "wallpaper-pixel", name: "Тема — Пиксельный остров", description: "Полное оформление всего интерфейса SOVLI в стиле «Тёплая ретро-сетка и звёзды.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 530, rarity: "Редкий", preview: "wallpaper-pixel", value: "pixel", collection: "Ретро-аркада" },
+  { id: "wallpaper-deep-space", name: "Тема — Глубокий космос", description: "Полное оформление всего интерфейса SOLVI в стиле «Мягкая звёздная текстура.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 200, rarity: "Обычный", preview: "wallpaper-space", value: "space", collection: "Космическая экспедиция" },
+  { id: "wallpaper-paper", name: "Тема — Тёплая бумага", description: "Полное оформление всего интерфейса SOLVI в стиле «Фактурный спокойный фон.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 120, rarity: "Обычный", preview: "wallpaper-paper", value: "paper", collection: "Тихий уголок" },
+  { id: "wallpaper-aurora", name: "Тема — Туманность Лиры", description: "Полное оформление всего интерфейса SOLVI в стиле «Бирюзовая космическая дымка.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 350, rarity: "Редкий", preview: "wallpaper-aurora", value: "aurora", collection: "Космическая экспедиция" },
+  { id: "wallpaper-neon-city", name: "Тема — Неоновый квартал", description: "Полное оформление всего интерфейса SOLVI в стиле «Ночной город после дождя.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 650, rarity: "Эпический", preview: "wallpaper-neon", value: "neon", collection: "Ночной город" },
+  { id: "wallpaper-pixel", name: "Тема — Пиксельный остров", description: "Полное оформление всего интерфейса SOLVI в стиле «Тёплая ретро-сетка и звёзды.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 530, rarity: "Редкий", preview: "wallpaper-pixel", value: "pixel", collection: "Ретро-аркада" },
   { id: "bubble-mint", name: "Мятные сообщения", description: "Мягкий мятный оттенок пузырьков.", category: "Пузырьки", slot: "bubble", price: 150, rarity: "Обычный", preview: "bubble-mint", value: "mint", collection: "Тихий уголок" },
   { id: "bubble-berry", name: "Ягодные сообщения", description: "Насыщенный ягодный градиент.", category: "Пузырьки", slot: "bubble", price: 240, rarity: "Редкий", preview: "bubble-berry", value: "berry", collection: "Сахарный космос" },
   { id: "bubble-lilac", name: "Лавандовый воздух", description: "Полупрозрачная лаванда.", category: "Пузырьки", slot: "bubble", price: 180, rarity: "Обычный", preview: "bubble-lilac", value: "lilac", collection: "Космическая экспедиция" },
@@ -171,29 +171,29 @@ const STORE_CATALOG = Object.freeze([
   { id: "title-night-owl", name: "Ночной житель", description: "Для тех, кто не спит до рассвета.", category: "Титулы", slot: "title", price: 620, rarity: "Редкий", preview: "title-night", value: "night-owl", collection: "Ночной город" },
   { id: "title-legend", name: "Локальная легенда", description: "Редкий титул коллекционера.", category: "Титулы", slot: "title", price: 3050, rarity: "Легендарный", preview: "title-legend", value: "legend", collection: "Королевская серия" },
   { id: "theme-cream", name: "Ванильный пломбир", description: "Светлая кремовая тема.", category: "Темы", slot: "theme", price: 470, rarity: "Редкий", preview: "theme-cream", value: "cream", collection: "Тихий уголок" },
-  { id: "wallpaper-clouds", name: "Тема — Облака на выдохе", description: "Полное оформление всего интерфейса SOVLI в стиле «Нежные облака и утреннее небо.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 210, rarity: "Обычный", preview: "wallpaper-clouds", value: "clouds", collection: "Тихий уголок" },
+  { id: "wallpaper-clouds", name: "Тема — Облака на выдохе", description: "Полное оформление всего интерфейса SOLVI в стиле «Нежные облака и утреннее небо.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 210, rarity: "Обычный", preview: "wallpaper-clouds", value: "clouds", collection: "Тихий уголок" },
   { id: "bubble-ocean", name: "Морская глубина", description: "Сине-бирюзовые сообщения.", category: "Пузырьки", slot: "bubble", price: 350, rarity: "Редкий", preview: "bubble-ocean", value: "ocean", collection: "Космическая экспедиция" },
   { id: "frame-flower", name: "Цветочная скобка", description: "Лёгкая цветочная рамка.", category: "Рамки", slot: "frame", price: 480, rarity: "Редкий", preview: "frame-flower", value: "flower", collection: "Тёплые истории" },
   { id: "sound-rain", name: "Дождь по окну", description: "Уютный короткий звуковой акцент.", category: "Звуки", slot: "sound", price: 240, rarity: "Обычный", preview: "sound-rain", value: "rain", collection: "Тёплые истории" },
   { id: "stickers-food", name: "Перекус", description: "Смешные стикеры еды.", category: "Стикеры", slot: "stickers", price: 270, rarity: "Обычный", preview: "stickers-food", value: "food", collection: "Мемная лаборатория" },
   { id: "title-good-vibes", name: "Добрая энергия", description: "Небольшой позитивный титул.", category: "Титулы", slot: "title", price: 380, rarity: "Обычный", preview: "title-vibes", value: "vibes", collection: "Тёплые истории" },
   { id: "theme-violet-royal", name: "Фиолетовый бархат", description: "Глубокий фиолетовый с золотыми акцентами.", category: "Темы", slot: "theme", price: 1760, rarity: "Легендарный", preview: "theme-royal", value: "royal", collection: "Королевская серия" },
-  { id: "wallpaper-arcade", name: "Тема — Аркадный зал", description: "Полное оформление всего интерфейса SOVLI в стиле «Неоновый ретро-фон.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 890, rarity: "Эпический", preview: "wallpaper-arcade", value: "arcade", collection: "Ретро-аркада" },
+  { id: "wallpaper-arcade", name: "Тема — Аркадный зал", description: "Полное оформление всего интерфейса SOLVI в стиле «Неоновый ретро-фон.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 890, rarity: "Эпический", preview: "wallpaper-arcade", value: "arcade", collection: "Ретро-аркада" },
   { id: "bubble-rose", name: "Розовый кварц", description: "Мягкий розовый градиент.", category: "Пузырьки", slot: "bubble", price: 290, rarity: "Редкий", preview: "bubble-rose", value: "rose", collection: "Сахарный космос" },
   { id: "frame-neon", name: "Неоновый контур", description: "Яркий контур профиля.", category: "Рамки", slot: "frame", price: 1110, rarity: "Эпический", preview: "frame-neon", value: "neon", collection: "Ночной город" },
   { id: "title-collector", name: "Коллекционер", description: "Титул для владельца большой коллекции.", category: "Титулы", slot: "title", price: 4050, rarity: "Легендарный", preview: "title-collector", value: "collector", collection: "Королевская серия" },
   { id: "theme-ice", name: "Ледяное сияние", description: "Холодная голубая тема с серебряными акцентами.", category: "Темы", slot: "theme", price: 1250, rarity: "Эпический", preview: "theme-ice", value: "ice", collection: "Океанская глубина" },
   { id: "theme-sakura", name: "Сакура после дождя", description: "Пудровые оттенки и спокойное настроение.", category: "Темы", slot: "theme", price: 1430, rarity: "Эпический", preview: "theme-sakura", value: "sakura", collection: "Японский сад" },
-  { id: "wallpaper-mountain", name: "Тема — Горный рассвет", description: "Полное оформление всего интерфейса SOVLI в стиле «Тихие горы в первых лучах солнца.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 600, rarity: "Редкий", preview: "wallpaper-mountain", value: "mountain", collection: "Тёплые истории" },
-  { id: "wallpaper-cyber", name: "Тема — Кибер-неон", description: "Полное оформление всего интерфейса SOVLI в стиле «Городские огни в дождливой ночи.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 1190, rarity: "Эпический", preview: "wallpaper-cyber", value: "cyber", collection: "Цифровой город" },
-  { id: "wallpaper-sea", name: "Тема — Синяя лагуна", description: "Полное оформление всего интерфейса SOVLI в стиле «Свет сквозь чистую морскую воду.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 660, rarity: "Редкий", preview: "wallpaper-sea", value: "sea", collection: "Океанская глубина" },
+  { id: "wallpaper-mountain", name: "Тема — Горный рассвет", description: "Полное оформление всего интерфейса SOLVI в стиле «Тихие горы в первых лучах солнца.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 600, rarity: "Редкий", preview: "wallpaper-mountain", value: "mountain", collection: "Тёплые истории" },
+  { id: "wallpaper-cyber", name: "Тема — Кибер-неон", description: "Полное оформление всего интерфейса SOLVI в стиле «Городские огни в дождливой ночи.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 1190, rarity: "Эпический", preview: "wallpaper-cyber", value: "cyber", collection: "Цифровой город" },
+  { id: "wallpaper-sea", name: "Тема — Синяя лагуна", description: "Полное оформление всего интерфейса SOLVI в стиле «Свет сквозь чистую морскую воду.»: цветовые поверхности, панели, карточки и чат.", category: "Темы", slot: "theme", price: 660, rarity: "Редкий", preview: "wallpaper-sea", value: "sea", collection: "Океанская глубина" },
   { id: "bubble-citrus", name: "Цитрусовый заряд", description: "Тёплый лаймовый оттенок исходящих сообщений.", category: "Пузырьки", slot: "bubble", price: 360, rarity: "Редкий", preview: "bubble-citrus", value: "citrus", collection: "Японский сад" },
   { id: "bubble-graphite", name: "Графитовый шелк", description: "Сдержанная тёмная палитра сообщений.", category: "Пузырьки", slot: "bubble", price: 500, rarity: "Редкий", preview: "bubble-graphite", value: "graphite", collection: "Цифровой город" },
   { id: "frame-sakura", name: "Лепестки сакуры", description: "Нежная розовая рамка профиля.", category: "Рамки", slot: "frame", price: 980, rarity: "Эпический", preview: "frame-sakura", value: "sakura", collection: "Японский сад" },
   { id: "frame-glass", name: "Стеклянная грань", description: "Чистое стеклянное кольцо с бликами.", category: "Рамки", slot: "frame", price: 1320, rarity: "Эпический", preview: "frame-glass", value: "glass", collection: "Цифровой город" },
   { id: "sound-bubble", name: "Пузырёк", description: "Короткий мягкий звук нового сообщения.", category: "Звуки", slot: "sound", price: 150, rarity: "Обычный", preview: "sound-bubble", value: "bubble", collection: "Океанская глубина" },
   { id: "sound-synth", name: "Синтезатор 2088", description: "Минималистичный цифровой сигнал.", category: "Звуки", slot: "sound", price: 750, rarity: "Эпический", preview: "sound-synth", value: "synth", collection: "Цифровой город" },
-  { id: "stickers-sausage-mouse", name: "Сосис-Мышь: полный набор", description: "Мемный набор с главным талисманом SOVLI.", category: "Стикеры", slot: "stickers", price: 1080, rarity: "Легендарный", preview: "stickers-sausage-mouse", value: "sausage-mouse", collection: "Мемная лаборатория" },
+  { id: "stickers-sausage-mouse", name: "Сосис-Мышь: полный набор", description: "Мемный набор с главным талисманом SOLVI.", category: "Стикеры", slot: "stickers", price: 1080, rarity: "Легендарный", preview: "stickers-sausage-mouse", value: "sausage-mouse", collection: "Мемная лаборатория" },
   { id: "stickers-deep-sea", name: "Глубоководные", description: "Морские существа и подводные эмоции.", category: "Стикеры", slot: "stickers", price: 420, rarity: "Редкий", preview: "stickers-deep-sea", value: "deep-sea", collection: "Океанская глубина" },
   { id: "title-first-contact", name: "Первый контакт", description: "Для тех, кто не боится начать разговор.", category: "Титулы", slot: "title", price: 480, rarity: "Редкий", preview: "title-first-contact", value: "first-contact", collection: "Стартовая коллекция" },
   { id: "title-sakura-keeper", name: "Хранитель сакуры", description: "Титул из коллекции японского сада.", category: "Титулы", slot: "title", price: 3510, rarity: "Легендарный", preview: "title-sakura", value: "sakura-keeper", collection: "Японский сад" },
@@ -281,7 +281,7 @@ function schedulePersistentFlush(delayMs = 2000) {
   if (!persistentStore?.ready || persistentFlushTimer || shuttingDown) return;
   persistentFlushTimer = setTimeout(() => {
     persistentFlushTimer = null;
-    flushPersistentSnapshot().catch(error => console.error('[SOVLI] Не удалось сохранить снимок Neon:', error.message));
+    flushPersistentSnapshot().catch(error => console.error('[SOLVI] Не удалось сохранить снимок Neon:', error.message));
   }, delayMs);
   persistentFlushTimer.unref?.();
 }
@@ -308,10 +308,10 @@ async function flushPersistentSnapshot(force = false) {
   persistentFlushPromise = pending;
   try {
     const stats = await pending;
-    if (force) console.log(`[SOVLI] Постоянная копия Neon обновлена: ${stats.rowCount} записей в ${stats.tableCount} таблицах.`);
+    if (force) console.log(`[SOLVI] Постоянная копия Neon обновлена: ${stats.rowCount} записей в ${stats.tableCount} таблицах.`);
   } catch (error) {
     persistentDirty = true;
-    console.error('[SOVLI] Ошибка сохранения в Neon; повторим автоматически:', error.message);
+    console.error('[SOLVI] Ошибка сохранения в Neon; повторим автоматически:', error.message);
     if (force) throw error;
   } finally {
     if (persistentFlushPromise === pending) persistentFlushPromise = null;
@@ -324,7 +324,7 @@ async function initializePersistentStorage() {
     if (process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL || process.env.RENDER === 'true') {
       throw new Error('На Render обязательно задай DATABASE_URL в Environment, иначе аккаунты будут храниться только во временной файловой системе.');
     }
-    console.warn('[SOVLI] DATABASE_URL не задан: локальная SQLite работает без постоянного облачного хранения.');
+    console.warn('[SOLVI] DATABASE_URL не задан: локальная SQLite работает без постоянного облачного хранения.');
     return;
   }
   const store = new PostgresSnapshotStore({
@@ -336,7 +336,7 @@ async function initializePersistentStorage() {
     const status = await store.initialize(db);
     persistentStore = store;
     const verb = status.restored ? 'Восстановлена постоянная копия из Neon' : 'Создана первая постоянная копия в Neon';
-    console.log(`[SOVLI] ${verb}: ${status.rowCount} записей, ${status.tableCount} таблиц, аватаров: ${status.avatarCount}.`);
+    console.log(`[SOLVI] ${verb}: ${status.rowCount} записей, ${status.tableCount} таблиц, аватаров: ${status.avatarCount}.`);
   } catch (error) {
     await store.close().catch(() => {});
     throw new Error(`Не удалось подключить постоянную базу Neon (DATABASE_URL): ${error.message}`);
@@ -477,7 +477,7 @@ function removeStoredFiles(rows) {
   for (const row of rows) {
     const safeName = path.basename(String(row.stored_name || ''));
     if (!safeName) continue;
-    try { fs.unlinkSync(path.join(UPLOAD_DIR, safeName)); } catch (error) { if (error.code !== 'ENOENT') console.warn('[SOVLI] Не удалось удалить медиафайл:', error.message); }
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, safeName)); } catch (error) { if (error.code !== 'ENOENT') console.warn('[SOLVI] Не удалось удалить медиафайл:', error.message); }
   }
 }
 function getUserById(id) { return dbGet('SELECT * FROM users WHERE id = ?', [id]); }
@@ -549,7 +549,7 @@ function accrueMatchTime(matchId) {
 function tickActiveMatches() {
   if (!db || !io) return;
   for (const row of dbAll("SELECT id FROM matches WHERE status = 'active'")) {
-    try { accrueMatchTime(row.id); } catch (error) { console.error('[SOVLI] Ошибка начисления времени диалога:', error.message); }
+    try { accrueMatchTime(row.id); } catch (error) { console.error('[SOLVI] Ошибка начисления времени диалога:', error.message); }
   }
 }
 function endMatch(matchId, reason = 'ended', actorId = null) {
@@ -696,15 +696,15 @@ function authMiddleware(req, res, next) {
 }
 
 async function main() {
-  console.log(`[SOVLI] Node.js ${process.version} detected.`);
+  console.log(`[SOLVI] Node.js ${process.version} detected.`);
   console.log('[1/5] Открываем встроенную SQLite-базу…');
   if (fs.existsSync(DB_FILE) && !fs.existsSync(NATIVE_DB_BACKUP)) {
     fs.copyFileSync(DB_FILE, NATIVE_DB_BACKUP, fs.constants.COPYFILE_EXCL);
-    console.log(`[SOVLI] Создан резервный снимок старой базы: ${NATIVE_DB_BACKUP}`);
+    console.log(`[SOLVI] Создан резервный снимок старой базы: ${NATIVE_DB_BACKUP}`);
   }
   db = new SqliteDatabase(DB_FILE);
   db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;');
-  console.log(`[SOVLI] База готова: ${DB_FILE}`);
+  console.log(`[SOLVI] База готова: ${DB_FILE}`);
   console.log('[2/5] Проверяем схему и миграции…');
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -1028,7 +1028,7 @@ async function main() {
     persistentDirty = true;
     await flushPersistentSnapshot(true);
   }
-  console.log('[SOVLI] Миграции завершены; временные чаты и медиа после перезапуска очищены.');
+  console.log('[SOLVI] Миграции завершены; временные чаты и медиа после перезапуска очищены.');
 
   console.log('[3/5] Поднимаем HTTP API и защитные middleware…');
   const app = express();
@@ -1543,7 +1543,7 @@ async function main() {
       res.status(201).json({ user: publicUser(getUserById(req.user.id)) });
     } catch (error) {
       try { fs.unlinkSync(fullPath); } catch { /* ignore cleanup errors */ }
-      console.error('[SOVLI] Avatar upload failed:', error.message);
+      console.error('[SOLVI] Avatar upload failed:', error.message);
       res.status(500).json({ error: 'Не удалось сохранить аватар.' });
     }
   });
@@ -1605,7 +1605,7 @@ async function main() {
       transaction(() => dbRun('INSERT INTO media_files (id, match_id, owner_id, stored_name, media_kind, mime_type, byte_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, match.id, req.user.id, storedName, mediaKind, mime, data.length, nowIso()]));
     } catch (error) {
       try { fs.unlinkSync(fullPath); } catch { /* ignore cleanup errors */ }
-      console.error('[SOVLI] Media upload failed:', error.message);
+      console.error('[SOLVI] Media upload failed:', error.message);
       return res.status(500).json({ error: 'Не удалось сохранить файл. Попробуй ещё раз.' });
     }
     res.status(201).json({ file: mediaPublic({ id, media_kind: mediaKind, mime_type: mime, byte_size: data.length }) });
@@ -1811,7 +1811,7 @@ async function main() {
       res.json({
         configured: true,
         provider: 'render',
-        name: service?.name || 'SOVLI',
+        name: service?.name || 'SOLVI',
         serviceId: cfg.serviceId,
         actionsUrl: cfg.actionsUrl,
         state: service?.suspended === 'suspended' ? 'suspended' : 'active',
@@ -1963,7 +1963,7 @@ async function main() {
     const expiresAt = new Date(currentExpiry + days * 86400000).toISOString();
     transaction(() => {
       dbRun('UPDATE users SET tokens = tokens + ?, subscription_tier = ?, subscription_expires_at = ? WHERE id = ?', [tokens, tier, expiresAt, target.id]);
-      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'owner_gift', tokens, 'Стартовый подарок от владельца SOVLI', nowIso()]);
+      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), target.id, 'owner_gift', tokens, 'Стартовый подарок от владельца SOLVI', nowIso()]);
       auditAdmin(req.user.id, 'starter_pack', target.id, { tokens, tier, days, expiresAt });
     });
     res.json({ ok: true, balance: Number(getUserById(target.id).tokens || 0), tier, expiresAt });
@@ -1991,7 +1991,7 @@ async function main() {
         hasAttachments: safeJsonArray(row.attachments_json).length > 0
       }));
     auditAdmin(req.user.id, 'inspect_active_match', match.id, { reason, messageCount: messages.length });
-    const notice = { message: `Владелец SOVLI открыл активный диалог для проверки. Причина: ${reason}`, sentAt: nowIso() };
+    const notice = { message: `Владелец SOLVI открыл активный диалог для проверки. Причина: ${reason}`, sentAt: nowIso() };
     io.to(userRoom(match.user1_id)).emit('moderation:notice', notice);
     io.to(userRoom(match.user2_id)).emit('moderation:notice', notice);
     res.json({ matchId: match.id, messages });
@@ -2226,7 +2226,7 @@ async function main() {
   app.use((error, _req, res, _next) => {
     if (error?.type === 'entity.too.large') return res.status(413).json({ error: 'Файл слишком большой.' });
     if (error instanceof SyntaxError && 'body' in error) return res.status(400).json({ error: 'Некорректный JSON.' });
-    console.error('[SOVLI] HTTP error:', error?.stack || error);
+    console.error('[SOLVI] HTTP error:', error?.stack || error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера.' });
   });
 
@@ -2433,8 +2433,8 @@ async function main() {
   });
 
   server.on('error', error => {
-    if (error.code === 'EADDRINUSE') console.error(`[SOVLI] Порт ${PORT} уже занят. Закрой другое окно SOVLI или измени PORT в start.bat.`);
-    else console.error('[SOVLI] Ошибка HTTP-сервера:', error);
+    if (error.code === 'EADDRINUSE') console.error(`[SOLVI] Порт ${PORT} уже занят. Закрой другое окно SOLVI или измени PORT в start.bat.`);
+    else console.error('[SOLVI] Ошибка HTTP-сервера:', error);
     process.exitCode = 1;
   });
   server.keepAliveTimeout = 65_000;
@@ -2442,7 +2442,7 @@ async function main() {
   server.requestTimeout = 120_000;
   server.listen(PORT, HOST, () => {
     console.log('[5/5] Сервер успешно слушает порт.');
-    console.log(`\n  SOVLI v${APP_VERSION} — сервер запущен`);
+    console.log(`\n  SOLVI v${APP_VERSION} — сервер запущен`);
     console.log(`  Локально: http://localhost:${PORT}`);
     console.log(`  В сети:   http://<IP-ЭТОГО-КОМПЬЮТЕРА>:${PORT}`);
     console.log(`  Режим: ${PUBLIC_MODE ? 'закрытый публичный тест' : 'локальный / LAN'}; поиск ${(!PUBLIC_MODE || PUBLIC_MATCHING) ? 'включён' : 'отключён'}`);
@@ -2470,20 +2470,20 @@ async function main() {
     for (const timer of disconnectTimers.values()) clearTimeout(timer);
     for (const timer of guestExpiryTimers.values()) clearTimeout(timer);
     const hardStop = setTimeout(() => {
-      console.error('[SOVLI] Принудительное завершение после тайм-аута остановки.');
+      console.error('[SOLVI] Принудительное завершение после тайм-аута остановки.');
       process.exit(1);
     }, 12000);
     (async () => {
       try { await flushPersistentSnapshot(true); }
-      catch (error) { console.error('[SOVLI] Последнее сохранение Neon не удалось:', error.message); }
+      catch (error) { console.error('[SOLVI] Последнее сохранение Neon не удалось:', error.message); }
       io.close(async () => {
-        try { db.close(); } catch (error) { console.warn('[SOVLI] Ошибка закрытия SQLite:', error.message); }
-        try { await persistentStore?.close(); } catch (error) { console.warn('[SOVLI] Ошибка закрытия Neon:', error.message); }
+        try { db.close(); } catch (error) { console.warn('[SOLVI] Ошибка закрытия SQLite:', error.message); }
+        try { await persistentStore?.close(); } catch (error) { console.warn('[SOLVI] Ошибка закрытия Neon:', error.message); }
         clearTimeout(hardStop);
         process.exit(0);
       });
     })().catch(error => {
-      console.error('[SOVLI] Ошибка остановки сервера:', error.message);
+      console.error('[SOLVI] Ошибка остановки сервера:', error.message);
       clearTimeout(hardStop);
       process.exit(1);
     });
@@ -2493,9 +2493,9 @@ async function main() {
 }
 
 const BOOT_STARTED_AT = Date.now();
-process.on('unhandledRejection', error => { console.error('[SOVLI] Необработанная ошибка Promise:', error); });
-process.on('uncaughtException', error => { console.error('[SOVLI] Критическая ошибка Node.js:', error); process.exit(1); });
+process.on('unhandledRejection', error => { console.error('[SOLVI] Необработанная ошибка Promise:', error); });
+process.on('uncaughtException', error => { console.error('[SOLVI] Критическая ошибка Node.js:', error); process.exit(1); });
 main().catch(error => {
-  console.error('[SOVLI] Не удалось запустить сервер:', error?.stack || error);
+  console.error('[SOLVI] Не удалось запустить сервер:', error?.stack || error);
   process.exit(1);
 });
