@@ -293,6 +293,9 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     assert.notEqual(guest1.user.id, guest2.user.id);
     assert.match(guest1.user.username, /^Гость-/);
     assert.equal(guest1.user.tokens, 0, 'guest accounts start with zero tokens');
+    assert.ok(Date.parse(guest1.user.guestExpiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest accounts should be kept for 180 days');
+    const guestSessions = await fetch(`${baseUrl}/api/sessions`, { headers: { Authorization: `Bearer ${guest1.token}` } }).then(response => response.json());
+    assert.ok(Date.parse(guestSessions.sessions[0].expiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest browser session should remain valid for 180 days');
     assert.equal(guest2.user.tokens, 0, 'guest accounts start with zero tokens');
     assert.equal(Object.hasOwn(guest1.user, 'birthDate'), false);
     assert.equal(Object.hasOwn(guest1.user, 'age'), false);
