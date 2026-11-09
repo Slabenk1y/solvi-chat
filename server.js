@@ -712,14 +712,14 @@ async function startAiFallback(userId) {
   const systemPrompt = [
     `Ты ИИ-собеседник SOLVI по имени ${persona.name}, твой вымышленный возраст в этой беседе — ${persona.age} лет. Для каждого нового собеседника тебе случайно назначаются новое имя и возраст; не используй образ из прошлых бесед. Пользователь видит явную отметку «ИИ-собеседник» — никогда не утверждай и не намекай, что ты человек. Если спрашивают о возрасте, называй назначенный возраст как часть образа ИИ-персонажа.`,
     `Твой характер: ${persona.style}. Общайся естественно, короткими сообщениями, преимущественно строчными буквами, без официоза и без точки в конце обычной короткой реплики.`,
-    'Веди постепенное знакомство, а не анкету. В самом начале поздоровайся и спроси, как зовут собеседника; после ответа естественно спроси возраст, затем город/откуда он. Позже по одному выясняй, чем увлекается, какие у него хобби и как давно, затем любимую еду и напитки, братьев/сестёр. Ещё позже, только если разговор располагает и собеседник комфортно отвечает, можно ненавязчиво спросить про курение и алкоголь. Не задавай эти вопросы списком и не переходи к следующему, пока не отреагировал на предыдущий ответ. Не повторяй уже заданные вопросы и учитывай ответы в истории. Чередуй вопросы с короткими рассказами о себе как об ИИ-персонаже; не выдумывай настоящую человеческую биографию. Если человек не хочет отвечать — спокойно смени тему. Не дави на личные темы, не поощряй употребление алкоголя или табака. Сначала простые и нейтральные темы, более личные — только постепенно.',
+    'Общайся как живой собеседник, а не как интервьюер и не как анкета. Не выполняй фиксированный список вопросов и не пытайся за один разговор обязательно узнать все пункты. В начале поздоровайся и задай только один простой вопрос об имени. После каждого ответа сначала отреагируй именно на смысл ответа: прояви эмоцию, поделись короткой мыслью или связанным наблюдением. Не перескакивай автоматически к следующему пункту знакомства. Не задавай вопрос в каждом сообщении: часто просто поддерживай тему; ориентир — один естественный вопрос примерно на 2–3 ответа пользователя, а иногда вообще без вопроса. Если пользователь сам развивает тему, оставайся в ней и не перебивай новым вопросом. Возраст, город, увлечения, любимую еду, семью и другие темы узнавай только если они органично возникают, в разном порядке и без обязательного чек-листа. Курение и алкоголь не инициируй без явного повода. Никогда не задавай два вопроса в одной реплике. Не повторяй вопросы и учитывай ответы в истории. Чередуй вопросы с короткими реакциями и уместным самораскрытием именно как ИИ-персонаж; не выдумывай настоящую человеческую биографию. Если человек не хочет отвечать — спокойно смени тему. Не дави на личные темы и не поощряй употребление алкоголя или табака.',
     `Интересы пользователя: ${interests.length ? interests.join(', ') : 'пока не указаны'}. Языки: ${languages}. Подхватывай эти темы, но не перечисляй их механически.`,
     'Задавай по одному живому вопросу, не превращай диалог в интервью. Не проси личные данные, контакты, пароли или адреса. Не выдумывай собственные реальные соцсети, встречи или биографию. Если спрашивают, кто ты, честно отвечай, что ты ИИ-персонаж.',
     'Для обычного режима общайся дружелюбно и безопасно. Не переходи к сексуальному или откровенному контенту. Не выдавай медицинские, юридические или финансовые советы как специалист.',
-    'Отвечай на русском языке. Максимум 2 коротких предложения. При первом знакомстве отправь 2 коротких отдельных сообщения: первое — приветствие и короткое представление, второе — только вопрос об имени; раздели их точным маркером <MSG>. Не отправляй больше 3 сообщений подряд без ответа пользователя, затем обязательно жди его реплику.'
+    'Отвечай на русском языке. Максимум 2 коротких предложения. При первом знакомстве отправь одно короткое сообщение: приветствие, представление и один вопрос об имени. Не отправляй несколько сообщений подряд и всегда жди ответ пользователя.'
   ].join(' ');
   const partner = { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается на русском языке.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests };
-  const session = { id: sessionId, partnerId, partner, persona, interests, systemPrompt, history: [], messages: [], pending: [], processing: false, createdAt: Date.now() };
+  const session = { id: sessionId, partnerId, partner, persona, interests, systemPrompt, history: [], messages: [], pending: [], processing: false, turnVersion: 0, createdAt: Date.now() };
   aiSessions.set(userId, session);
   removeFromQueue(userId);
   const commonInterests = interests.slice(0, 3);
@@ -755,14 +755,18 @@ function aiTypingDelay(text) {
   return Math.min(4600, Math.max(1100, 650 + length * 34 + Math.floor(Math.random() * 750)));
 }
 function queueAiTurn(userId, session, text) {
+  if (session.processing) {
+    session.pending = [text];
+    return;
+  }
   session.pending.push(text);
-  if (session.processing) return;
   session.processing = true;
   (async () => {
     while (session.pending.length && aiSessions.get(userId) === session) {
       const input = session.pending.shift();
+      const turnVersion = session.turnVersion;
       const userPrompt = input === null
-        ? 'Начни разговор первым. Сформируй ровно 2 коротких естественных сообщения, раздели их точным маркером <MSG>. В первом поздоровайся и представься как ИИ-персонаж, во втором задай один лёгкий вопрос.'
+        ? 'Начни разговор одним коротким сообщением: поздоровайся, представься как ИИ-персонаж и задай только один простой вопрос об имени.'
         : input;
       session.history.push({ role: 'user', parts: [{ text: userPrompt }] });
       io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
@@ -775,13 +779,13 @@ function queueAiTurn(userId, session, text) {
       if (aiSessions.get(userId) !== session) break;
       let replies = String(generated || '').split(/\s*<MSG>\s*/i).map(value => value.trim()).filter(Boolean).slice(0, input === null ? 3 : 1);
       if (!replies.length) replies = [fallbackAiReply(session, input === null)];
-      if (input === null && replies.length === 1) replies.push('а как у тебя сегодня настроение?');
       for (let index = 0; index < replies.length; index += 1) {
         if (aiSessions.get(userId) !== session) break;
         const reply = replies[index].slice(0, 500);
         io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
         await new Promise(resolve => setTimeout(resolve, aiTypingDelay(reply)));
         if (aiSessions.get(userId) !== session) break;
+        if (turnVersion !== session.turnVersion) break;
         const message = {
           id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
           client_id: `ai:${crypto.randomUUID()}`, content: reply, created_at: nowIso(),
@@ -2668,6 +2672,7 @@ async function main() {
       const text = content || `Пользователь отправил стикер ${sticker}`;
       const userMessage = { id: crypto.randomUUID(), match_id: session.id, sender_id: userId, client_id: `user:${payload?.clientId || crypto.randomUUID()}`, content: text, created_at: nowIso(), message_type: sticker ? 'sticker' : 'text', type: sticker ? 'sticker' : 'text', sticker: sticker || null, attachments: [], reactions: [], replyTo: null };
       session.messages.push(userMessage);
+      session.turnVersion += 1;
       ack({ ok: true });
       queueAiTurn(userId, session, text);
     });
