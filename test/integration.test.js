@@ -197,10 +197,13 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.collections.length >= 8, 'catalog is grouped into collections');
     const tokenStatus = await postJson(baseUrl, '/api/store/membership', { packageId: 'vip-1h' }, user1.token);
     assert.equal(tokenStatus.user.subscriptionTier, 'vip');
-    const tokenOnlyBundle = await fetch(`${baseUrl}/api/store/bundle`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ bundleId: 'vip-signature-pack' }) });
-    assert.equal(tokenOnlyBundle.status, 403, 'a VIP status bought only with tokens must not unlock the VIP cosmetic bundle');
+    testDb.prepare('UPDATE users SET tokens = 3000 WHERE id = ?').run(user1.user.id);
+    const tokenOnlyBundle = await postJson(baseUrl, '/api/store/bundle', { bundleId: 'vip-signature-pack' }, user1.token);
+    assert.equal(tokenOnlyBundle.ok, true, 'a VIP status bought with tokens unlocks the VIP cosmetic bundle');
+    assert.equal(tokenOnlyBundle.itemIds.length, 5, 'the VIP bundle grants every included cosmetic');
+    assert.equal(tokenOnlyBundle.balance, 600);
     const bought = await postJson(baseUrl, '/api/store/buy', { itemId: 'theme-aurora' }, user1.token);
-    assert.equal(bought.balance, 520);
+    assert.equal(bought.balance, 300);
     const stickerPackPurchase = await postJson(baseUrl, '/api/store/buy', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackPurchase.balance, 670);
     const stickerPackEquipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'stickers-night-owl' }, user2.token);
@@ -474,8 +477,8 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
 
     const found1 = waitForEvent(socket1, 'match:found');
     const found2 = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket1.emit('queue:join', { ownGender: 'male' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket2.emit('queue:join', { ownGender: 'female' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
     const [match1, match2] = await Promise.all([found1, found2]);
     assert.equal(match1.matchId, match2.matchId);
     assert.equal(guest1.user.tokens, 0, 'guest accounts also start without bonuses');
@@ -491,7 +494,7 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     const socket3 = createSocket(baseUrl, { auth: { token: guest3.token }, transports: ['websocket'], reconnection: false });
     sockets.push(socket3);
     await new Promise((resolve, reject) => { socket3.once('connect', resolve); socket3.once('connect_error', reject); });
-    await new Promise((resolve, reject) => socket3.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket3.emit('queue:join', { ownGender: 'male' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
     const endedForPartner = waitForEvent(socket2, 'chat:ended');
     const nextForGuest1 = waitForEvent(socket1, 'match:found');
     const nextForGuest3 = waitForEvent(socket3, 'match:found');
