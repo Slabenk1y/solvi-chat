@@ -56,11 +56,25 @@ const STICKER_PACKS = {
   'stickers-vip-comet': ['🌌','💫','🪐','☄️','✨','🌠'],
   'stickers-premium-quantum': ['🪩','🌀','💎','🔮','⚛️','🌌']
 };
-function readStoredList(key) { try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
+function safeStorageGet(key) {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function safeStorageSet(key, value) {
+  try { window.localStorage.setItem(key, value); return true; } catch { return false; }
+}
+function safeStorageRemove(key) {
+  try { window.localStorage.removeItem(key); return true; } catch { return false; }
+}
+function readStoredList(key) {
+  try {
+    const value = JSON.parse(safeStorageGet(key) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
 const state = {
   // Set after the state object has been initialized.
 
-  token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
+  token: safeStorageGet('sovli_token') || safeStorageGet('orbit_token') || '',
   user: null,
   ownGender: '', inboxMessages: [], inboxUnread: 0,
   authRestoring: false,
@@ -76,9 +90,9 @@ const state = {
   selectedInterests: readStoredList('sovli_interests'),
   selectedFlirtInterests: readStoredList('solvi_flirt_interests'),
   selectedRoleplayInterests: readStoredList('solvi_roleplay_interests'),
-  matchingMode: ['chat','flirt','roleplay'].includes(localStorage.getItem('solvi_match_mode')) ? localStorage.getItem('solvi_match_mode') : 'chat',
-  desiredGender: ['any','male','female','other'].includes(localStorage.getItem('solvi_desired_gender')) ? localStorage.getItem('solvi_desired_gender') : 'any',
-  roleplayIntent: localStorage.getItem('solvi_roleplay_intent') === 'offering' ? 'offering' : 'seeking',
+  matchingMode: ['chat','flirt','roleplay'].includes(safeStorageGet('solvi_match_mode')) ? safeStorageGet('solvi_match_mode') : 'chat',
+  desiredGender: ['any','male','female','other'].includes(safeStorageGet('solvi_desired_gender')) ? safeStorageGet('solvi_desired_gender') : 'any',
+  roleplayIntent: safeStorageGet('solvi_roleplay_intent') === 'offering' ? 'offering' : 'seeking',
   selectedAvatar: null,
   authMode: 'login',
   searching: false,
@@ -932,7 +946,7 @@ function setUser(user) {
   applySettings();
   renderAvatarOptions();
   renderStickerPanel();
-  try { if (state.token) localStorage.setItem('sovli_user_cache', JSON.stringify(user)); } catch { /* cached profile is optional */ }
+  try { if (state.token) safeStorageSet('sovli_user_cache', JSON.stringify(user)); } catch { /* cached profile is optional */ }
 }
 async function api(url, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -1041,13 +1055,13 @@ function renderFilters() {
   $('#roleplayInterestSummary').textContent = summary(state.selectedRoleplayInterests);
   $('#roleplayInterestCount').textContent = state.selectedRoleplayInterests.length ? `${state.selectedRoleplayInterests.length} / ${interestLimit}` : 'Без фильтра';
   try {
-    localStorage.setItem('sovli_languages', JSON.stringify(state.selectedLanguages));
-    localStorage.setItem('sovli_interests', JSON.stringify(state.selectedInterests));
-    localStorage.setItem('solvi_flirt_interests', JSON.stringify(state.selectedFlirtInterests));
-    localStorage.setItem('solvi_roleplay_interests', JSON.stringify(state.selectedRoleplayInterests));
-    localStorage.setItem('solvi_match_mode', state.matchingMode);
-    localStorage.setItem('solvi_desired_gender', state.desiredGender);
-    localStorage.setItem('solvi_roleplay_intent', state.roleplayIntent);
+    safeStorageSet('sovli_languages', JSON.stringify(state.selectedLanguages));
+    safeStorageSet('sovli_interests', JSON.stringify(state.selectedInterests));
+    safeStorageSet('solvi_flirt_interests', JSON.stringify(state.selectedFlirtInterests));
+    safeStorageSet('solvi_roleplay_interests', JSON.stringify(state.selectedRoleplayInterests));
+    safeStorageSet('solvi_match_mode', state.matchingMode);
+    safeStorageSet('solvi_desired_gender', state.desiredGender);
+    safeStorageSet('solvi_roleplay_intent', state.roleplayIntent);
   } catch { /* filter preferences are optional */ }
 }
 
@@ -1207,7 +1221,7 @@ function connectSocket() {
     releaseMediaUrls();
     state.outbox = [];
     persistOutbox();
-    try { if (draftKey()) localStorage.removeItem(draftKey()); } catch { /* ignore */ }
+    try { if (draftKey()) safeStorageRemove(draftKey()); } catch { /* ignore */ }
     $('#typingIndicator').hidden = true;
     $('#recordingIndicator').hidden = true;
     stopVoiceRecording(true);
@@ -1646,12 +1660,12 @@ function flushOutbox() {
 function outboxKey() { return state.user ? `orbit_outbox_${state.user.id}` : ''; }
 function persistOutbox() {
   if (!outboxKey()) return;
-  try { localStorage.setItem(outboxKey(), JSON.stringify(state.outbox)); } catch { /* local storage may be unavailable */ }
+  try { safeStorageSet(outboxKey(), JSON.stringify(state.outbox)); } catch { /* local storage may be unavailable */ }
 }
 function restoreOutbox() {
   if (!outboxKey() || !state.activeMatch) return;
   try {
-    const saved = JSON.parse(localStorage.getItem(outboxKey()) || '[]');
+    const saved = JSON.parse(safeStorageGet(outboxKey()) || '[]');
     state.outbox = Array.isArray(saved) ? saved.filter(item => item && item.matchId === state.activeMatch.matchId && typeof item.clientId === 'string' && typeof item.content === 'string' && (Array.isArray(item.attachments) || typeof item.sticker === 'string' || item.content.length > 0)) : [];
     state.outbox.forEach(item => {
       if (!state.messages.some(message => message.client_id === item.clientId)) {
@@ -1664,15 +1678,15 @@ function restoreOutbox() {
 function draftKey() { return state.user ? `orbit_draft_${state.user.id}` : ''; }
 function saveDraft(value) {
   if (!draftKey()) return;
-  try { localStorage.setItem(draftKey(), JSON.stringify({ matchId: state.activeMatch?.matchId || null, text: value })); }
+  try { safeStorageSet(draftKey(), JSON.stringify({ matchId: state.activeMatch?.matchId || null, text: value })); }
   catch { /* local storage may be unavailable */ }
 }
 function restoreDraft() {
   if (!draftKey() || !state.activeMatch) return;
   try {
-    const draft = JSON.parse(localStorage.getItem(draftKey()) || 'null');
+    const draft = JSON.parse(safeStorageGet(draftKey()) || 'null');
     if (draft?.matchId === state.activeMatch.matchId && typeof draft.text === 'string') $('#messageInput').value = draft.text;
-    else localStorage.removeItem(draftKey());
+    else safeStorageRemove(draftKey());
   } catch { /* ignore malformed draft */ }
 }
 function retryMessage(message) {
@@ -1875,9 +1889,9 @@ function logout(showMessage = true, revokeServer = true) {
   if (state.socket) { state.socket.disconnect(); state.socket = null; }
   releaseMediaUrls();
   stopVoiceRecording(true);
-  localStorage.removeItem('sovli_token');
-  localStorage.removeItem('orbit_token');
-  localStorage.removeItem('sovli_user_cache');
+  safeStorageRemove('sovli_token');
+  safeStorageRemove('orbit_token');
+  safeStorageRemove('sovli_user_cache');
   state.token = '';
   state.user = null;
   state.activeMatch = null;
@@ -1974,7 +1988,7 @@ async function boot() {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
     applyTheme();
     if (state.token) {
-      try { cachedUser = JSON.parse(localStorage.getItem('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
+      try { cachedUser = JSON.parse(safeStorageGet('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
       if (cachedUser?.id) { setUser(cachedUser); showApp(); }
     }
     if (bootScreen) bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
@@ -2029,7 +2043,7 @@ async function boot() {
       connectSocket();
     } catch (error) {
       if (error.status === 401) {
-        localStorage.removeItem('sovli_user_cache');
+        safeStorageRemove('sovli_user_cache');
         logout(false);
         if (error.message?.includes('гостевого')) setAuthError(error.message);
       } else if (cachedUser?.id) {
@@ -2075,8 +2089,8 @@ $('#authForm').addEventListener('submit', async event => {
       body: JSON.stringify({ username, password, accessCode: $('#authInviteCode').value.trim() })
     });
     state.token = response.token;
-    localStorage.setItem('sovli_token', state.token);
-    localStorage.removeItem('orbit_token');
+    safeStorageSet('sovli_token', state.token);
+    safeStorageRemove('orbit_token');
     setUser(response.user);
     showApp();
     connectSocket();
@@ -2097,8 +2111,8 @@ $('#guestButton').addEventListener('click', async () => {
   try {
     const response = await api('/api/auth/guest', { method: 'POST', body: JSON.stringify({ accessCode: $('#authInviteCode').value.trim() }) });
     state.token = response.token;
-    localStorage.setItem('sovli_token', state.token);
-    localStorage.removeItem('orbit_token');
+    safeStorageSet('sovli_token', state.token);
+    safeStorageRemove('orbit_token');
     setUser(response.user);
     showApp();
     connectSocket();
