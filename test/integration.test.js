@@ -113,6 +113,17 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const owner = await postJson(baseUrl, '/api/auth/register', { username: 'solvi-owner', password: 'test-owner-password-333' });
     testDb.prepare('UPDATE users SET public_id = ? WHERE id = ?').run('ABCDEF1234', owner.user.id);
     const ownerHeaders = { Authorization: `Bearer ${owner.token}` };
+    const unsafeCleanupPreview = await fetch(`${baseUrl}/api/admin/users/cleanup-preview`, { headers: ownerHeaders });
+    assert.equal(unsafeCleanupPreview.status, 409, 'cleanup refuses to guess the owner or Masha account');
+    const sentOwnerMessage = await postJson(baseUrl, '/api/admin/messages', { targetMode: 'user', recipient: 'tester-one', subject: 'Проверка SOLVI', body: 'Личное сообщение из панели владельца.' }, owner.token);
+    assert.equal(sentOwnerMessage.recipientCount, 1);
+    const ownerInbox = await fetch(`${baseUrl}/api/inbox`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(ownerInbox.unread, 1, 'owner message is persisted in the recipient inbox');
+    assert.equal(ownerInbox.messages[0].subject, 'Проверка SOLVI');
+    const readOwnerMessage = await fetch(`${baseUrl}/api/inbox/${encodeURIComponent(ownerInbox.messages[0].id)}/read`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(readOwnerMessage.status, 200);
+    const inboxAfterOwnerRead = await fetch(`${baseUrl}/api/inbox`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(inboxAfterOwnerRead.unread, 0);
     const ownerUserListResponse = await fetch(`${baseUrl}/api/admin/users?limit=1`, { headers: ownerHeaders });
     assert.equal(ownerUserListResponse.status, 200, 'owner can retrieve unified paginated user directory');
     const ownerUserList = await ownerUserListResponse.json();
