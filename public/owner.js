@@ -1,15 +1,18 @@
 'use strict';
 (() => {
   const $ = s => document.querySelector(s);
-  const state = { token:localStorage.getItem('sovli_admin_token')||localStorage.getItem('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null };
+  const safeStorageGet = key => { try { return window.localStorage.getItem(key); } catch { return null; } };
+  const safeStorageSet = (key, value) => { try { window.localStorage.setItem(key, value); return true; } catch { return false; } };
+  const safeStorageRemove = key => { try { window.localStorage.removeItem(key); return true; } catch { return false; } };
+  const state = { token:safeStorageGet('sovli_admin_token')||safeStorageGet('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null };
   const esc = v => String(v==null?'':v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num = v => Number(v||0).toLocaleString('ru-RU');
   const date = v => v ? new Date(v).toLocaleString('ru-RU',{dateStyle:'medium',timeStyle:'short'}) : '—';
   const dateInput = v => { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); };
   function applyOwnerTheme(theme){
-    const selected = theme || localStorage.getItem('solvi_owner_theme') || 'dark';
+    const selected = theme || safeStorageGet('solvi_owner_theme') || 'dark';
     document.documentElement.dataset.theme = selected;
-    localStorage.setItem('solvi_owner_theme', selected);
+    safeStorageSet('solvi_owner_theme', selected);
     const button = $('#themeToggleButton');
     if (button) { button.textContent = selected === 'dark' ? '☀ Светлая тема' : '☾ Тёмная тема'; button.setAttribute('aria-label', selected === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'); button.title = selected === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'; }
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -23,7 +26,7 @@
     if(!response.ok){ if(response.status===401)clearAuth(); throw new Error(body.error||('HTTP '+response.status)); }
     return body;
   }
-  function clearAuth(){state.token='';localStorage.removeItem('sovli_admin_token');$('#dashboardView').hidden=true;$('#loginView').hidden=false;$('#logoutButton').hidden=true;}
+  function clearAuth(){state.token='';safeStorageRemove('sovli_admin_token');$('#dashboardView').hidden=true;$('#loginView').hidden=false;$('#logoutButton').hidden=true;}
   function setConnection(text,good){const e=$('#connectionBadge');e.textContent=text;e.className='status-pill '+(good===false?'bad':'good');}
   function stat(label,value,small){return '<article class="stat-card"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong>'+(small?'<small>'+esc(small)+'</small>':'')+'</article>';}
   function suspendModalLayers(exceptId){
@@ -108,7 +111,7 @@
 
   async function verifyOwner(){
     if(!state.token)return false;
-    try{await api('/api/admin/overview');$('#loginView').hidden=true;$('#dashboardView').hidden=false;$('#logoutButton').hidden=false;localStorage.setItem('sovli_admin_token',state.token);setConnection('Доступ подтверждён');await loadOverview();showTab('overview',false);return true;}
+    try{await api('/api/admin/overview');$('#loginView').hidden=true;$('#dashboardView').hidden=false;$('#logoutButton').hidden=false;safeStorageSet('sovli_admin_token',state.token);setConnection('Доступ подтверждён');await loadOverview();showTab('overview',false);return true;}
     catch(error){setConnection('Нужен вход',false);if(/только владельцу|не назначен владельцем/i.test(error.message))$('#loginError').textContent=error.message;return false;}
   }
   async function loadCleanupPreview(){
@@ -392,7 +395,7 @@
   $('#themeToggleButton').addEventListener('click',()=>applyOwnerTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
   $('#loginForm').addEventListener('submit',async e=>{
     e.preventDefault();$('#loginError').textContent='';setConnection('Входим…');const b=e.currentTarget.querySelector('button[type="submit"]');b.disabled=true;
-    try{const r=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:$('#loginName').value.trim(),password:$('#loginPassword').value,accessCode:$('#loginInvite').value.trim()})});state.token=r.token;localStorage.setItem('sovli_admin_token',state.token);if(!await verifyOwner())throw new Error('Этот аккаунт не назначен владельцем. Проверь OWNER_PUBLIC_ID.');await loadStoreItems();toast('Добро пожаловать в панель владельца.');}
+    try{const r=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:$('#loginName').value.trim(),password:$('#loginPassword').value,accessCode:$('#loginInvite').value.trim()})});state.token=r.token;safeStorageSet('sovli_admin_token',state.token);if(!await verifyOwner())throw new Error('Этот аккаунт не назначен владельцем. Проверь OWNER_PUBLIC_ID.');await loadStoreItems();toast('Добро пожаловать в панель владельца.');}
     catch(err){$('#loginError').textContent=err.message;setConnection('Не авторизован',false);}finally{b.disabled=false;}
   });
   $('#logoutButton').addEventListener('click',()=>{clearAuth();setConnection('Выход выполнен');});
