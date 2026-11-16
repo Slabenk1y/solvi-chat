@@ -72,10 +72,10 @@ const state = {
   activeMatch: null,
   messages: [],
   outbox: [],
-  selectedLanguages: ['Русский'],
-  selectedInterests: [],
-  selectedFlirtInterests: [],
-  selectedRoleplayInterests: [],
+  selectedLanguages: readStoredList('sovli_languages').length ? readStoredList('sovli_languages') : ['Русский'],
+  selectedInterests: readStoredList('sovli_interests'),
+  selectedFlirtInterests: readStoredList('solvi_flirt_interests'),
+  selectedRoleplayInterests: readStoredList('solvi_roleplay_interests'),
   matchingMode: ['chat','flirt','roleplay'].includes(localStorage.getItem('solvi_match_mode')) ? localStorage.getItem('solvi_match_mode') : 'chat',
   desiredGender: ['any','male','female','other'].includes(localStorage.getItem('solvi_desired_gender')) ? localStorage.getItem('solvi_desired_gender') : 'any',
   roleplayIntent: localStorage.getItem('solvi_roleplay_intent') === 'offering' ? 'offering' : 'seeking',
@@ -951,11 +951,15 @@ async function api(url, options = {}) {
 }
 function showAuth() {
   document.documentElement.classList.remove('session-checking');
+  const bootScreen = $('#sessionBootScreen');
+  if (bootScreen) bootScreen.hidden = true;
   $('#authView').hidden = false;
   $('#appView').hidden = true;
 }
 function showApp() {
   document.documentElement.classList.remove('session-checking');
+  const bootScreen = $('#sessionBootScreen');
+  if (bootScreen) bootScreen.hidden = true;
   $('#authView').hidden = true;
   $('#appView').hidden = false;
   setView('home');
@@ -997,17 +1001,21 @@ function toggleChoice(listName, value, container, values, limit) {
 }
 function renderFilters() {
   const tier = state.user?.subscriptionTier || 'free';
-  const languageLimit = 1;
-  const interestLimit = 0;
-  state.selectedLanguages = ['Русский'];
-  state.selectedInterests = [];
-  state.selectedFlirtInterests = [];
-  state.selectedRoleplayInterests = [];
+  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
+  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+  const languages = Array.isArray(state.config.languages) ? state.config.languages : [];
+  const interests = Array.isArray(state.config.interests) ? state.config.interests : [];
+  const flirtInterests = Array.isArray(state.config.flirtInterests) ? state.config.flirtInterests : [];
+  const roleplayInterests = Array.isArray(state.config.roleplayInterests) ? state.config.roleplayInterests : [];
   if (!['chat', 'flirt', 'roleplay'].includes(state.matchingMode)) state.matchingMode = 'chat';
-  state.selectedLanguages = state.selectedLanguages.slice(0, languageLimit);
-  state.selectedInterests = state.selectedInterests.slice(0, interestLimit);
-  state.selectedFlirtInterests = state.selectedFlirtInterests.slice(0, interestLimit);
-  state.selectedRoleplayInterests = state.selectedRoleplayInterests.slice(0, interestLimit);
+  state.selectedLanguages = (Array.isArray(state.selectedLanguages) ? state.selectedLanguages : [])
+    .filter(value => languages.includes(value)).slice(0, languageLimit);
+  state.selectedInterests = (Array.isArray(state.selectedInterests) ? state.selectedInterests : [])
+    .filter(value => interests.includes(value)).slice(0, interestLimit);
+  state.selectedFlirtInterests = (Array.isArray(state.selectedFlirtInterests) ? state.selectedFlirtInterests : [])
+    .filter(value => flirtInterests.includes(value)).slice(0, interestLimit);
+  state.selectedRoleplayInterests = (Array.isArray(state.selectedRoleplayInterests) ? state.selectedRoleplayInterests : [])
+    .filter(value => roleplayInterests.includes(value)).slice(0, interestLimit);
   $$('[data-match-mode]').forEach(button => {
     const active = button.dataset.matchMode === state.matchingMode;
     button.classList.toggle('active', active);
@@ -1019,10 +1027,10 @@ function renderFilters() {
   $('#standardInterestBlock').hidden = true;
   $('#flirtSettings').hidden = state.matchingMode !== 'flirt';
   $('#roleplaySettings').hidden = state.matchingMode !== 'roleplay';
-  renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, languageLimit));
-  renderChoices($('#interestOptions'), state.config.interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), state.config.interests, interestLimit));
-  renderChoices($('#flirtInterestOptions'), state.config.flirtInterests || [], state.selectedFlirtInterests, value => toggleChoice('selectedFlirtInterests', value, $('#flirtInterestOptions'), state.config.flirtInterests || [], interestLimit));
-  renderChoices($('#roleplayInterestOptions'), state.config.roleplayInterests || [], state.selectedRoleplayInterests, value => toggleChoice('selectedRoleplayInterests', value, $('#roleplayInterestOptions'), state.config.roleplayInterests || [], interestLimit));
+  renderChoices($('#languageOptions'), languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), languages, languageLimit));
+  renderChoices($('#interestOptions'), interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), interests, interestLimit));
+  renderChoices($('#flirtInterestOptions'), flirtInterests, state.selectedFlirtInterests, value => toggleChoice('selectedFlirtInterests', value, $('#flirtInterestOptions'), flirtInterests, interestLimit));
+  renderChoices($('#roleplayInterestOptions'), roleplayInterests, state.selectedRoleplayInterests, value => toggleChoice('selectedRoleplayInterests', value, $('#roleplayInterestOptions'), roleplayInterests, interestLimit));
   const summary = values => values.length ? values.slice(0, 2).join(', ') + (values.length > 2 ? ` +${values.length - 2}` : '') : 'Любые интересы';
   $('#languageSummary').textContent = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
   $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / ${languageLimit}` : 'Не ограничивать';
@@ -1044,10 +1052,14 @@ function renderFilters() {
 }
 
 function buildMatchingPreferences() {
+  const interests = state.matchingMode === 'flirt'
+    ? state.selectedFlirtInterests
+    : (state.matchingMode === 'roleplay' ? state.selectedRoleplayInterests : []);
   return {
     mode: state.matchingMode, ownGender: state.ownGender, desiredGender: state.desiredGender, roleplayIntent: state.roleplayIntent,
     adultConfirmed: state.matchingMode === 'flirt' ? $('#flirtAdultConsent').checked : (state.matchingMode === 'roleplay' ? $('#roleplayAdultConsent').checked : false),
-    languages: ['Русский'], interests: []
+    languages: state.selectedLanguages.length ? state.selectedLanguages : [],
+    interests
   };
 }
 
@@ -1956,68 +1968,92 @@ function playUiSound(frequency = 520) {
   } catch { /* Audio is optional and may be blocked by the browser. */ }
 }
 async function boot() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  applyTheme();
-  let cachedUser = null;
   const bootScreen = $('#sessionBootScreen');
-  if (state.token) {
-    try { cachedUser = JSON.parse(localStorage.getItem('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
-    if (cachedUser?.id) { setUser(cachedUser); showApp(); }
-  }
-  bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
-  try { state.config = await api('/api/config'); }
-  catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] }; }
-  renderSocialLinks();
-  const billingResult = new URL(window.location.href).searchParams.get('billing');
-  if (billingResult === 'success' && state.token) {
-    try { const latest = await api('/api/me'); setUser(latest.user); showToast('Платёж принят. Если Stripe ещё отправляет подтверждение, статус активируется автоматически.'); }
-    catch { showToast('Платёж завершён. Статус обновится после подтверждения платёжного сервиса.'); }
-    history.replaceState({}, '', window.location.pathname + window.location.hash);
-  } else if (billingResult === 'cancelled') {
-    showToast('Оплата отменена. Списание не выполнено.');
-    history.replaceState({}, '', window.location.pathname + window.location.hash);
-  }
-  const tier = state.user?.subscriptionTier || 'free';
-  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
-  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
-  state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, languageLimit);
-  state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, interestLimit);
-  renderFilters();
-  renderStickerPanel();
-  $('#inviteCodeField').hidden = !state.config.inviteRequired;
-  if (state.config.inviteRequired) $('#authInviteCode').required = true;
-  if (state.config.matchingEnabled === false) {
-    $('#findButton').disabled = true;
-    $('#findButton').title = 'Подбор отключён в настройках сервера';
-    $('#alphaNotice').querySelector('p').innerHTML = '<strong>Тестовый режим.</strong> Подбор временно выключен администратором. Попроси организатора проверить настройки сервера.';
-  } else if (state.config.publicMode) {
-    $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
-  }
-  if (!state.token) { showAuth(); bootScreen.hidden = true; return; }
-  state.authRestoring = true;
+  let cachedUser = null;
   try {
-    const response = await api('/api/me');
-    setUser(response.user);
-    state.activeMatch = response.activeMatch;
-    showApp();
-    loadFavorites();
-    connectSocket();
-  } catch (error) {
-    if (error.status === 401) {
-      localStorage.removeItem('sovli_user_cache');
-      logout(false);
-      if (error.message?.includes('гостевого')) setAuthError(error.message);
-    } else if (cachedUser?.id) {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+    applyTheme();
+    if (state.token) {
+      try { cachedUser = JSON.parse(localStorage.getItem('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
+      if (cachedUser?.id) { setUser(cachedUser); showApp(); }
+    }
+    if (bootScreen) bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
+    try { state.config = await api('/api/config'); }
+    catch {
+      state.config = { languages: ['Русский'], interests: [], flirtInterests: [], roleplayInterests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] };
+    }
+    renderSocialLinks();
+    const billingResult = new URL(window.location.href).searchParams.get('billing');
+    if (billingResult === 'success' && state.token) {
+      try { const latest = await api('/api/me'); setUser(latest.user); showToast('Платёж принят. Если Stripe ещё отправляет подтверждение, статус активируется автоматически.'); }
+      catch { showToast('Платёж завершён. Статус обновится после подтверждения платёжного сервиса.'); }
+      history.replaceState({}, '', window.location.pathname + window.location.hash);
+    } else if (billingResult === 'cancelled') {
+      showToast('Оплата отменена. Списание не выполнено.');
+      history.replaceState({}, '', window.location.pathname + window.location.hash);
+    }
+    const tier = state.user?.subscriptionTier || 'free';
+    const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
+    const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+    if (Array.isArray(state.config.languages)) {
+      state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, languageLimit);
+    } else state.selectedLanguages = [];
+    if (Array.isArray(state.config.interests)) {
+      state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, interestLimit);
+    } else state.selectedInterests = [];
+    if (Array.isArray(state.config.flirtInterests)) {
+      state.selectedFlirtInterests = state.selectedFlirtInterests.filter(value => state.config.flirtInterests.includes(value)).slice(0, interestLimit);
+    } else state.selectedFlirtInterests = [];
+    if (Array.isArray(state.config.roleplayInterests)) {
+      state.selectedRoleplayInterests = state.selectedRoleplayInterests.filter(value => state.config.roleplayInterests.includes(value)).slice(0, interestLimit);
+    } else state.selectedRoleplayInterests = [];
+    renderFilters();
+    renderStickerPanel();
+    $('#inviteCodeField').hidden = !state.config.inviteRequired;
+    if (state.config.inviteRequired) $('#authInviteCode').required = true;
+    if (state.config.matchingEnabled === false) {
+      $('#findButton').disabled = true;
+      $('#findButton').title = 'Подбор отключён в настройках сервера';
+      $('#alphaNotice').querySelector('p').innerHTML = '<strong>Тестовый режим.</strong> Подбор временно выключен администратором. Попроси организатора проверить настройки сервера.';
+    } else if (state.config.publicMode) {
+      $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
+    }
+    if (!state.token) { showAuth(); return; }
+    state.authRestoring = true;
+    try {
+      const response = await api('/api/me');
+      setUser(response.user);
+      state.activeMatch = response.activeMatch;
       showApp();
+      loadFavorites();
       connectSocket();
-      showToast('Восстанавливаем связь с сервером. Аккаунт сохранён.');
+    } catch (error) {
+      if (error.status === 401) {
+        localStorage.removeItem('sovli_user_cache');
+        logout(false);
+        if (error.message?.includes('гостевого')) setAuthError(error.message);
+      } else if (cachedUser?.id) {
+        showApp();
+        connectSocket();
+        showToast('Восстанавливаем связь с сервером. Аккаунт сохранён.');
+      } else {
+        showAuth();
+        setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
+      }
+    }
+  } catch (error) {
+    console.error('[SOLVI] Ошибка запуска интерфейса:', error);
+    if (cachedUser?.id) {
+      try { setUser(cachedUser); } catch (cacheError) { console.error('[SOLVI] Не удалось восстановить кеш профиля:', cacheError); }
+      showApp();
+      showToast('Интерфейс открылся в режиме восстановления. Обнови страницу, когда связь восстановится.');
     } else {
       showAuth();
-      setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
+      setAuthError('Не удалось запустить интерфейс. Обнови страницу; повторная регистрация не нужна.');
     }
   } finally {
     state.authRestoring = false;
-    bootScreen.hidden = true;
+    if (bootScreen) bootScreen.hidden = true;
     document.documentElement.classList.remove('session-checking');
   }
 }
@@ -2098,7 +2134,12 @@ $('#sidePublicId').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(state.user.publicId); showToast('Технический ID скопирован. Для входа используй ник и пароль.'); }
   catch { showToast(`Твой ID: ${state.user.publicId}`); }
 });
-$('[data-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.view, button.id === 'brandHomeLink')));
+document.addEventListener('click', event => {
+  const button = event.target?.closest?.('[data-view]');
+  if (!button) return;
+  if (button.tagName === 'A') event.preventDefault();
+  setView(button.dataset.view, button.id === 'brandHomeLink');
+}, true);
 $('#settingSounds').addEventListener('change', () => scheduleSettingsSave({ sounds: $('#settingSounds').checked }));
 $('#settingSoundVolume').addEventListener('input', () => { $('#soundVolumeLabel').textContent = `${$('#settingSoundVolume').value}%`; });
 $('#settingSoundVolume').addEventListener('change', () => scheduleSettingsSave({ soundVolume: Number($('#settingSoundVolume').value) }));
