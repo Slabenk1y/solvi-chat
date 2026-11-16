@@ -114,6 +114,14 @@ try {
   if (!/\/styles\.css\?v=\d+/.test(html) || !/\/app\.js\?v=\d+/.test(html) || Number(html.match(/\/app\.js\?v=(\d+)/)?.[1] || 0) < 33) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
 
+  const filterSection = app.slice(app.indexOf('function renderFilters()'), app.indexOf('function buildMatchingPreferences()'));
+  if (!filterSection || /const interestLimit = 0/.test(filterSection) || /state\.selected(?:Languages|Interests|FlirtInterests|RoleplayInterests)\s*=\s*\[/.test(filterSection)) fail('Фильтры поиска не должны сбрасываться при каждой перерисовке');
+  else pass('Фильтры поиска сохраняют выбор пользователя при перерисовке');
+  if (!app.includes('languages: state.selectedLanguages') || !app.includes('interests\n  };')) fail('Выбранные языки/интересы не передаются в очередь подбора');
+  else pass('Настройки языков и интересов передаются в подбор');
+  if (!app.includes("if (bootScreen) bootScreen.hidden = true;") || !app.includes("document.documentElement.classList.remove('session-checking');")) fail('Экран восстановления сессии не имеет аварийного снятия блокировки');
+  else pass('Экран восстановления гарантированно скрывается при ошибке запуска');
+
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
   else pass('Ответы на собственные сообщения блокируются сервером');
   if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
