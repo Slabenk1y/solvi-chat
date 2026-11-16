@@ -62,6 +62,7 @@ const state = {
 
   token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
   user: null,
+  ownGender: '', inboxMessages: [], inboxUnread: 0,
   authRestoring: false,
   config: { languages: [], interests: [], flirtInterests: [], roleplayInterests: [], avatars: [], matchingEnabled: true, publicMode: false },
   settings: { theme: 'system', sounds: true, soundVolume: 35, messageScale: 'normal', reducedMotion: false, enterToSend: true, compactChat: false, browserNotifications: false },
@@ -83,7 +84,7 @@ const state = {
   searching: false,
   searchStartedAt: 0,
   searchInterval: null,
-  typingTimer: null,
+  typingTimer: null, lastTypingSentAt: 0, partnerTypingTimer: null, readPending: false, forceScrollToBottom: false,
   toastTimer: null,
   mediaUrls: new Map(),
   mediaLoading: new Set(),
@@ -376,7 +377,6 @@ function restoreStorePreview(showMessage = false) {
 }
 function renderStore(data) {
   state.storeData = data;
-  if($('#storeBillingEmail') && !$('#storeBillingEmail').value) $('#storeBillingEmail').value = String(data.billingEmail || '');
   $('#storeBalance').textContent = Number(data.balance || 0).toLocaleString('ru-RU');
   const categories = $('#storeCategories');
   categories.replaceChildren();
@@ -462,18 +462,6 @@ function renderStore(data) {
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
     footer.append(previewButton, price, action);
-    if(!item.owned && item.cashEnabled && Number(item.cashPriceMinor)>=30){
-      const cashButton=document.createElement('button');cashButton.type='button';cashButton.className='button button-primary store-cash-buy';
-      cashButton.textContent='Купить за '+(Number(item.cashPriceMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(item.cashCurrency||'EUR')});
-      cashButton.addEventListener('click',async()=>{
-        const email=$('#storeBillingEmail')?.value.trim()||'';
-        if(!email)return showToast('Сначала укажи email для платёжного чека.');
-        cashButton.disabled=true;
-        try{const checkout=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:item.id,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}
-        catch(error){showToast(error.message);cashButton.disabled=false;}
-      });
-      footer.append(cashButton);
-    }
     card.append(preview, meta, footer); root.append(card);
   });
   const bundleRoot = $('#customizationBundles');
@@ -498,12 +486,6 @@ function renderStore(data) {
       catch (error) { showToast(error.message); button.disabled = false; }
     });
     footer.append(price, button);
-    if(!bundle.owned && bundle.available && bundle.cashEnabled && Number(bundle.cashPriceMinor)>=30){
-      const cash=document.createElement('button');cash.type='button';cash.className='button button-primary store-cash-buy';
-      cash.textContent='Купить за '+(Number(bundle.cashPriceMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(bundle.cashCurrency||'EUR')});
-      cash.addEventListener('click',async()=>{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)return showToast('Сначала укажи email для платёжного чека.');cash.disabled=true;try{const checkout=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:bundle.id,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);cash.disabled=false;}});
-      footer.append(cash);
-    }
     card.append(label, title, copy, contents, footer); bundleRoot.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
@@ -524,12 +506,6 @@ function renderStore(data) {
       catch (error) { showToast(error.message); button.disabled = false; }
     });
     card.append(label, title, copy, previewButton, price, button);
-    if(pack.cashEnabled && Number(pack.cashPriceMinor)>=30){
-      const cash=document.createElement('button');cash.type='button';cash.className='button button-primary store-cash-buy';
-      cash.textContent='Купить за '+(Number(pack.cashPriceMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(pack.cashCurrency||'EUR')});
-      cash.addEventListener('click',async()=>{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)return showToast('Сначала укажи email для платёжного чека.');cash.disabled=true;try{const checkout=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:pack.id,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);cash.disabled=false;}});
-      card.append(cash);
-    }
     membershipRoot.append(card);
   });
 }
@@ -634,7 +610,7 @@ async function loadStoreSponsoredAd(){
   }catch{root.hidden=true;}
 }
 async function loadStore() {
-  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadPaidMemberships(); await loadStoreSponsoredAd(); }
+  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadStoreSponsoredAd(); }
   catch (error) { showToast(error.message); }
 }
 async function loadTokenHistory() {
@@ -781,6 +757,27 @@ function renderSocialLinks(){
   });
   root.hidden=!root.children.length;
 }
+
+async function loadInbox() {
+  const root=$('#inboxList');if(!root)return;
+  try{
+    const data=await api('/api/inbox');state.inboxMessages=data.messages||[];state.inboxUnread=Number(data.unread||0);
+    const badge=$('#inboxUnreadBadge');if(badge){badge.hidden=state.inboxUnread<=0;badge.textContent=state.inboxUnread>99?'99+':String(state.inboxUnread);}
+    root.replaceChildren();
+    if(!state.inboxMessages.length){const empty=document.createElement('div');empty.className='favorites-empty';empty.textContent='Пока нет сообщений от команды SOLVI.';root.append(empty);return;}
+    state.inboxMessages.forEach(message=>{
+      const card=document.createElement('article');card.className='inbox-message-card'+(message.read_at?'':' unread');
+      const head=document.createElement('div');head.className='inbox-message-head';
+      const title=document.createElement('strong');title.textContent=message.subject||'Сообщение SOLVI';
+      const time=document.createElement('time');time.textContent=new Date(message.created_at).toLocaleString('ru-RU');head.append(title,time);
+      const sender=document.createElement('small');sender.textContent='От: '+(message.sender_name||'Команда SOLVI');
+      const body=document.createElement('p');body.textContent=message.body;card.append(head,sender,body);
+      if(!message.read_at){const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent='Отметить прочитанным';button.addEventListener('click',async()=>{button.disabled=true;try{await api('/api/inbox/'+encodeURIComponent(message.id)+'/read',{method:'POST',body:'{}'});await loadInbox();}catch(error){showToast(error.message);button.disabled=false;}});card.append(button);}
+      root.append(card);
+    });
+  }catch(error){showToast(error.message);}
+}
+
 async function loadTickets() {
   try { const data = await api('/api/tickets'); state.tickets = data.tickets || []; renderTicketList(); }
   catch (error) { showToast(error.message); }
@@ -885,11 +882,11 @@ async function loadSessions() {
 
 function setAuthError(message = '') { $('#authError').textContent = message; }
 function currentView() {
-  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked'].find(name => !$(`#${name}Panel`).hidden) || 'home';
+  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'inbox', 'feedback', 'growth', 'blocked'].find(name => !$(`#${name}Panel`).hidden) || 'home';
 }
-function setView(view) {
-  if (view === 'home' && state.activeMatch) view = 'chat';
-  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked'].forEach(name => {
+function setView(view, forceHome = false) {
+  if (view === 'home' && state.activeMatch && !forceHome) view = 'chat';
+  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'inbox', 'feedback', 'growth', 'blocked'].forEach(name => {
     const panel = $(`#${name}Panel`);
     if (panel) panel.hidden = name !== view;
   });
@@ -899,10 +896,11 @@ function setView(view) {
     requestAnimationFrame(() => activePanel.classList.add('view-enter'));
   }
   $$('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === (view === 'search' || view === 'chat' ? 'home' : view)));
-  if (view === 'chat') scrollMessages();
+  if (view === 'chat') scrollMessages(true);
   if (view === 'store') loadStore();
   if (view === 'inventory') loadInventory();
   if (view === 'favorites') loadFavorites();
+  if (view === 'inbox') loadInbox();
   if (view === 'feedback') loadTickets();
   if (view === 'growth') loadGrowthTasks();
   if (view === 'blocked') loadBlockedUsers();
@@ -944,16 +942,13 @@ function setUser(user) {
   $('#profileTokenBalance').textContent = Number(user.tokens || 0).toLocaleString('ru-RU');
   $('#profileCreatedAt').textContent = `В SOLVI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
   $('#profileUsername').value = user.username;
-  if ($('#profileGender')) $('#profileGender').value = user.gender || '';
-  if ($('#profileDescription')) $('#profileDescription').value = user.description || '';
+  if (isNewAccount) state.ownGender = ['male', 'female', 'other'].includes(user.gender) ? user.gender : '';
+  else if (['male', 'female', 'other'].includes(user.gender)) state.ownGender = user.gender;
+  if ($('#ownGender')) $('#ownGender').value = state.ownGender;
   const isGuest = user.accountType === 'guest';
   $('#profileUsername').disabled = isGuest;
   $('#profileUsernameLabel').hidden = isGuest;
   $('#profileUsername').hidden = isGuest;
-  $('#profileGenderLabel').hidden = isGuest;
-  $('#profileGender').hidden = isGuest;
-  $('#profileDescriptionLabel').hidden = isGuest;
-  $('#profileDescription').hidden = isGuest;
   $('#saveProfileButton').hidden = isGuest;
   $('#avatarOptions').hidden = false;
   $('#avatarUploadButton').hidden = false;
@@ -1052,6 +1047,7 @@ function renderFilters() {
     button.setAttribute('aria-pressed', String(active));
   });
   $('#desiredGender').value = state.desiredGender;
+  if ($('#ownGender')) $('#ownGender').value = state.ownGender || '';
   $('#roleplayIntent').value = state.roleplayIntent;
   $('#standardInterestBlock').hidden = true;
   $('#flirtSettings').hidden = state.matchingMode !== 'flirt';
@@ -1082,7 +1078,7 @@ function renderFilters() {
 
 function buildMatchingPreferences() {
   return {
-    mode: state.matchingMode, desiredGender: state.desiredGender, roleplayIntent: state.roleplayIntent,
+    mode: state.matchingMode, ownGender: state.ownGender, desiredGender: state.desiredGender, roleplayIntent: state.roleplayIntent,
     adultConfirmed: state.matchingMode === 'flirt' ? $('#flirtAdultConsent').checked : (state.matchingMode === 'roleplay' ? $('#roleplayAdultConsent').checked : false),
     languages: ['Русский'], interests: []
   };
@@ -1093,9 +1089,9 @@ function validateMatchingPreferences() {
     showToast('Для этого режима подтверди, что тебе уже исполнилось 18 лет.');
     return false;
   }
-  if (state.desiredGender !== 'any' && !['male', 'female', 'other'].includes(state.user?.gender)) {
-    showToast('Сначала укажи свой пол в профиле — это нужно для взаимного подбора.');
-    setView('profile');
+  if (!['male', 'female', 'other'].includes(state.ownGender)) {
+    showToast('Сначала выбери свой пол в форме поиска — он нужен для взаимного подбора.');
+    $('#ownGender')?.focus();
     return false;
   }
   return true;
@@ -1149,6 +1145,7 @@ function connectSocket() {
     }
   });
   socket.on('disconnect', () => {
+    state.readPending = false;
     if (state.searching) $('#searchStatusText').textContent = 'Связь прервалась. Восстанавливаем подключение…';
     if (state.activeMatch) $('#partnerStateText').textContent = 'Переподключение…';
   });
@@ -1157,6 +1154,12 @@ function connectSocket() {
   socket.on('moderation:notice', payload => {
     const message = String(payload?.message || '').trim();
     if (message) showToast(`Сообщение от команды SOLVI: ${message}`, 7500);
+  });
+  socket.on('site:message', payload => {
+    const subject=String(payload?.subject||'Сообщение от SOLVI').trim(),body=String(payload?.body||'').trim();
+    if(body)showToast(subject+': '+body,8000);
+    if(currentView()==='inbox')loadInbox().catch(()=>{});
+    if(document.visibilityState==='hidden'&&state.settings.browserNotifications&&'Notification' in window&&Notification.permission==='granted')new Notification(subject,{body:body.slice(0,160),icon:'/favicon.svg',tag:payload?.id||'solvi-site-message'});
   });
   socket.on('queue:waiting', () => {
     if (state.searching) $('#searchStatusText').textContent = 'Подбираем собеседника на русском языке.';
@@ -1209,7 +1212,10 @@ function connectSocket() {
     if (message) { message.reactions = data.reactions || []; renderMessages(); }
   });
   socket.on('chat:typing', data => {
-    if (data.userId === state.activeMatch?.partner?.id) $('#typingIndicator').hidden = !data.typing;
+    if (data.userId !== state.activeMatch?.partner?.id) return;
+    $('#typingIndicator').hidden = !data.typing;
+    clearTimeout(state.partnerTypingTimer);
+    if (data.typing) state.partnerTypingTimer = setTimeout(() => { $('#typingIndicator').hidden = true; }, 2200);
   });
   socket.on('chat:recording', data => {
     if (data.userId === state.activeMatch?.partner?.id) $('#recordingIndicator').hidden = !data.recording;
@@ -1350,6 +1356,8 @@ function reactToMessage(messageId, emoji) {
 }
 function renderMessages() {
   const container = $('#messages');
+  const stickToBottom = state.forceScrollToBottom || (container.scrollHeight - container.scrollTop - container.clientHeight < 150);
+  state.forceScrollToBottom = false;
   container.replaceChildren();
   if (!state.messages.length) {
     const empty = document.createElement('div');
@@ -1467,7 +1475,7 @@ function renderMessages() {
       const pill = document.createElement(mine ? 'span' : 'button');
       if (!mine) { pill.type = 'button'; pill.addEventListener('click', () => reactToMessage(message.id, reaction.emoji)); }
       pill.className = `reaction-pill${reaction.mine ? ' mine' : ''}`;
-      pill.textContent = `${reaction.emoji} ${reaction.count}`;
+      pill.textContent = `${reaction.emoji}${Number(reaction.count) > 1 ? ` ${reaction.count}` : ''}`;
       reactions.append(pill);
     });
     if (!String(message.id).startsWith('pending:') && !mine) {
@@ -1494,11 +1502,11 @@ function renderMessages() {
     if (reactions.children.length) row.append(reactions);
     container.append(row);
   });
-  scrollMessages();
+  if (stickToBottom) scrollMessages(true);
 }
-function scrollMessages() {
+function scrollMessages(force = false) {
   const container = $('#messages');
-  if (container) container.scrollTop = container.scrollHeight;
+  if (container && force) container.scrollTop = container.scrollHeight;
 }
 function mergeMessage(incoming) {
   const index = state.messages.findIndex(message => message.id === incoming.id || (message.client_id && message.client_id === incoming.client_id && message.sender_id === incoming.sender_id));
@@ -1508,8 +1516,9 @@ function mergeMessage(incoming) {
   renderMessages();
 }
 function markRead() {
-  if (!state.socket?.connected || !state.activeMatch) return;
-  state.socket.emit('chat:read', { matchId: state.activeMatch.matchId });
+  if (!state.socket?.connected || !state.activeMatch || state.readPending || document.visibilityState !== 'visible' || $('#chatPanel')?.hidden) return;
+  state.readPending = true;
+  state.socket.emit('chat:read', { matchId: state.activeMatch.matchId }, () => { state.readPending = false; });
 }
 function startSearch() {
   if (state.config.matchingEnabled === false) { showToast('Публичный подбор пока отключён до завершения проверки безопасности.'); return; }
@@ -1603,6 +1612,7 @@ function sendMessage(content, clientId, extras = {}) {
     sender_id: state.user.id, client_id: clientId, content, replyTo: replyToId ? { id: replyToId, content: state.replyTarget?.content || '' } : null, attachments: attachments.map(id => ({ id, kind: extras.kind || 'image', url: '' })), sticker, type: sticker ? 'sticker' : (attachments.length ? (extras.kind === 'audio' ? 'voice' : 'media') : 'text'),
     created_at: new Date().toISOString(), status: 'sending'
   };
+  state.forceScrollToBottom = true;
   mergeMessage(message);
   state.outbox.push({ matchId: state.activeMatch.matchId, clientId, content, attachments, attachmentKind: extras.kind || 'image', sticker, replyToId });
   state.replyTarget = null; if ($('#replyPreview')) $('#replyPreview').hidden = true;
@@ -2098,6 +2108,7 @@ $$('[data-match-mode]').forEach(button => button.addEventListener('click', () =>
   state.matchingMode = button.dataset.matchMode; $('#flirtAdultConsent').checked = false; $('#roleplayAdultConsent').checked = false; renderFilters();
 }));
 $('#desiredGender').addEventListener('change', () => { state.desiredGender = $('#desiredGender').value; renderFilters(); });
+$('#ownGender').addEventListener('change', () => { state.ownGender = $('#ownGender').value; });
 $('#roleplayIntent').addEventListener('change', () => { state.roleplayIntent = $('#roleplayIntent').value; renderFilters(); });
 $('#findButton').addEventListener('click', startSearch);
 $('#clearFiltersButton').addEventListener('click', () => { state.selectedLanguages = []; state.selectedInterests = []; state.selectedFlirtInterests = []; state.selectedRoleplayInterests = []; state.desiredGender = 'any'; $('#flirtAdultConsent').checked = false; $('#roleplayAdultConsent').checked = false; $('#languagesDropdown').open = false; $('#interestsDropdown').open = false; renderFilters(); showToast('Фильтры сброшены.'); });
@@ -2206,9 +2217,10 @@ $('#messageInput').addEventListener('input', () => {
   input.style.height = `${Math.min(input.scrollHeight, 110)}px`;
   saveDraft(input.value);
   if (!state.activeMatch || !state.socket?.connected) return;
-  state.socket.emit('chat:typing', { matchId: state.activeMatch.matchId, typing: true });
+  const now = Date.now();
+  if (now - state.lastTypingSentAt >= 450) { state.lastTypingSentAt = now; state.socket.emit('chat:typing', { matchId: state.activeMatch.matchId, typing: true }); }
   clearTimeout(state.typingTimer);
-  state.typingTimer = setTimeout(() => state.socket?.emit('chat:typing', { matchId: state.activeMatch?.matchId, typing: false }), 1200);
+  state.typingTimer = setTimeout(() => { state.socket?.emit('chat:typing', { matchId: state.activeMatch?.matchId, typing: false }); state.lastTypingSentAt = 0; }, 1500);
 });
 $('#messageInput').addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && state.settings.enterToSend !== false) { event.preventDefault(); $('#messageForm').requestSubmit(); }
@@ -2226,7 +2238,7 @@ $('#saveProfileButton').addEventListener('click', async () => {
   const button = $('#saveProfileButton');
   button.disabled = true;
   try {
-    const profilePatch = { username: $('#profileUsername').value, description: $('#profileDescription')?.value || '', gender: $('#profileGender').value };
+    const profilePatch = { username: $('#profileUsername').value };
     if (state.selectedAvatar) profilePatch.avatar = state.selectedAvatar;
     const result = await api('/api/profile', { method: 'PATCH', body: JSON.stringify(profilePatch) });
     setUser(result.user);

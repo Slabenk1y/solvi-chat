@@ -69,7 +69,7 @@
     const configs={
       tokens:['Изменить баланс','Плюс начисляет токены, минус списывает.','Сохранить','<label>Количество токенов<input name="amount" type="number" min="-1000000" max="1000000" value="100" required></label><label>Комментарий (необязательно)<input name="comment" maxlength="160" placeholder="Например: подарок за активность"></label>'], 
       vip:['Привилегия','Продлить статус или вернуть обычный тариф.','Применить','<label>Статус<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option><option value="free">Обычный аккаунт</option></select></label><label>Дней<input name="days" type="number" min="1" max="365" value="7" required></label>'],
-      role:['Изменить роль','Роль определяет доступ к инструментам модерации.','Сохранить','<label>Роль<select name="role"><option value="member">Участник</option><option value="moderator">Модератор</option><option value="developer">Разработчик</option></select></label>'],
+      role:['Изменить роль','Это статусная отметка в профиле. Роли модератора и разработчика не дают доступ к панели владельца, платежам или управлению балансом. Эти права есть только у владельца.','Сохранить','<label>Роль<select name="role"><option value="member">Участник</option><option value="moderator">Модератор</option><option value="developer">Разработчик</option></select></label>'],
       suspend:['Ограничить аккаунт','Пользователь не сможет пользоваться аккаунтом до окончания срока.','Ограничить','<label>Срок<select name="minutes"><option value="10">10 минут</option><option value="60" selected>1 час</option><option value="1440">1 день</option><option value="10080">7 дней</option></select></label><label>Причина<input name="reason" maxlength="180" value="Нарушение правил" required></label>'],
       starterPack:['Стартовый подарок','Разовая награда: 100 токенов и 7 дней VIP.','Выдать подарок','<div class="grant-preview"><strong>🎁 100 ✦ + 7 дней VIP</strong><span>Сервер не позволит выдать подарок повторно.</span></div><label>Комментарий (необязательно)<input name="comment" maxlength="240" placeholder="Например: приветственный подарок"></label>'], 
       paidMembership:['Подтвердить оплату','Только после проверки реального поступления платежа.','Зафиксировать','<label>Тариф<select name="tier"><option value="vip">VIP</option><option value="premium">Premium</option></select></label><label>Дней<input name="days" type="number" min="1" max="365" value="30"></label><label>Сумма<input name="amount" type="number" min="0.01" step="0.01" value="4.99" required></label><label>Валюта<input name="currency" value="EUR" minlength="3" maxlength="3" required></label><label>ID платежа<input name="paymentReference" minlength="4" maxlength="120" required></label>'],
@@ -110,6 +110,24 @@
     if(!state.token)return false;
     try{await api('/api/admin/overview');$('#loginView').hidden=true;$('#dashboardView').hidden=false;$('#logoutButton').hidden=false;localStorage.setItem('sovli_admin_token',state.token);setConnection('Доступ подтверждён');await loadOverview();showTab('overview',false);return true;}
     catch(error){setConnection('Нужен вход',false);if(/только владельцу|не назначен владельцем/i.test(error.message))$('#loginError').textContent=error.message;return false;}
+  }
+  async function loadCleanupPreview(){
+    const root=$('#cleanupPreview');root.textContent='Проверяем сохраняемые аккаунты и список остальных пользователей…';root.dataset.ready='';$('#executeCleanupButton').disabled=true;
+    try{const r=await api('/api/admin/users/cleanup-preview');root.replaceChildren();const keep=document.createElement('p');keep.textContent='Останутся: '+r.keep.map(x=>x.username+' ('+x.role+')').join(' и ');const count=document.createElement('p');count.textContent='Будет удалено аккаунтов: '+num(r.deleteCount);const list=document.createElement('ul');(r.deletePreview||[]).forEach(x=>{const li=document.createElement('li');li.textContent=x.username+' · '+x.public_id+' · '+(x.account_type==='guest'?'гость':x.role);list.append(li);});root.append(keep,count,list);root.dataset.ready='1';$('#cleanupConfirmation').value='';toast('Список проверен. Просмотри его перед удалением.');}
+    catch(error){root.textContent=error.message;root.dataset.ready='';toast(error.message);}
+  }
+  async function executeCleanup(){
+    if($('#cleanupPreview').dataset.ready!=='1')return toast('Сначала проверь список.');
+    if($('#cleanupConfirmation').value.trim()!=='УДАЛИТЬ ВСЕ КРОМЕ SLABENK1Y И МАШИ')return toast('Фраза подтверждения не совпадает.');
+    const button=$('#executeCleanupButton');button.disabled=true;
+    try{const r=await api('/api/admin/users/cleanup',{method:'POST',body:JSON.stringify({confirmationPhrase:$('#cleanupConfirmation').value.trim()})});$('#cleanupPreview').dataset.ready='';$('#cleanupPreview').textContent='Удалено аккаунтов: '+num(r.deletedCount)+'. Сохранены: '+r.preserved.join(' и ')+'. Роль Маши: Участник.';$('#cleanupConfirmation').value='';await Promise.all([loadUsers('',false),loadOverview()]);toast('Очистка аккаунтов выполнена.');}
+    catch(error){toast(error.message);button.disabled=false;}
+  }
+  async function sendOwnerMessage(event){
+    event.preventDefault();const targetMode=$('#ownerMessageTarget').value,body=$('#ownerMessageBody').value.trim(),button=$('#ownerMessageSendButton');
+    if(body.length<2)return toast('Сообщение слишком короткое.');button.disabled=true;$('#ownerMessageResult').textContent='Отправляем…';
+    try{const payload={targetMode,subject:$('#ownerMessageSubject').value.trim(),body};if(targetMode==='user')payload.recipient=$('#ownerMessageRecipient').value.trim();const result=await api('/api/admin/messages',{method:'POST',body:JSON.stringify(payload)});$('#ownerMessageResult').textContent='Сообщение сохранено для получателей: '+num(result.recipientCount)+'.';$('#ownerMessageBody').value='';toast('Сообщение отправлено.');}
+    catch(error){$('#ownerMessageResult').textContent=error.message;toast(error.message);}finally{button.disabled=false;}
   }
   async function loadOverview(){
     const result=await Promise.all([api('/api/admin/overview'),api('/api/admin/economy')]);const o=result[0],e=result[1];
@@ -365,7 +383,7 @@
     document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
     if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
     if(load===false)return;
-    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),promos:loadPromos,monetization:loadMonetization,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
+    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),messages:()=>{},promos:loadPromos,monetization:loadMonetization,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
     Promise.resolve(loaders[name]()).catch(err=>toast(err.message));
     if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(err=>toast(err.message)),15000);
   }
@@ -382,6 +400,11 @@
   document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
   document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.go)));
   $('#userSearchForm').addEventListener('submit',e=>{e.preventDefault();loadUsers($('#userSearchInput').value.trim(),false).catch(err=>toast(err.message));});
+  $('#previewCleanupButton').addEventListener('click',loadCleanupPreview);
+  $('#cleanupConfirmation').addEventListener('input',()=>{$('#executeCleanupButton').disabled=$('#cleanupPreview').dataset.ready!=='1'||$('#cleanupConfirmation').value.trim()!=='УДАЛИТЬ ВСЕ КРОМЕ SLABENK1Y И МАШИ';});
+  $('#executeCleanupButton').addEventListener('click',executeCleanup);
+  $('#ownerMessageTarget').addEventListener('change',()=>{$('#ownerMessageRecipientWrap').hidden=$('#ownerMessageTarget').value!=='user';});
+  $('#ownerMessageForm').addEventListener('submit',sendOwnerMessage);
   $('#clearUserSearch').addEventListener('click',()=>{$('#userSearchInput').value='';loadUsers('',false).catch(err=>toast(err.message));});
   $('#loadMoreUsers').addEventListener('click',()=>loadUsers(state.userQuery,true).catch(err=>toast(err.message)));
   $('#userResults').addEventListener('click',e=>{const b=e.target.closest('[data-open-user]');if(b)openUserDetail(b.dataset.openUser);});

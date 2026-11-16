@@ -632,3 +632,36 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 .store-cash-buy:disabled{opacity:.55}
 
 .topup-pack-list select{width:100%;min-width:0}
+
+/* SOLVI UX refresh */
+.avatar-options{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;align-items:center;max-width:360px}
+.avatar-option{width:100%;aspect-ratio:1;min-width:0;display:grid;place-items:center;padding:0}
+.message-row{max-width:min(90%,780px)}
+.message-bubble{font-size:14px;line-height:1.65;padding:12px 15px;max-width:100%}
+.message-text{white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
+.message-image{width:auto;max-width:min(100%,540px);max-height:460px;object-fit:contain}
+.message-audio{width:min(100%,420px);max-width:100%}
+.inbox-message-list{display:grid;gap:10px;max-width:900px}
+.inbox-message-card{padding:16px 18px;border:1px solid var(--line);border-radius:15px;background:var(--surface);display:grid;gap:9px}
+.inbox-message-card.unread{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
+.inbox-message-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.inbox-message-head strong{font-size:14px;color:var(--ink)}
+.inbox-message-head time,.inbox-message-card small{font-size:10px;color:var(--muted)}
+.inbox-message-card p{margin:0;color:var(--ink);font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.inbox-unread-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:20px;background:var(--primary);color:#fff;font-size:9px;font-weight:800}
+.mobile-nav{display:none}
+@media(max-width:700px){
+ .app-view{padding:0 10px calc(92px + env(safe-area-inset-bottom))}
+ .mobile-nav{display:flex;position:fixed;z-index:80;left:8px;right:8px;bottom:max(7px,env(safe-area-inset-bottom));gap:3px;overflow-x:auto;overscroll-behavior-x:contain;padding:7px 5px calc(7px + env(safe-area-inset-bottom));border:1px solid rgba(220,220,240,.9);border-radius:17px;background:rgba(255,255,255,.96);box-shadow:0 8px 35px rgba(35,34,70,.16);backdrop-filter:blur(16px);scrollbar-width:none}
+ .mobile-nav::-webkit-scrollbar{display:none}
+ .mobile-nav button{flex:1 0 58px;min-width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;border:0;border-radius:11px;background:transparent;color:#85859a;padding:4px 3px}
+ .mobile-nav button span{font-size:17px;line-height:1}.mobile-nav button small{font-size:8px;line-height:1.1;white-space:nowrap}
+ .mobile-nav button.active{background:var(--primary-soft);color:var(--primary)}
+ .chat-panel{height:calc(100dvh - 166px);min-height:400px}.chat-topline{gap:8px}.chat-partner strong{max-width:clamp(85px,28vw,180px)}
+ .chat-actions{flex-wrap:wrap;justify-content:flex-end}.messages{padding:13px 10px;gap:13px}.message-row{max-width:94%}
+ .message-bubble{font-size:13px;line-height:1.58;padding:10px 12px}.message-image{max-width:min(78vw,460px);max-height:38dvh;object-fit:contain}
+ .message-audio{width:min(76vw,340px)}.message-reactions{max-width:94vw}.avatar-options{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+ .avatar-option{max-width:48px;justify-self:center}.settings-grid,.store-grid,.favorites-list{gap:11px}.settings-card{padding:14px}
+ .settings-card-copy p{font-size:11px;line-height:1.55}.inbox-message-card{padding:13px}.inbox-message-head{flex-direction:column;gap:4px}
+}
+@media(min-width:701px){.chat-panel{height:min(860px,calc(100dvh - 150px));min-height:560px}}

@@ -246,3 +246,8 @@ button,input,select,textarea,.tab,.user-card,.secondary,.ghost,.primary,.danger{
 :root[data-theme="dark"] .login-card label{color:#bdc5d7}
 :root[data-theme="dark"] .report-main p,:root[data-theme="dark"] .optional{color:#a8b2c7}
 :root[data-theme="dark"] .error{color:#ff929f}
+
+.cleanup-preview{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft);color:var(--ink);font-size:10px;line-height:1.55;overflow-wrap:anywhere}
+.cleanup-preview ul{margin:8px 0;padding-left:20px;max-height:280px;overflow:auto}
+.owner-cleanup-card{margin-top:14px}.owner-message-card{max-width:900px}.owner-message-card textarea{width:100%;min-height:120px}
+@media(max-width:760px){.cleanup-preview{font-size:9px}.owner-message-card .form-grid{grid-template-columns:1fr}}

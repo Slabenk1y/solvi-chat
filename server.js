@@ -655,8 +655,9 @@ function addToQueue(socket, preferences) {
   if (!user) return { ok: false, error: 'Аккаунт не найден. Войдите снова.' };
   const mode = ['chat', 'flirt', 'roleplay'].includes(preferences?.mode) ? preferences.mode : 'chat';
   const desiredGender = ['any', 'male', 'female', 'other'].includes(preferences?.desiredGender) ? preferences.desiredGender : 'any';
-  const ownGender = ['male', 'female', 'other'].includes(user.gender) ? user.gender : '';
-  if (desiredGender !== 'any' && !ownGender) return { ok: false, error: 'Сначала укажи свой пол в профиле, чтобы фильтр пола работал для обеих сторон.' };
+  const ownGender = ['male', 'female', 'other'].includes(preferences?.ownGender) ? preferences.ownGender : (['male', 'female', 'other'].includes(user.gender) ? user.gender : '');
+  if (!ownGender) return { ok: false, error: 'Выбери свой пол в форме поиска — он нужен для взаимного подбора.' };
+  if (user.gender !== ownGender) dbRun('UPDATE users SET gender = ? WHERE id = ?', [ownGender, userId]);
   if (mode !== 'chat') {
     if (user.account_type === 'guest') return { ok: false, error: 'Режимы 18+ доступны только постоянным аккаунтам.' };
     if (preferences?.adultConfirmed !== true) return { ok: false, error: 'Для режима 18+ подтверди, что тебе уже исполнилось 18 лет.' };
@@ -1052,6 +1053,12 @@ async function main() {
       id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL,
       target_id TEXT, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS user_inbox_messages (
+      id TEXT PRIMARY KEY, recipient_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL DEFAULT '', body TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS user_inbox_recipient_created ON user_inbox_messages(recipient_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS token_earning_daily (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, day TEXT NOT NULL,
       earned INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(user_id, day)
@@ -1748,13 +1755,13 @@ async function main() {
     const equipped = getEquippedItems(req.user.id);
     const items = STORE_CATALOG.map(item => {
       const override = storePrice(item.id, item.price);
-      return { ...item, price: override.price, enabled: override.enabled, ...cashStorePrice(item.id), owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
+      return { ...item, price: override.price, enabled: override.enabled, owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
     });
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
-    res.json({ balance: Number(user.tokens || 0), billingEmail: String(user.billing_email || ''), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
-      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), current: effectiveSubscription(user) === item.tier })),
-      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), ...cashStorePrice(bundle.id), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id]) || dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectivePaidSubscription(user)) : effectivePaidSubscription(user) === 'premium', requirement: 'Только при активной привилегии, оплаченной реальными деньгами' })) });
+    res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
+      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), current: effectiveSubscription(user) === item.tier })),
+      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id]) || dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectiveSubscription(user)) : effectiveSubscription(user) === 'premium', requirement: 'Нужен активный VIP или Premium' })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
@@ -1794,8 +1801,8 @@ async function main() {
     if (!bundle) return res.status(404).json({ error: 'Фирменный набор не найден.' });
     const bundlePrice = storePrice(bundle.id, bundle.price);
     if (!bundlePrice.enabled) return res.status(404).json({ error: 'Этот набор временно снят с продажи.' });
-    const paidTier = effectivePaidSubscription(req.user);
-    if (bundle.tier === 'premium' ? paidTier !== 'premium' : !['vip', 'premium'].includes(paidTier)) return res.status(403).json({ error: 'Наборы доступны только при активной VIP/Premium-привилегии, оплаченной реальными деньгами. Покупка статуса за токены не подходит.' });
+    const activeTier = effectiveSubscription(req.user);
+    if (bundle.tier === 'premium' ? activeTier !== 'premium' : !['vip', 'premium'].includes(activeTier)) return res.status(403).json({ error: 'Набор доступен при активном статусе VIP или Premium.' });
     try {
       transaction(() => {
         if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id])) throw new Error('Этот набор уже приобретён.');
@@ -2360,6 +2367,55 @@ async function main() {
       : dbAll(`SELECT ${projection} FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`, [limit, offset]);
     res.json({ users: rows.map(row => ({ ...row, owner: isOwner(row), online: onlineUserIds().has(row.id) })), total, offset, hasMore: offset + rows.length < total });
   });
+
+  function resolveCleanupKeepers(){
+    const ownerPublicId=String(process.env.OWNER_PUBLIC_ID||'').trim();
+    const ownerRef=ownerPublicId?dbGet('SELECT id FROM users WHERE public_id=?',[ownerPublicId]):null;
+    const owner=ownerRef?getUserById(ownerRef.id):null;
+    if(!owner||String(owner.username||'').trim().toLocaleLowerCase('ru-RU')!=='slabenk1y')return {error:'Не удалось подтвердить владельца slabenk1y через OWNER_PUBLIC_ID. Очистка отменена.'};
+    const people=dbAll('SELECT id,username FROM users');
+    const matches=people.filter(x=>['маша','masha'].includes(String(x.username||'').trim().toLocaleLowerCase('ru-RU')));
+    if(matches.length!==1)return {error:matches.length?'Найдено несколько аккаунтов Маши. Ничего не удалено.':'Не найден аккаунт Маши. Ничего не удалено.'};
+    if(matches[0].id===owner.id)return {error:'Аккаунт владельца совпал с аккаунтом Маши. Очистка отменена.'};
+    return {owner,masha:getUserById(matches[0].id)};
+  }
+  app.get('/api/admin/users/cleanup-preview',authMiddleware,ownerOnly,(_req,res)=>{
+    const keep=resolveCleanupKeepers();if(keep.error)return res.status(409).json({error:keep.error});
+    const rows=dbAll('SELECT username,public_id,role,account_type FROM users WHERE id NOT IN (?,?) ORDER BY created_at DESC',[keep.owner.id,keep.masha.id]);
+    res.json({keep:[{username:keep.owner.username,publicId:keep.owner.public_id,role:'owner'},{username:keep.masha.username,publicId:keep.masha.public_id,role:keep.masha.role}],deleteCount:rows.length,deletePreview:rows,confirmationPhrase:'УДАЛИТЬ ВСЕ КРОМЕ SLABENK1Y И МАШИ'});
+  });
+  app.post('/api/admin/users/cleanup',authMiddleware,ownerOnly,(req,res)=>{
+    if(String(req.body?.confirmationPhrase||'').trim()!=='УДАЛИТЬ ВСЕ КРОМЕ SLABENK1Y И МАШИ')return res.status(400).json({error:'Введи фразу подтверждения полностью. Ничего не удалено.'});
+    const keep=resolveCleanupKeepers();if(keep.error)return res.status(409).json({error:keep.error});
+    const rows=dbAll('SELECT * FROM users WHERE id NOT IN (?,?)',[keep.owner.id,keep.masha.id]),media=[],avatars=[];
+    transaction(()=>{
+      for(const target of rows){
+        if(target.avatar_file)avatars.push(target.avatar_file);
+        media.push(...dbAll('SELECT stored_name FROM media_files WHERE owner_id=? OR match_id IN (SELECT id FROM matches WHERE user1_id=? OR user2_id=?)',[target.id,target.id,target.id]));
+        for(const socket of io.sockets.sockets.values())if(socket.data.userId===target.id)socket.disconnect(true);
+        removeFromQueue(target.id);
+        dbRun('DELETE FROM matches WHERE user1_id=? OR user2_id=?',[target.id,target.id]);
+        dbRun('DELETE FROM blocks WHERE blocker_id=? OR blocked_id=?',[target.id,target.id]);
+        dbRun('DELETE FROM reports WHERE reporter_id=? OR reported_id=?',[target.id,target.id]);
+        dbRun('DELETE FROM admin_audit_log WHERE actor_id=?',[target.id]);
+        dbRun('DELETE FROM moderation_actions WHERE actor_id=?',[target.id]);
+        dbRun('UPDATE reward_task_submissions SET reviewed_by=NULL WHERE reviewed_by=?',[target.id]);
+        dbRun('UPDATE reports_status SET reviewed_by=NULL WHERE reviewed_by=?',[target.id]);
+        dbRun('UPDATE promo_codes SET created_by=NULL WHERE created_by=?',[target.id]);
+        dbRun('UPDATE store_price_overrides SET updated_by=NULL WHERE updated_by=?',[target.id]);
+        dbRun('UPDATE cash_store_price_overrides SET updated_by=NULL WHERE updated_by=?',[target.id]);
+        dbRun('DELETE FROM favorite_chat_drafts WHERE user_id=? OR partner_id=?',[target.id,target.id]);
+        dbRun('DELETE FROM favorite_chats WHERE user_id=? OR partner_id=?',[target.id,target.id]);
+        dbRun('DELETE FROM users WHERE id=?',[target.id]);
+      }
+      dbRun("UPDATE users SET role='member' WHERE id=?",[keep.masha.id]);
+      auditAdmin(req.user.id,'cleanup_test_users',null,{deletedCount:rows.length,preserved:[keep.owner.username,keep.masha.username],mashaRole:'member'});
+    });
+    for(const file of media)removeStoredFiles([file]);
+    for(const file of avatars){try{fs.unlinkSync(path.join(AVATAR_DIR,path.basename(file)));}catch{/* best effort */}}
+    res.json({ok:true,deletedCount:rows.length,preserved:[keep.owner.username,keep.masha.username],mashaRole:'member'});
+  });
+
   app.get('/api/admin/users/:id', authMiddleware, ownerOnly, (req, res) => {
     const target = getUserById(req.params.id);
     if (!target) return res.status(404).json({ error: 'Пользователь не найден.' });
@@ -2710,6 +2766,35 @@ async function main() {
     const tx = dbAll('SELECT kind, COALESCE(SUM(amount),0) AS amount, COUNT(*) AS count FROM token_transactions WHERE created_at >= ? GROUP BY kind ORDER BY kind', [`${today}T00:00:00.000Z`]);
     res.json({ today, earnedToday, totalTokens, transactions: tx });
   });
+
+  app.post('/api/admin/messages', authMiddleware, ownerOnly, (req, res) => {
+    const targetMode=['user','online','all'].includes(req.body?.targetMode)?req.body.targetMode:'all';
+    const subject=typeof req.body?.subject==='string'?req.body.subject.trim().slice(0,90):'';
+    const body=typeof req.body?.body==='string'?req.body.body.trim().slice(0,3000):'';
+    if(body.length<2)return res.status(400).json({error:'Напиши сообщение минимум из двух символов.'});
+    let recipients=[];
+    if(targetMode==='all')recipients=dbAll('SELECT id FROM users');
+    else if(targetMode==='online')recipients=[...onlineUserIds()].map(id=>({id}));
+    else{
+      const identifier=typeof req.body?.recipient==='string'?req.body.recipient.trim():'';
+      if(!identifier)return res.status(400).json({error:'Укажи никнейм, Public ID или ID пользователя.'});
+      let target=dbGet('SELECT id FROM users WHERE id=? OR public_id=? LIMIT 1',[identifier,identifier.toUpperCase()]);
+      if(!target){const normalized=identifier.toLocaleLowerCase('ru-RU');target=dbAll('SELECT id,username FROM users').find(row=>String(row.username||'').trim().toLocaleLowerCase('ru-RU')===normalized);}
+      if(!target)return res.status(404).json({error:'Пользователь с таким ником или ID не найден.'});
+      recipients=[target];
+    }
+    const unique=[...new Map(recipients.map(row=>[row.id,row])).values()];
+    if(!unique.length)return res.status(409).json({error:'В выбранной аудитории сейчас нет пользователей.'});
+    const createdAt=nowIso();
+    const messages=unique.map(row=>({id:crypto.randomUUID(),recipientId:row.id}));
+    transaction(()=>{
+      for(const item of messages)dbRun('INSERT INTO user_inbox_messages (id,recipient_id,sender_id,subject,body,created_at) VALUES (?,?,?,?,?,?)',[item.id,item.recipientId,req.user.id,subject,body,createdAt]);
+      auditAdmin(req.user.id,'owner_message_sent',targetMode==='user'?unique[0].id:null,{targetMode,recipientCount:messages.length,subject});
+    });
+    for(const item of messages)io.to(userRoom(item.recipientId)).emit('site:message',{id:item.id,subject,body,createdAt,senderName:req.user.username});
+    res.json({ok:true,recipientCount:messages.length,targetMode});
+  });
+
   app.get('/api/admin/audit', authMiddleware, ownerOnly, (_req, res) => {
     res.json({ entries: dbAll('SELECT action, target_id, details_json, created_at FROM admin_audit_log ORDER BY created_at DESC LIMIT 200').map(row => ({ ...row, details: JSON.parse(row.details_json || '{}') })) });
   });
@@ -2890,6 +2975,20 @@ async function main() {
     if (isOwner(target)) return res.status(403).json({ error: 'Нельзя снять ограничение с владельца этой операцией.' });
     dbRun('UPDATE users SET suspended_until = NULL, suspension_reason = NULL WHERE id = ?', [target.id]);
     auditAdmin(req.user.id, 'unsuspend_user', target.id, {});
+    res.json({ ok: true });
+  });
+
+
+  app.get('/api/inbox', authMiddleware, (req, res) => {
+    const messages = dbAll(`SELECT m.id,m.subject,m.body,m.created_at,m.read_at,u.username AS sender_name
+      FROM user_inbox_messages m JOIN users u ON u.id=m.sender_id
+      WHERE m.recipient_id=? ORDER BY m.created_at DESC LIMIT 100`, [req.user.id]);
+    const unread = Number(dbGet('SELECT COUNT(*) AS n FROM user_inbox_messages WHERE recipient_id=? AND read_at IS NULL', [req.user.id])?.n || 0);
+    res.json({ messages, unread });
+  });
+  app.post('/api/inbox/:id/read', authMiddleware, (req, res) => {
+    const result = dbRun('UPDATE user_inbox_messages SET read_at=COALESCE(read_at,?) WHERE id=? AND recipient_id=?', [nowIso(), req.params.id, req.user.id]);
+    if (!result.changes) return res.status(404).json({ error: 'Сообщение не найдено.' });
     res.json({ ok: true });
   });
 
