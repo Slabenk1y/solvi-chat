@@ -959,6 +959,7 @@ function showApp() {
   $('#authView').hidden = true;
   $('#appView').hidden = false;
   setView('home');
+  if (state.token) loadInbox().catch(() => {});
 }
 function switchAuthMode(mode) {
   state.authMode = mode;
