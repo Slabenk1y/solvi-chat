@@ -22,8 +22,8 @@ try {
   else pass('Три режима и серверная фильтрация пола/формата подключены');
   if (!matchingServer.includes("preferences?.adultConfirmed !== true") || !matchingServer.includes("UPDATE users SET adult_asserted_at = ?")) fail('Серверное подтверждение 18+ отсутствует');
   else pass('Согласие 18+ проверяется сервером и сохраняется');
-  if (!matchingHtml.includes('id="flirtAdultConsent"') || !matchingHtml.includes('id="roleplayAdultConsent"') || !matchingHtml.includes('id="profileGender"')) fail('Не найдены элементы подтверждения возраста или пола');
-  else pass('Формы взрослых режимов и пола в профиле присутствуют');
+  if (!matchingHtml.includes('id="flirtAdultConsent"') || !matchingHtml.includes('id="roleplayAdultConsent"') || !matchingHtml.includes('id="ownGender"') || matchingHtml.includes('id="profileGender"')) fail('Не найдены формы согласия 18+ или выбор пола в форме поиска');
+  else pass('Согласие для взрослых режимов и выбор пола перед поиском присутствуют');
 
   const html = read('public/index.html');
   const ids = [...html.matchAll(/\bid\s*=\s*["']([^"']+)["']/g)].map(match => match[1]);
@@ -136,8 +136,8 @@ try {
   else pass('Подтверждения и текстовые запросы используют фирменные диалоги');
   if (!server.includes("app.post('/api/billing/token-topup/checkout'") || !server.includes("app.get('/api/billing/paymentwall/pingback'") || !server.includes("app.post('/api/billing/store/checkout'") || !server.includes("app.get('/api/billing/paymentwall/goods-pingback'") || !server.includes('buildDigitalGoodsCheckoutUrl') || !server.includes('verifyPingback') || !server.includes('paymentwall_token_purchases') || !server.includes('paymentwall_store_orders')) fail('Paymentwall VC/Digital Goods checkout, подписи и журнал заказов не подключены');
   else pass('Paymentwall: отдельные VC и Digital Goods кассы, подписанные pingback, идемпотентность и возвраты подключены');
-  if (!html.includes('id="paidMembershipOffers"') || !app.includes('loadPaidMemberships') || !app.includes('/api/billing/token-topup') || !app.includes('/api/billing/store/checkout')) fail('Денежные пополнения и покупки магазина не отображаются в интерфейсе');
-  else pass('Токены, отдельные денежные товары и VIP/Premium доступны через кассу SOLVI');
+  if (html.includes('id="paidMembershipOffers"') || html.includes('id="storeBillingEmail"') || app.includes('await loadPaidMemberships()')) fail('В интерфейсе остались денежные товары, поле email или вызов денежной кассы из магазина');
+  else pass('Публичный магазин использует токены; денежные товары и email-чек убраны из интерфейса');
   if (!server.includes("app.get('/api/ads/slot'") || !server.includes("app.post('/api/admin/ad-campaigns'") || !server.includes("app.patch('/api/admin/ad-campaigns/:id'") || !server.includes('payment_status IN (\'paid\',\'comped\')') || !html.includes('id="storeSponsoredAd"') || !ownerPanel.includes('adCampaignForm')) fail('Платные рекламные размещения не связаны между сервером, магазином и панелью владельца');
   else pass('Прямые рекламные кампании требуют оплаты, показываются в магазине и учитывают статистику');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
