@@ -586,8 +586,8 @@ test('users can view and remove their own blocklist entries', { timeout: 25_000 
     ]);
     const matchA = waitForEvent(socket1, 'match:found');
     const matchB = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket1.emit('queue:join', { ownGender: 'male' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket2.emit('queue:join', { ownGender: 'female' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
     const [foundA, foundB] = await Promise.all([matchA, matchB]);
     assert.equal(foundA.matchId, foundB.matchId);
     const blocked = await postJson(baseUrl, '/api/block', {}, first.token);
