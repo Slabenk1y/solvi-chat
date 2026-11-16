@@ -559,40 +559,6 @@ async function redeemPromo() {
   } catch (error) { $('#promoRedeemError').classList.remove('success-text'); $('#promoRedeemError').textContent = error.message; }
   finally { button.disabled = false; }
 }
-async function loadPaidMemberships(){
-  const root=$('#paidMembershipOffers');if(!root)return;
-  try{
-    const data=await api('/api/billing/token-topup');root.replaceChildren();const billingEmail=$('#storeBillingEmail');if(billingEmail&&!billingEmail.value&&data.billingEmail)billingEmail.value=data.billingEmail;
-    const card=document.createElement('article');card.className='paid-membership-card';
-    const kicker=document.createElement('span');kicker.className='membership-kicker';kicker.textContent='ПОПОЛНЕНИЕ БАЛАНСА';
-    const title=document.createElement('h3');title.textContent='Токены SOLVI';
-    const description=document.createElement('p');description.textContent='Покупай токены за реальные деньги на защищённой странице платёжного сервиса, затем трать их на VIP/Premium, темы, рамки, стикеры и другие товары магазина.';
-    const packages=document.createElement('div');packages.className='topup-pack-list';
-    (data.packages||[]).forEach(pack=>{const line=document.createElement('span');line.textContent=pack.name+' · '+Number(pack.tokens).toLocaleString('ru-RU')+' ✦';packages.append(line);});
-    const hint=document.createElement('p');hint.className='muted';hint.textContent='Точный пакет и способ оплаты выберешь на защищённой странице Paymentwall.';
-    const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Перейти к оплате':'Онлайн-платежи пока не подключены';button.disabled=!data.configured;
-    button.addEventListener('click',async()=>{button.disabled=true;try{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)throw new Error('Сначала укажи email для платёжного чека.');const checkout=await api('/api/billing/token-topup/checkout',{method:'POST',body:JSON.stringify({email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
-    card.append(kicker,title,description,packages,hint,button);root.append(card);
-    if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Для запуска пополнений нужны ключи PAYMENTWALL_VC_PUBLIC_KEY и PAYMENTWALL_VC_PRIVATE_KEY (или общие PAYMENTWALL_PUBLIC_KEY / PAYMENTWALL_PRIVATE_KEY) и Price Points в VC-проекте Paymentwall.';root.append(note);}
-    const membershipRoot=document.createElement('div');membershipRoot.className='paid-membership-grid';
-    (data.membershipProducts||[]).forEach(product=>{
-      const offer=document.createElement('article');offer.className='paid-membership-card paid-'+product.tier;
-      const tag=document.createElement('span');tag.className='membership-kicker';tag.textContent=product.tier==='premium'?'PREMIUM · 30 ДНЕЙ':'VIP · 30 ДНЕЙ';
-      const name=document.createElement('h3');name.textContent=product.name;
-      const copy=document.createElement('p');copy.textContent=product.description;
-      const amount=document.createElement('strong');amount.textContent=(Number(product.amountMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(product.currency).toUpperCase()});
-      const buy=document.createElement('button');buy.type='button';buy.className='button button-primary';buy.textContent=data.goodsConfigured?'Купить за реальные деньги':'Денежная касса не подключена';buy.disabled=!data.goodsConfigured;
-      buy.addEventListener('click',async()=>{const email=$('#storeBillingEmail')?.value.trim()||'';if(!email)return showToast('Сначала укажи email для платёжного чека.');buy.disabled=true;try{const checkout=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:product.id,email})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);buy.disabled=false;}});
-      offer.append(tag,name,copy,amount,buy);membershipRoot.append(offer);
-    });
-    root.append(membershipRoot);
-    if(!data.goodsConfigured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Прямые покупки товаров и VIP/Premium используют отдельный Paymentwall-проект типа Widget API — Digital Goods, с отдельными GOODS-ключами и серверным pingback.';root.append(note);}
-    const params=new URLSearchParams(location.search);
-    const billing=params.get('billing');
-    if(billing==='success'){showToast('Платёж отправлен на подтверждение. Баланс пополнится после серверного уведомления.');params.delete('billing');history.replaceState({},'',location.pathname+(params.toString()?'?'+params.toString():'')+location.hash);}
-    else if(billing==='cancelled'){showToast('Оплата отменена. С баланса ничего не списано.');params.delete('billing');history.replaceState({},'',location.pathname+(params.toString()?'?'+params.toString():'')+location.hash);}
-  }catch(error){const note=document.createElement('p');note.className='muted';note.textContent='Пополнение токенов временно недоступно.';root.append(note);}
-}
 async function loadStoreSponsoredAd(){
   const root=$('#storeSponsoredAd');if(!root)return;
   try{
@@ -2131,7 +2097,7 @@ $('#sidePublicId').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(state.user.publicId); showToast('Технический ID скопирован. Для входа используй ник и пароль.'); }
   catch { showToast(`Твой ID: ${state.user.publicId}`); }
 });
-$$('[data-view]').forEach(button => button.addEventListener('click', () => { setView(button.dataset.view); if (button.dataset.view === 'store') loadStore(); }));
+$('[data-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.view, button.id === 'brandHomeLink')));
 $('#settingSounds').addEventListener('change', () => scheduleSettingsSave({ sounds: $('#settingSounds').checked }));
 $('#settingSoundVolume').addEventListener('input', () => { $('#soundVolumeLabel').textContent = `${$('#settingSoundVolume').value}%`; });
 $('#settingSoundVolume').addEventListener('change', () => scheduleSettingsSave({ soundVolume: Number($('#settingSoundVolume').value) }));
