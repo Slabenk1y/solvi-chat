@@ -2404,6 +2404,8 @@ async function main() {
         dbRun('UPDATE promo_codes SET created_by=NULL WHERE created_by=?',[target.id]);
         dbRun('UPDATE store_price_overrides SET updated_by=NULL WHERE updated_by=?',[target.id]);
         dbRun('UPDATE cash_store_price_overrides SET updated_by=NULL WHERE updated_by=?',[target.id]);
+        dbRun('DELETE FROM support_ticket_messages WHERE sender_id=?',[target.id]);
+        dbRun('DELETE FROM favorites WHERE user_id=? OR target_user_id=?',[target.id,target.id]);
         dbRun('DELETE FROM favorite_chat_drafts WHERE user_id=? OR partner_id=?',[target.id,target.id]);
         dbRun('DELETE FROM favorite_chats WHERE user_id=? OR partner_id=?',[target.id,target.id]);
         dbRun('DELETE FROM users WHERE id=?',[target.id]);
