@@ -121,6 +121,11 @@ try {
   else pass('Настройки языков и интересов передаются в подбор');
   if (!app.includes("if (bootScreen) bootScreen.hidden = true;") || !app.includes("document.documentElement.classList.remove('session-checking');")) fail('Экран восстановления сессии не имеет аварийного снятия блокировки');
   else pass('Экран восстановления гарантированно скрывается при ошибке запуска');
+  const ownerPanelJs = read('public/owner.js');
+  if (!ownerPanelJs.includes('const safeStorageGet') || !ownerPanelJs.includes('const safeStorageSet') || !ownerPanelJs.includes('const safeStorageRemove')) fail('Панель владельца не защищена от недоступного localStorage');
+  else pass('Панель владельца устойчива к ограничениям browser storage');
+  if (!app.includes('Number(reaction.count) > 1')) fail('Одна реакция всё ещё отображается с числом 1');
+  else pass('Одна реакция отображается без счётчика 1');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
   else pass('Ответы на собственные сообщения блокируются сервером');
