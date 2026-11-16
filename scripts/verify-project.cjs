@@ -130,8 +130,9 @@ try {
   else pass('Социальные ссылки настраиваются владельцем и показываются в подвале');
   if (!server.includes('reward_task_submissions') || !server.includes("app.post('/api/tasks/:id/submit'") || !server.includes("app.post('/api/admin/task-submissions/:id/review'") || !ownerPanel.includes('loadGrowth')) fail('Задания с ручной проверкой награды не подключены');
   else pass('Задания, заявки и ручное начисление токенов подключены');
-  if (!server.includes('effectivePaidSubscription') || !server.includes('paid-membership') || !server.includes('оплаченной реальными деньгами')) fail('Косметические наборы не ограничены реальной оплаченной подпиской');
-  else pass('VIP/Premium наборы закрыты для подписок, купленных только за токены');
+  const bundleRoute = server.slice(server.indexOf("app.post('/api/store/bundle'"), server.indexOf("app.post('/api/store/membership'"));
+  if (!bundleRoute.includes('const activeTier = effectiveSubscription(req.user)') || bundleRoute.includes('effectivePaidSubscription')) fail('Фирменные наборы не учитывают статус VIP/Premium, купленный за токены');
+  else pass('Фирменные VIP/Premium наборы доступны при активном токеновом статусе');
   if (/\b(confirm|prompt|alert)\(/.test(app) || /\b(confirm|prompt|alert)\(/.test(ownerPanel)) fail('В интерфейсе остались нативные диалоги браузера');
   else pass('Подтверждения и текстовые запросы используют фирменные диалоги');
   if (!server.includes("app.post('/api/billing/token-topup/checkout'") || !server.includes("app.get('/api/billing/paymentwall/pingback'") || !server.includes("app.post('/api/billing/store/checkout'") || !server.includes("app.get('/api/billing/paymentwall/goods-pingback'") || !server.includes('buildDigitalGoodsCheckoutUrl') || !server.includes('verifyPingback') || !server.includes('paymentwall_token_purchases') || !server.includes('paymentwall_store_orders')) fail('Paymentwall VC/Digital Goods checkout, подписи и журнал заказов не подключены');
