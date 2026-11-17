@@ -18,12 +18,12 @@ try {
   const hasAdultModeUi = matchingHtml.includes('data-match-mode="flirt"') || matchingHtml.includes('data-match-mode="roleplay"') || matchingHtml.includes('id="flirtAdultConsent"') || matchingHtml.includes('id="roleplayAdultConsent"') || matchingHtml.includes('Флирт 18+') || matchingHtml.includes('Ролка 18+');
   if (hasAdultModeUi) fail('В интерфейсе остались режимы флирта/ролевой игры или элементы 18+');
   else pass('Интерфейс содержит только обычное общение');
-  if (!matchingApp.includes("mode: 'chat'") || !matchingServer.includes("const mode = 'chat'") || !matchingServer.includes('preferences?.mode && preferences.mode !== \'chat\'')) fail('Обычный режим чата не закреплён на клиенте и сервере');
+  if (!matchingApp.includes("mode: 'chat'") || !matchingServer.includes("const mode = 'chat'") || !matchingServer.includes("preferences?.mode && preferences.mode !== 'chat'")) fail('Обычный режим чата не закреплён на клиенте и сервере');
   else pass('Подбор работает только в обычном чате; старые режимы отклоняются сервером');
   if (!matchingServer.includes('eligibleByGender(current, candidate)') || !matchingServer.includes('eligibleByMode(current, candidate)')) fail('Серверная фильтрация пола и режима отсутствует');
   else pass('Серверная фильтрация пола и единственного режима подключена');
-  if (!matchingHtml.includes('id="desiredGender"') || (!matchingHtml.includes('id="ownGender"') && !matchingHtml.includes('id="profileGender"'))) fail('Не найден выбор пола собеседника или пола пользователя');
-  else pass('Выбор желаемого пола собеседника сохранён');
+  if (!matchingHtml.includes('id="desiredGender"') || !matchingHtml.includes('id="ownGender"')) fail('Не найден выбор пола собеседника или пола пользователя');
+  else pass('Выбор желаемого пола собеседника и собственного пола сохранён');
   if (!matchingServer.includes('Режимы флирта и ролевой игры отключены.') || !matchingApp.includes("mode: 'chat'")) fail('Сервер не блокирует запросы отключённых режимов');
   else pass('Прямые запросы отключённых режимов блокируются сервером');
   if (!read('test/integration.test.js').includes("for (const removedMode of ['flirt', 'roleplay'])")) fail('Нет интеграционных проверок запрета отключённых режимов');
