@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=34">
+  <link rel="stylesheet" href="/styles.css?v=35">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -233,6 +233,16 @@
         <section id="storePanel" class="store-panel" hidden>
           <div class="panel-heading"><div><div class="eyebrow">КОЛЛЕКЦИИ · ОФОРМЛЕНИЕ · ПРИВИЛЕГИИ</div><h1>Магазин SOLVI</h1><p>Собирай собственный стиль. Все покупки остаются в твоём инвентаре.</p></div><div class="panel-heading-icon">✦</div></div>
           <div class="store-hero store-hero-v1"><div><span class="store-kicker">ТВОЙ БАЛАНС</span><strong><span id="storeBalance">0</span><small> ✦</small></strong><p>1 полная минута активного диалога = 1 токен каждому участнику. За создание постоянного аккаунта начисляется приветственный бонус 50 ✦.</p><div class="store-wallet-note">Токены начисляются, пока оба участника подключены к одному активному диалогу.</div></div><div class="store-hero-symbol">✧</div></div>
+          <section id="billingPanel" class="billing-panel" aria-label="Платежи и подписки">
+            <div class="store-collections-heading"><div><span class="eyebrow">ПОДДЕРЖИ SOLVI</span><h2>Токены и подписки</h2></div><span>Безопасная оплата</span></div>
+            <label class="billing-email-label" for="billingEmailInput">Email для платёжного чека</label>
+            <input id="billingEmailInput" class="field billing-email-input" type="email" maxlength="254" autocomplete="email" placeholder="name@example.com">
+            <p id="billingStatus" class="billing-note" aria-live="polite">Проверяем настройки оплаты…</p>
+            <div id="billingTokenPackages" class="billing-token-packages"></div>
+            <div id="billingSubscriptionPlans" class="billing-plans"></div>
+            <div id="billingSubscriptionStatus" class="billing-subscription-status"></div>
+            <p class="billing-legal-note">Месячные VIP/Premium оформляются с автопродлением раз в месяц. Отмену будущего продления можно запросить здесь. Оплата не считается успешной до подтверждения платёжным провайдером.</p>
+          </section>
           <div class="store-promo-row"><label for="promoCodeInput">Есть промокод?</label><div><input id="promoCodeInput" class="field" maxlength="32" placeholder="ВВЕДИ-ПРОМОКОД"><button id="promoRedeemButton" class="button button-primary" type="button">Активировать</button></div><small id="promoRedeemError" aria-live="polite"></small></div>
           <div class="store-collections-heading"><div><span class="eyebrow">СОБИРАЙ СЕРИЯМИ</span><h2>Коллекции</h2></div><span>Прогресс сохраняется на аккаунте</span></div><div id="storeCollections" class="store-collections-grid"></div>
           <div class="store-toolbar store-toolbar-v1"><div id="storeCategories" class="store-categories"></div><button id="storeInventoryButton" class="button button-secondary" type="button">Только купленное</button></div>
@@ -361,6 +371,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=47" defer></script>
+  <script src="/app.js?v=48" defer></script>
 </body>
 </html>
