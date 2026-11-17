@@ -665,3 +665,22 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
  .settings-card-copy p{font-size:11px;line-height:1.55}.inbox-message-card{padding:13px}.inbox-message-head{flex-direction:column;gap:4px}
 }
 @media(min-width:701px){.chat-panel{height:min(860px,calc(100dvh - 150px));min-height:560px}}
+
+/* Billing preview and checkout */
+.billing-panel{margin:18px 0 28px;padding:20px;border:1px solid var(--line);border-radius:20px;background:var(--surface);box-shadow:0 10px 30px rgba(55,48,110,.05)}
+.billing-panel .store-collections-heading{margin-bottom:12px}
+.billing-email-label{display:block;margin:10px 0 6px;color:var(--muted);font-size:11px;font-weight:700}
+.billing-email-input{max-width:420px;width:100%}
+.billing-note{margin:8px 0;color:var(--muted);font-size:11px;line-height:1.55}
+.billing-token-packages{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:12px 0}
+.billing-token-packages .billing-note{flex-basis:100%}
+.billing-plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.billing-plan-card{display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--surface-soft,var(--surface))}
+.billing-plan-card strong{font-size:15px;color:var(--ink)}
+.billing-plan-card p{margin:0;flex:1;color:var(--muted);font-size:11px;line-height:1.5}
+.billing-plan-card b{font-size:13px;color:var(--primary)}
+.billing-plan-card button{margin-top:3px;width:100%}
+.billing-subscription-status{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.billing-legal-note{margin:12px 0 0;color:var(--muted);font-size:10px;line-height:1.5}
+.store-cash-action{min-height:34px;padding:0 12px;font-size:10px}
+@media(max-width:650px){.billing-panel{padding:15px;border-radius:16px}.billing-plans{grid-template-columns:1fr}.billing-token-packages{align-items:stretch;flex-direction:column}.billing-token-packages button{width:100%}}
