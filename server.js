@@ -1728,7 +1728,7 @@ async function main() {
     const username = cleanUsername(req.body?.username);
     const description = typeof req.body?.description === 'string' ? req.body.description.trim().slice(0, 160) : (req.user.description || '');
     const gender = req.body?.gender === undefined ? (req.user.gender || '') : String(req.body.gender).trim();
-    if (!['', 'male', 'female'].includes(gender)) return res.status(400).json({ error: 'Выбери допустимое значение пола.' });
+    if (!['', 'male', 'female', 'other'].includes(gender)) return res.status(400).json({ error: 'Выбери допустимое значение пола.' });
     if (!username) return res.status(400).json({ error: 'Ник должен содержать от 3 до 20 символов.' });
     const key = usernameKey(username);
     const taken = dbGet('SELECT id FROM users WHERE username_key = ? AND id != ? LIMIT 1', [key, req.user.id]);
