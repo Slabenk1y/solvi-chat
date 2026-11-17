@@ -57,3 +57,18 @@ Paymentwall's public payout support page lists international bank transfer and S
 Test both projects using Paymentwall's Test Payment Method and Test Pingback Tool. Verify correct successful callback type (VC type=0, DG type=0), duplicate-reference handling, wrong-signature rejection, and type=2 reversal. Then submit both projects for Paymentwall's technical and business review before accepting live payments.
 
 Do not put bank details, private keys, or merchant credentials in source control, chat messages, or the frontend.
+
+
+## Local preview without real payments
+
+1. Copy `.env.example` to `.env`.
+2. Set `OWNER_PUBLIC_ID` to the Public ID of your local owner account.
+3. For a local-only preview, set `BILLING_DEMO_MODE=1` and ensure `NODE_ENV` is not `production`.
+4. Start the app locally. Only the owner account sees demo checkout controls. Demo operations grant test tokens or a test 30-day tier in the local database and never contact a payment provider or move money.
+5. Before a public deployment, set `BILLING_DEMO_MODE=0` (or remove it), use a separate Paymentwall test project first, and keep all private keys in the hosting provider's secret environment settings.
+
+The project currently uses two Paymentwall integrations: Virtual Currency for token top-ups and Digital Goods for direct shop sales / recurring monthly subscriptions. The monthly VIP/Premium products are sent as a **one-month recurring subscription** (`ag_type=subscription`, `ag_period_length=1`, `ag_period_type=month`, `ag_recurring=1`). Every successful recurring pingback extends the paid period once; duplicate references are ignored. Cancellation, expiry, and failed-renewal pingbacks update subscription state. A user can submit a cancellation request in SOLVI; the owner must complete the cancellation in the Paymentwall Merchant Area and then mark the request completed in the owner panel. Already-paid access remains available until its current period ends.
+
+Direct sponsored ads are not an automated ad network. A campaign remains paused/unpaid until the owner confirms the sponsor's payment and activates it. The store slot counts impressions and click-throughs. Google AdSense or similar external networks are not enabled by this build.
+
+**Important:** This integration is prepared for testing, not yet approved for live charging. Paymentwall merchant onboarding, exact SOLVI business-model review (including anonymous chat, user-generated content and any 18+ flirt functionality), supported methods/currencies and refund/chargeback handling must be confirmed with Paymentwall in writing before enabling real checkout. Never place real keys in the ZIP, GitHub, or browser code. Keep the demo flag off on any publicly reachable server.
