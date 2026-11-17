@@ -1608,8 +1608,8 @@ async function main() {
     const params = Object.fromEntries(Object.entries(req.query || {}).map(([key, value]) => [key, Array.isArray(value) ? (value.length === 1 ? value[0] : '') : value]));
     if (!verifyPingback(params, privateKey)) return res.status(400).type('text/plain').send('Invalid signature');
     const type = String(params.type || '');
-    const reference = String(params.ref || '').trim();
     const orderId = String(params.goodsid || '').trim();
+    const reference = String(params.ref || '').trim() || (['12','13','14'].includes(type) ? 'lifecycle_' + type + '_' + orderId : '');
     const publicId = String(params.uid || '').trim();
     if (!reference || reference.length > 180 || !/^solviorder[a-f0-9]{32}$/.test(orderId)) return res.status(400).type('text/plain').send('Invalid purchase reference');
     const order = dbGet('SELECT * FROM paymentwall_store_orders WHERE id = ?', [orderId]);
