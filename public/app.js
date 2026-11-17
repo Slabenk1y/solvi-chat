@@ -78,7 +78,7 @@ const state = {
   user: null,
   ownGender: '', inboxMessages: [], inboxUnread: 0,
   authRestoring: false,
-  config: { languages: [], interests: [], flirtInterests: [], roleplayInterests: [], avatars: [], matchingEnabled: true, publicMode: false },
+  config: { languages: [], interests: [], avatars: [], matchingEnabled: true, publicMode: false },
   settings: { theme: 'system', sounds: true, soundVolume: 35, messageScale: 'normal', reducedMotion: false, enterToSend: true, compactChat: false, browserNotifications: false },
   soundContext: null,
   settingsSaveTimer: null,
@@ -88,11 +88,7 @@ const state = {
   outbox: [],
   selectedLanguages: readStoredList('sovli_languages').length ? readStoredList('sovli_languages') : ['Русский'],
   selectedInterests: readStoredList('sovli_interests'),
-  selectedFlirtInterests: readStoredList('solvi_flirt_interests'),
-  selectedRoleplayInterests: readStoredList('solvi_roleplay_interests'),
-  matchingMode: ['chat','flirt','roleplay'].includes(safeStorageGet('solvi_match_mode')) ? safeStorageGet('solvi_match_mode') : 'chat',
   desiredGender: ['any','male','female','other'].includes(safeStorageGet('solvi_desired_gender')) ? safeStorageGet('solvi_desired_gender') : 'any',
-  roleplayIntent: safeStorageGet('solvi_roleplay_intent') === 'offering' ? 'offering' : 'seeking',
   selectedAvatar: null,
   authMode: 'login',
   searching: false,
@@ -1119,72 +1115,32 @@ function toggleChoice(listName, value, container, values, limit) {
 function renderFilters() {
   const tier = state.user?.subscriptionTier || 'free';
   const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
-  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
   const languages = Array.isArray(state.config.languages) ? state.config.languages : [];
-  const interests = Array.isArray(state.config.interests) ? state.config.interests : [];
-  const flirtInterests = Array.isArray(state.config.flirtInterests) ? state.config.flirtInterests : [];
-  const roleplayInterests = Array.isArray(state.config.roleplayInterests) ? state.config.roleplayInterests : [];
-  if (!['chat', 'flirt', 'roleplay'].includes(state.matchingMode)) state.matchingMode = 'chat';
   state.selectedLanguages = (Array.isArray(state.selectedLanguages) ? state.selectedLanguages : [])
     .filter(value => languages.includes(value)).slice(0, languageLimit);
-  state.selectedInterests = (Array.isArray(state.selectedInterests) ? state.selectedInterests : [])
-    .filter(value => interests.includes(value)).slice(0, interestLimit);
-  state.selectedFlirtInterests = (Array.isArray(state.selectedFlirtInterests) ? state.selectedFlirtInterests : [])
-    .filter(value => flirtInterests.includes(value)).slice(0, interestLimit);
-  state.selectedRoleplayInterests = (Array.isArray(state.selectedRoleplayInterests) ? state.selectedRoleplayInterests : [])
-    .filter(value => roleplayInterests.includes(value)).slice(0, interestLimit);
-  $$('[data-match-mode]').forEach(button => {
-    const active = button.dataset.matchMode === state.matchingMode;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-  $('#desiredGender').value = state.desiredGender;
+  if ($('#desiredGender')) $('#desiredGender').value = state.desiredGender || 'any';
   if ($('#ownGender')) $('#ownGender').value = state.ownGender || '';
-  $('#roleplayIntent').value = state.roleplayIntent;
-  $('#standardInterestBlock').hidden = true;
-  $('#flirtSettings').hidden = state.matchingMode !== 'flirt';
-  $('#roleplaySettings').hidden = state.matchingMode !== 'roleplay';
-  renderChoices($('#languageOptions'), languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), languages, languageLimit));
-  renderChoices($('#interestOptions'), interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), interests, interestLimit));
-  renderChoices($('#flirtInterestOptions'), flirtInterests, state.selectedFlirtInterests, value => toggleChoice('selectedFlirtInterests', value, $('#flirtInterestOptions'), flirtInterests, interestLimit));
-  renderChoices($('#roleplayInterestOptions'), roleplayInterests, state.selectedRoleplayInterests, value => toggleChoice('selectedRoleplayInterests', value, $('#roleplayInterestOptions'), roleplayInterests, interestLimit));
-  const summary = values => values.length ? values.slice(0, 2).join(', ') + (values.length > 2 ? ` +${values.length - 2}` : '') : 'Любые интересы';
-  $('#languageSummary').textContent = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
-  $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / ${languageLimit}` : 'Не ограничивать';
-  $('#interestSummary').textContent = summary(state.selectedInterests);
-  $('#interestCount').textContent = state.selectedInterests.length ? `${state.selectedInterests.length} / ${interestLimit}` : 'Без фильтра';
-  $('#flirtInterestSummary').textContent = summary(state.selectedFlirtInterests);
-  $('#flirtInterestCount').textContent = state.selectedFlirtInterests.length ? `${state.selectedFlirtInterests.length} / ${interestLimit}` : 'Без фильтра';
-  $('#roleplayInterestSummary').textContent = summary(state.selectedRoleplayInterests);
-  $('#roleplayInterestCount').textContent = state.selectedRoleplayInterests.length ? `${state.selectedRoleplayInterests.length} / ${interestLimit}` : 'Без фильтра';
+  if ($('#standardInterestBlock')) $('#standardInterestBlock').hidden = true;
+  if ($('#languageOptions')) renderChoices($('#languageOptions'), languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), languages, languageLimit));
+  if ($('#languageSummary')) $('#languageSummary').textContent = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
+  if ($('#languageCount')) $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / ${languageLimit}` : 'Не ограничивать';
   try {
     safeStorageSet('sovli_languages', JSON.stringify(state.selectedLanguages));
-    safeStorageSet('sovli_interests', JSON.stringify(state.selectedInterests));
-    safeStorageSet('solvi_flirt_interests', JSON.stringify(state.selectedFlirtInterests));
-    safeStorageSet('solvi_roleplay_interests', JSON.stringify(state.selectedRoleplayInterests));
-    safeStorageSet('solvi_match_mode', state.matchingMode);
-    safeStorageSet('solvi_desired_gender', state.desiredGender);
-    safeStorageSet('solvi_roleplay_intent', state.roleplayIntent);
+    safeStorageSet('solvi_desired_gender', state.desiredGender || 'any');
   } catch { /* filter preferences are optional */ }
 }
 
 function buildMatchingPreferences() {
-  const interests = state.matchingMode === 'flirt'
-    ? state.selectedFlirtInterests
-    : (state.matchingMode === 'roleplay' ? state.selectedRoleplayInterests : []);
   return {
-    mode: state.matchingMode, ownGender: state.ownGender, desiredGender: state.desiredGender, roleplayIntent: state.roleplayIntent,
-    adultConfirmed: state.matchingMode === 'flirt' ? $('#flirtAdultConsent').checked : (state.matchingMode === 'roleplay' ? $('#roleplayAdultConsent').checked : false),
-    languages: state.selectedLanguages.length ? state.selectedLanguages : [],
-    interests
+    mode: 'chat',
+    ownGender: state.ownGender || '',
+    desiredGender: state.desiredGender || 'any',
+    languages: [],
+    interests: []
   };
 }
 
 function validateMatchingPreferences() {
-  if (state.matchingMode !== 'chat' && !buildMatchingPreferences().adultConfirmed) {
-    showToast('Для этого режима подтверди, что тебе уже исполнилось 18 лет.');
-    return false;
-  }
   if (!['male', 'female', 'other'].includes(state.ownGender)) {
     showToast('Сначала выбери свой пол в форме поиска — он нужен для взаимного подбора.');
     $('#ownGender')?.focus();
@@ -1264,7 +1220,7 @@ function connectSocket() {
     if (!state.searching) return;
     $('#searchStatusText').textContent = data?.reason === 'api_key'
       ? 'Людей пока не нашли. ИИ-подбор включится после настройки Gemini API.'
-      : 'Для режимов 18+ автоматический ИИ-подбор отключён. Продолжаем искать человека.';
+      : 'Продолжаем искать человека.';
   });
   socket.on('queue:cancelled', () => { state.searching = false; clearSearchTimer(); setView('home'); });
   socket.on('match:found', match => activateMatch(match));
@@ -2097,7 +2053,7 @@ async function boot() {
     if (bootScreen) bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
     try { state.config = await api('/api/config'); }
     catch {
-      state.config = { languages: ['Русский'], interests: [], flirtInterests: [], roleplayInterests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] };
+      state.config = { languages: ['Русский'], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] };
     }
     renderSocialLinks();
     const billingResult = new URL(window.location.href).searchParams.get('billing');
@@ -2117,14 +2073,7 @@ async function boot() {
     } else state.selectedLanguages = [];
     if (Array.isArray(state.config.interests)) {
       state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, interestLimit);
-    } else state.selectedInterests = [];
-    if (Array.isArray(state.config.flirtInterests)) {
-      state.selectedFlirtInterests = state.selectedFlirtInterests.filter(value => state.config.flirtInterests.includes(value)).slice(0, interestLimit);
-    } else state.selectedFlirtInterests = [];
-    if (Array.isArray(state.config.roleplayInterests)) {
-      state.selectedRoleplayInterests = state.selectedRoleplayInterests.filter(value => state.config.roleplayInterests.includes(value)).slice(0, interestLimit);
-    } else state.selectedRoleplayInterests = [];
-    renderFilters();
+    } else state.selectedInterests = [];renderFilters();
     renderStickerPanel();
     $('#inviteCodeField').hidden = !state.config.inviteRequired;
     if (state.config.inviteRequired) $('#authInviteCode').required = true;
@@ -2224,14 +2173,10 @@ $('#guestButton').addEventListener('click', async () => {
   } catch (error) { setAuthError(error.message); }
   finally { button.disabled = false; button.querySelector('span:first-child').textContent = 'Продолжить гостем'; }
 });
-$$('[data-match-mode]').forEach(button => button.addEventListener('click', () => {
-  state.matchingMode = button.dataset.matchMode; $('#flirtAdultConsent').checked = false; $('#roleplayAdultConsent').checked = false; renderFilters();
-}));
 $('#desiredGender').addEventListener('change', () => { state.desiredGender = $('#desiredGender').value; renderFilters(); });
 $('#ownGender').addEventListener('change', () => { state.ownGender = $('#ownGender').value; });
-$('#roleplayIntent').addEventListener('change', () => { state.roleplayIntent = $('#roleplayIntent').value; renderFilters(); });
 $('#findButton').addEventListener('click', startSearch);
-$('#clearFiltersButton').addEventListener('click', () => { state.selectedLanguages = []; state.selectedInterests = []; state.selectedFlirtInterests = []; state.selectedRoleplayInterests = []; state.desiredGender = 'any'; $('#flirtAdultConsent').checked = false; $('#roleplayAdultConsent').checked = false; $('#languagesDropdown').open = false; $('#interestsDropdown').open = false; renderFilters(); showToast('Фильтры сброшены.'); });
+$('#clearFiltersButton').addEventListener('click', () => { state.selectedLanguages = []; state.selectedInterests = []; state.desiredGender = 'any'; if ($('#languagesDropdown')) $('#languagesDropdown').open = false; if ($('#interestsDropdown')) $('#interestsDropdown').open = false; renderFilters(); showToast('Фильтры сброшены.'); });
 $('#nextChatButton').addEventListener('click', nextPartner);
 $('#cancelSearchButton').addEventListener('click', cancelSearch);
 $('#expandSearchButton').addEventListener('click', () => {
