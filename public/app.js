@@ -476,7 +476,7 @@ function renderStore(data) {
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
     footer.append(previewButton, price, action);
-    if(item.cashEnabled&&(state.billingInfo?.goodsConfigured||state.billingInfo?.demoMode)){
+    if(!item.owned&&item.cashEnabled&&(state.billingInfo?.goodsConfigured||state.billingInfo?.demoMode)){
       const cashButton=document.createElement('button');cashButton.type='button';cashButton.className='button button-secondary store-cash-action';
       cashButton.textContent=state.billingInfo.demoMode?'Тестовая покупка':('За '+(Number(item.cashPriceMinor||0)/100).toFixed(2)+' '+String(item.cashCurrency||'EUR'));
       cashButton.addEventListener('click',()=>startCashStoreCheckout(item.id,cashButton));footer.append(cashButton);
@@ -505,7 +505,7 @@ function renderStore(data) {
       catch (error) { showToast(error.message); button.disabled = false; }
     });
     footer.append(price, button);
-    if(bundle.cashEnabled&&(state.billingInfo?.goodsConfigured||state.billingInfo?.demoMode)){
+    if(!bundle.owned&&bundle.cashEnabled&&(state.billingInfo?.goodsConfigured||state.billingInfo?.demoMode)){
       const cashButton=document.createElement('button');cashButton.type='button';cashButton.className='button button-secondary store-cash-action';
       cashButton.textContent=state.billingInfo.demoMode?'Тестовая покупка':('За '+(Number(bundle.cashPriceMinor||0)/100).toFixed(2)+' '+String(bundle.cashCurrency||'EUR'));
       cashButton.disabled=!bundle.available||bundle.owned;
@@ -654,6 +654,8 @@ async function loadBillingPanel(){
         cancel.addEventListener('click',async()=>{cancel.disabled=true;try{await api('/api/billing/subscription/cancel-request',{method:'POST',body:'{}'});showToast('Заявка на отмену передана команде SOLVI.');await loadBillingPanel();}catch(error){showToast(error.message);cancel.disabled=false;}});
         subscriptionRoot.append(cancel);
       }
+    }else if(account.paidTier&&account.paidTier!=='free'){
+      const line=document.createElement('p');line.className='billing-note';line.textContent='Текущий платный статус: '+account.paidTier.toUpperCase()+' · доступ до '+(account.expiresAt?new Date(account.expiresAt).toLocaleDateString('ru-RU'):'—')+'.';subscriptionRoot.append(line);
     }else{
       const line=document.createElement('p');line.className='billing-note';line.textContent='Платная месячная подписка пока не активна.';subscriptionRoot.append(line);
     }
