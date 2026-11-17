@@ -88,7 +88,7 @@ const state = {
   outbox: [],
   selectedLanguages: readStoredList('sovli_languages').length ? readStoredList('sovli_languages') : ['Русский'],
   selectedInterests: readStoredList('sovli_interests'),
-  desiredGender: ['any','male','female','other'].includes(safeStorageGet('solvi_desired_gender')) ? safeStorageGet('solvi_desired_gender') : 'any',
+  desiredGender: ['any','male','female'].includes(safeStorageGet('solvi_desired_gender')) ? safeStorageGet('solvi_desired_gender') : 'any',
   selectedAvatar: null,
   authMode: 'login',
   searching: false,
@@ -1021,8 +1021,7 @@ function setUser(user) {
   $('#profileTokenBalance').textContent = Number(user.tokens || 0).toLocaleString('ru-RU');
   $('#profileCreatedAt').textContent = `В SOLVI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
   $('#profileUsername').value = user.username;
-  if (isNewAccount) state.ownGender = ['male', 'female', 'other'].includes(user.gender) ? user.gender : '';
-  else if (['male', 'female', 'other'].includes(user.gender)) state.ownGender = user.gender;
+  state.ownGender = ['male', 'female'].includes(user.gender) ? user.gender : '';
   if ($('#ownGender')) $('#ownGender').value = state.ownGender;
   const isGuest = user.accountType === 'guest';
   $('#profileUsername').disabled = isGuest;
@@ -1141,7 +1140,7 @@ function buildMatchingPreferences() {
   };
 }
 function validateMatchingPreferences() {
-  if (!['male', 'female', 'other'].includes(state.ownGender)) {
+  if (!['male', 'female'].includes(state.ownGender)) {
     showToast('Сначала выбери свой пол в форме поиска — он нужен для взаимного подбора.');
     $('#ownGender')?.focus();
     return false;
