@@ -660,8 +660,8 @@ function addToQueue(socket, preferences) {
   if (!ownGender) return { ok: false, error: 'Выбери свой пол в форме поиска — он нужен для взаимного подбора.' };
   if (user.gender !== ownGender) dbRun('UPDATE users SET gender = ? WHERE id = ?', [ownGender, userId]);
   const limits = membershipLimits(user);
-  const languages = ['Русский'];
-  const interests = [];
+  const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(value => LANGUAGES.includes(value)))].slice(0, limits.languageLimit) : [];
+  const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(value => INTERESTS.includes(value)))].slice(0, limits.interestLimit) : [];
   const entry = { userId, mode, gender: ownGender, desiredGender, languages, interests, joinedAt: Date.now() };
   if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
