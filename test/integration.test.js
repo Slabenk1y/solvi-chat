@@ -68,7 +68,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', APP_PUBLIC_URL: '', BILLING_CURRENCY: 'eur', VIP_PRICE_MINOR: '499', PREMIUM_PRICE_MINOR: '899', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890', OWNER_PUBLIC_ID: 'ABCDEF1234' },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, PUBLIC_MODE: '0', PUBLIC_MATCHING: '1', PUBLIC_TEST_CODE: '', SOLVI_PURGE_NON_OWNER_USERS: '0', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', PAYMENTWALL_PUBLIC_KEY: '', PAYMENTWALL_PRIVATE_KEY: '', PAYMENTWALL_VC_PUBLIC_KEY: '', PAYMENTWALL_VC_PRIVATE_KEY: '', PAYMENTWALL_GOODS_PUBLIC_KEY: '', PAYMENTWALL_GOODS_PRIVATE_KEY: '', APP_PUBLIC_URL: '', BILLING_CURRENCY: 'eur', VIP_PRICE_MINOR: '499', PREMIUM_PRICE_MINOR: '899', JWT_SECRET: 'test-secret-for-integration-tests-only-1234567890', OWNER_PUBLIC_ID: 'ABCDEF1234' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let stderr = '';
@@ -88,6 +88,15 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.deepEqual(billingCatalog.products.map(product => [product.id, product.amountMinor]), [['vip-30d', 499], ['premium-30d', 899]]);
     const billingCheckout = await fetch(`${baseUrl}/api/billing/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: 'vip-30d' }) });
     assert.equal(billingCheckout.status, 503, 'checkout must remain disabled without Stripe secrets');
+    const tokenTopup = await fetch(`${baseUrl}/api/billing/token-topup`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(tokenTopup.configured, false, 'Paymentwall stays disabled until merchant keys and a public URL are set');
+    assert.deepEqual(tokenTopup.packages.map(pack => pack.tokens), [500, 1500, 5000], 'published top-up packages match the Paymentwall virtual-currency inventory');
+    const tokenCheckout = await fetch(`${baseUrl}/api/billing/token-topup/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId: 'solvi-1500' }) });
+    assert.equal(tokenCheckout.status, 503, 'real-money checkout must remain disabled without Paymentwall merchant credentials');
+    const directStoreCheckout = await fetch(`${baseUrl}/api/billing/store/checkout`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: 'theme-aurora', email: 'buyer@example.com' }) });
+    assert.equal(directStoreCheckout.status, 503, 'direct Digital Goods checkout must remain disabled without its separate Paymentwall project credentials');
+    const noAd = await fetch(`${baseUrl}/api/ads/slot?placement=store`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(noAd.ad, null, 'unpaid or absent sponsor campaigns are never served');
     const publicConfig = await fetch(`${baseUrl}/api/config`).then(response => response.json());
     assert.deepEqual(publicConfig.socialLinks.map(link => [link.platform, link.url]), [['Telegram', 'https://t.me/ChatSolvi'], ['TikTok', 'https://www.tiktok.com/@slabenk1y_armagedon']], 'the supplied SOLVI social links are seeded by default');
     const growth = await fetch(`${baseUrl}/api/growth`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
@@ -104,6 +113,17 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const owner = await postJson(baseUrl, '/api/auth/register', { username: 'solvi-owner', password: 'test-owner-password-333' });
     testDb.prepare('UPDATE users SET public_id = ? WHERE id = ?').run('ABCDEF1234', owner.user.id);
     const ownerHeaders = { Authorization: `Bearer ${owner.token}` };
+    const unsafeCleanupPreview = await fetch(`${baseUrl}/api/admin/users/cleanup-preview`, { headers: ownerHeaders });
+    assert.equal(unsafeCleanupPreview.status, 409, 'cleanup refuses to guess the owner or Masha account');
+    const sentOwnerMessage = await postJson(baseUrl, '/api/admin/messages', { targetMode: 'user', recipient: 'tester-one', subject: 'Проверка SOLVI', body: 'Личное сообщение из панели владельца.' }, owner.token);
+    assert.equal(sentOwnerMessage.recipientCount, 1);
+    const ownerInbox = await fetch(`${baseUrl}/api/inbox`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(ownerInbox.unread, 1, 'owner message is persisted in the recipient inbox');
+    assert.equal(ownerInbox.messages[0].subject, 'Проверка SOLVI');
+    const readOwnerMessage = await fetch(`${baseUrl}/api/inbox/${encodeURIComponent(ownerInbox.messages[0].id)}/read`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(readOwnerMessage.status, 200);
+    const inboxAfterOwnerRead = await fetch(`${baseUrl}/api/inbox`, { headers: { Authorization: `Bearer ${user1.token}` } }).then(response => response.json());
+    assert.equal(inboxAfterOwnerRead.unread, 0);
     const ownerUserListResponse = await fetch(`${baseUrl}/api/admin/users?limit=1`, { headers: ownerHeaders });
     assert.equal(ownerUserListResponse.status, 200, 'owner can retrieve unified paginated user directory');
     const ownerUserList = await ownerUserListResponse.json();
@@ -177,10 +197,13 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.ok(storeBefore.collections.length >= 8, 'catalog is grouped into collections');
     const tokenStatus = await postJson(baseUrl, '/api/store/membership', { packageId: 'vip-1h' }, user1.token);
     assert.equal(tokenStatus.user.subscriptionTier, 'vip');
-    const tokenOnlyBundle = await fetch(`${baseUrl}/api/store/bundle`, { method: 'POST', headers: { Authorization: `Bearer ${user1.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ bundleId: 'vip-signature-pack' }) });
-    assert.equal(tokenOnlyBundle.status, 403, 'a VIP status bought only with tokens must not unlock the VIP cosmetic bundle');
+    testDb.prepare('UPDATE users SET tokens = 3000 WHERE id = ?').run(user1.user.id);
+    const tokenOnlyBundle = await postJson(baseUrl, '/api/store/bundle', { bundleId: 'vip-signature-pack' }, user1.token);
+    assert.equal(tokenOnlyBundle.ok, true, 'a VIP status bought with tokens unlocks the VIP cosmetic bundle');
+    assert.equal(tokenOnlyBundle.itemIds.length, 5, 'the VIP bundle grants every included cosmetic');
+    assert.equal(tokenOnlyBundle.balance, 600);
     const bought = await postJson(baseUrl, '/api/store/buy', { itemId: 'theme-aurora' }, user1.token);
-    assert.equal(bought.balance, 520);
+    assert.equal(bought.balance, 300);
     const stickerPackPurchase = await postJson(baseUrl, '/api/store/buy', { itemId: 'stickers-night-owl' }, user2.token);
     assert.equal(stickerPackPurchase.balance, 670);
     const stickerPackEquipped = await postJson(baseUrl, '/api/store/equip', { itemId: 'stickers-night-owl' }, user2.token);
@@ -225,9 +248,11 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const profile2 = await fetch(`${baseUrl}/api/profile`, { method: 'PATCH', headers: { Authorization: `Bearer ${user2.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user2.user.username, gender: 'female' }) }).then(response => response.json());
     assert.equal(profile1.user.gender, 'male');
     assert.equal(profile2.user.gender, 'female');
-    const adultDenied = await new Promise(resolve => socket1.emit('queue:join', { mode: 'flirt', adultConfirmed: false }, resolve));
-    assert.equal(adultDenied.ok, false, 'adult queue must reject missing age consent');
-    assert.match(adultDenied.error, /18/);
+    for (const removedMode of ['flirt', 'roleplay']) {
+      const disabled = await new Promise(resolve => socket1.emit('queue:join', { mode: removedMode, adultConfirmed: true }, resolve));
+      assert.equal(disabled.ok, false, `${removedMode} matching must stay disabled`);
+      assert.match(disabled.error, /отключены/i);
+    }
 
     const found1 = waitForEvent(socket1, 'match:found');
     const found2 = waitForEvent(socket2, 'match:found');
@@ -305,32 +330,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal((await ended).matchId, match1.matchId);
     const deletedMedia = await fetch(`${baseUrl}/api/media/${uploadPayload.file.id}`, { headers: { Authorization: `Bearer ${user1.token}` } });
     assert.equal(deletedMedia.status, 404, 'media must be deleted when a chat ends');
-
-    const roleplayFound1 = waitForEvent(socket1, 'match:found');
-    const roleplayFound2 = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', { mode: 'roleplay', adultConfirmed: true, desiredGender: 'female', roleplayIntent: 'seeking', interests: ['Фэнтези'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', { mode: 'roleplay', adultConfirmed: true, desiredGender: 'male', roleplayIntent: 'offering', interests: ['Фэнтези'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    const [roleplay1, roleplay2] = await Promise.all([roleplayFound1, roleplayFound2]);
-    assert.equal(roleplay1.mode, 'roleplay');
-    assert.equal(roleplay2.mode, 'roleplay');
-    assert.equal(roleplay1.matchId, roleplay2.matchId);
-    const adultStamp1 = testDb.prepare('SELECT adult_asserted_at FROM users WHERE id = ?').get(user1.user.id).adult_asserted_at;
-    assert.notEqual(adultStamp1, 'NOT_COLLECTED', 'adult consent timestamp must be persisted');
-    const roleplayEnded = waitForEvent(socket2, 'chat:ended');
-    await new Promise(resolve => socket1.emit('chat:end', { matchId: roleplay1.matchId }, resolve));
-    await roleplayEnded;
-
-    const flirtFound1 = waitForEvent(socket1, 'match:found');
-    const flirtFound2 = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', { mode: 'flirt', adultConfirmed: true, desiredGender: 'female', interests: ['Романтика'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', { mode: 'flirt', adultConfirmed: true, desiredGender: 'male', interests: ['Романтика'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    const [flirt1, flirt2] = await Promise.all([flirtFound1, flirtFound2]);
-    assert.equal(flirt1.mode, 'flirt');
-    assert.equal(flirt1.matchId, flirt2.matchId);
-    const flirtEnded = waitForEvent(socket2, 'chat:ended');
-    await new Promise(resolve => socket1.emit('chat:end', { matchId: flirt1.matchId }, resolve));
-    await flirtEnded;
-  } catch (error) {
+} catch (error) {
     if (stderr) error.message += `\nServer stderr:\n${stderr}`;
     throw error;
   } finally {
@@ -429,9 +429,9 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     });
     assert.equal(guestAvatarUpload.status, 201, 'guest accounts can upload a custom avatar');
     assert.match((await guestAvatarUpload.json()).user.avatarUrl, /\\?v=/);
-    assert.ok(Date.parse(guest1.user.guestExpiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest accounts should be kept for 180 days');
+    assert.ok(Date.parse(guest1.user.guestExpiresAt) - Date.now() > 2 * 24 * 60 * 60 * 1000, 'guest accounts should remain valid for three days');
     const guestSessions = await fetch(`${baseUrl}/api/sessions`, { headers: { Authorization: `Bearer ${guest1.token}` } }).then(response => response.json());
-    assert.ok(Date.parse(guestSessions.sessions[0].expiresAt) - Date.now() > 179 * 24 * 60 * 60 * 1000, 'guest browser session should remain valid for 180 days');
+    assert.ok(Date.parse(guestSessions.sessions[0].expiresAt) - Date.now() > 2 * 24 * 60 * 60 * 1000, 'guest browser session should remain valid for three days');
     const decodedGuestToken = jwt.decode(guest1.token);
     const expiredLegacyGuestToken = jwt.sign(
       { sub: decodedGuestToken.sub, publicId: decodedGuestToken.publicId, accountType: 'guest', iat: Math.floor(Date.now() / 1000) - 120, exp: Math.floor(Date.now() / 1000) - 60 },
@@ -439,7 +439,7 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
       { issuer: 'orbit-chat', jwtid: decodedGuestToken.jti }
     );
     const legacyGuestSession = await fetch(`${baseUrl}/api/me`, { headers: { Authorization: `Bearer ${expiredLegacyGuestToken}` } });
-    assert.equal(legacyGuestSession.status, 200, 'previous 24-hour guest JWTs should remain usable while their extended session is valid');
+    assert.equal(legacyGuestSession.status, 200, 'legacy guest JWTs remain usable only while their shortened three-day database session is valid');
     assert.equal(guest2.user.tokens, 0, 'guest accounts start with zero tokens');
     assert.equal(Object.hasOwn(guest1.user, 'birthDate'), false);
     assert.equal(Object.hasOwn(guest1.user, 'age'), false);
@@ -454,8 +454,8 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
 
     const found1 = waitForEvent(socket1, 'match:found');
     const found2 = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket1.emit('queue:join', { ownGender: 'male' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket2.emit('queue:join', { ownGender: 'female' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
     const [match1, match2] = await Promise.all([found1, found2]);
     assert.equal(match1.matchId, match2.matchId);
     assert.equal(guest1.user.tokens, 0, 'guest accounts also start without bonuses');
@@ -471,7 +471,7 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     const socket3 = createSocket(baseUrl, { auth: { token: guest3.token }, transports: ['websocket'], reconnection: false });
     sockets.push(socket3);
     await new Promise((resolve, reject) => { socket3.once('connect', resolve); socket3.once('connect_error', reject); });
-    await new Promise((resolve, reject) => socket3.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket3.emit('queue:join', { ownGender: 'male' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
     const endedForPartner = waitForEvent(socket2, 'chat:ended');
     const nextForGuest1 = waitForEvent(socket1, 'match:found');
     const nextForGuest3 = waitForEvent(socket3, 'match:found');
@@ -482,21 +482,18 @@ test('invite-only public beta supports guest accounts, real matching, chat and g
     assert.equal(nextMatch1.matchId, nextMatch3.matchId);
     assert.notEqual(nextMatch1.matchId, match1.matchId);
 
-    const claimed = await fetch(`${baseUrl}/api/auth/claim`, {
+    const guestClaim = await fetch(`${baseUrl}/api/auth/claim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${guest1.token}` },
       body: JSON.stringify({ username: guest1.user.username, password: 'upgrade-password-123' })
     });
-    assert.equal(claimed.status, 200);
-    const claimedPayload = await claimed.json();
-    assert.equal(claimedPayload.user.accountType, 'registered');
-    const login = await postJson(baseUrl, '/api/auth/login', { username: guest1.user.username, password: 'upgrade-password-123', accessCode });
-    assert.equal(login.user.id, guest1.user.id);
-    const upgradedSocket = createSocket(baseUrl, { auth: { token: claimedPayload.token }, transports: ['websocket'], reconnection: false });
-    sockets.push(upgradedSocket);
-    const restoredAfterUpgrade = waitForEvent(upgradedSocket, 'chat:restored');
-    await new Promise((resolve, reject) => { upgradedSocket.once('connect', resolve); upgradedSocket.once('connect_error', reject); });
-    assert.equal((await restoredAfterUpgrade).matchId, nextMatch1.matchId, 'guest upgrade must preserve the active chat when reconnecting with the new token');
+    assert.equal(guestClaim.status, 403, 'guest identity cannot be converted by setting a nickname and password');
+    const guestRename = await fetch(`${baseUrl}/api/profile`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${guest1.token}` },
+      body: JSON.stringify({ username: 'НовоеИмя' })
+    });
+    assert.equal(guestRename.status, 403, 'guest nickname cannot be changed');
   } catch (error) {
     if (stderr) error.message += `\nServer stderr:\n${stderr}`;
     throw error;
@@ -566,8 +563,8 @@ test('users can view and remove their own blocklist entries', { timeout: 25_000 
     ]);
     const matchA = waitForEvent(socket1, 'match:found');
     const matchB = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', {}, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket1.emit('queue:join', { ownGender: 'male' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
+    await new Promise((resolve, reject) => socket2.emit('queue:join', { ownGender: 'female' }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
     const [foundA, foundB] = await Promise.all([matchA, matchB]);
     assert.equal(foundA.matchId, foundB.matchId);
     const blocked = await postJson(baseUrl, '/api/block', {}, first.token);

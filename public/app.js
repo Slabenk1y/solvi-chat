@@ -1,6 +1,49 @@
 'use strict';
 
 const $ = selector => document.querySelector(selector);
+
+function submitChatComposer() {
+  const form = document.getElementById('messageForm');
+  const input = document.getElementById('messageInput');
+  if (!form || !input) return;
+  const content = input.value.trim();
+  if (!content) return;
+  if (!window.__solviChatStateReady) {
+    // The normal app boot may still be restoring the session; retain the draft.
+    return;
+  }
+  if (!state.activeMatch) { if (typeof showToast === 'function') showToast('Сначала найди собеседника.'); return; }
+  const limit = state.user?.subscriptionTier === 'premium' ? 5000 : (state.user?.subscriptionTier === 'vip' ? 3000 : 2000);
+  if (content.length > limit) { showToast(`Сообщение слишком длинное. Лимит: ${limit.toLocaleString('ru-RU')} символов.`); return; }
+  const clientId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  sendMessage(content, clientId);
+  input.value = '';
+  input.style.height = 'auto';
+  saveDraft('');
+  const stickerPanel = document.getElementById('stickerPanel');
+  if (stickerPanel) stickerPanel.hidden = true;
+  state.socket?.emit('chat:typing', { matchId: state.activeMatch?.matchId, typing: false });
+}
+document.addEventListener('keydown', event => {
+  if (event.target?.id !== 'messageInput' || event.key !== 'Enter' || event.shiftKey) return;
+  if (window.__solviChatStateReady && state.settings.enterToSend === false) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  submitChatComposer();
+}, true);
+document.addEventListener('submit', event => {
+  if (event.target?.id !== 'messageForm') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  submitChatComposer();
+}, true);
+document.addEventListener('click', event => {
+  if (!event.target?.closest?.('#sendButton')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  submitChatComposer();
+}, true);
+
 const $$ = selector => [...document.querySelectorAll(selector)];
 const DEFAULT_AVATARS = ['🪐','🌙','🦊','🐼','🐸','🦉','🐳','🦋','🐙','🌵','🍀','🧩'];
 const STICKER_PACKS = {
@@ -13,12 +56,29 @@ const STICKER_PACKS = {
   'stickers-vip-comet': ['🌌','💫','🪐','☄️','✨','🌠'],
   'stickers-premium-quantum': ['🪩','🌀','💎','🔮','⚛️','🌌']
 };
-function readStoredList(key) { try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
+function safeStorageGet(key) {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function safeStorageSet(key, value) {
+  try { window.localStorage.setItem(key, value); return true; } catch { return false; }
+}
+function safeStorageRemove(key) {
+  try { window.localStorage.removeItem(key); return true; } catch { return false; }
+}
+function readStoredList(key) {
+  try {
+    const value = JSON.parse(safeStorageGet(key) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
 const state = {
-  token: localStorage.getItem('sovli_token') || localStorage.getItem('orbit_token') || '',
+  // Set after the state object has been initialized.
+
+  token: safeStorageGet('sovli_token') || safeStorageGet('orbit_token') || '',
   user: null,
+  ownGender: '', inboxMessages: [], inboxUnread: 0,
   authRestoring: false,
-  config: { languages: [], interests: [], flirtInterests: [], roleplayInterests: [], avatars: [], matchingEnabled: true, publicMode: false },
+  config: { languages: [], interests: [], avatars: [], matchingEnabled: true, publicMode: false },
   settings: { theme: 'system', sounds: true, soundVolume: 35, messageScale: 'normal', reducedMotion: false, enterToSend: true, compactChat: false, browserNotifications: false },
   soundContext: null,
   settingsSaveTimer: null,
@@ -26,19 +86,15 @@ const state = {
   activeMatch: null,
   messages: [],
   outbox: [],
-  selectedLanguages: readStoredList('sovli_languages'),
+  selectedLanguages: readStoredList('sovli_languages').length ? readStoredList('sovli_languages') : ['Русский'],
   selectedInterests: readStoredList('sovli_interests'),
-  selectedFlirtInterests: readStoredList('solvi_flirt_interests'),
-  selectedRoleplayInterests: readStoredList('solvi_roleplay_interests'),
-  matchingMode: ['chat','flirt','roleplay'].includes(localStorage.getItem('solvi_match_mode')) ? localStorage.getItem('solvi_match_mode') : 'chat',
-  desiredGender: ['any','male','female','other'].includes(localStorage.getItem('solvi_desired_gender')) ? localStorage.getItem('solvi_desired_gender') : 'any',
-  roleplayIntent: localStorage.getItem('solvi_roleplay_intent') === 'offering' ? 'offering' : 'seeking',
+  desiredGender: ['any','male','female','other'].includes(safeStorageGet('solvi_desired_gender')) ? safeStorageGet('solvi_desired_gender') : 'any',
   selectedAvatar: null,
   authMode: 'login',
   searching: false,
   searchStartedAt: 0,
   searchInterval: null,
-  typingTimer: null,
+  typingTimer: null, lastTypingSentAt: 0, partnerTypingTimer: null, readPending: false, forceScrollToBottom: false,
   toastTimer: null,
   mediaUrls: new Map(),
   mediaLoading: new Set(),
@@ -63,6 +119,7 @@ const state = {
   blockedUsers: [],
   tokenHistoryLoaded: false
 };
+window.__solviChatStateReady = true;
 
 function escapeText(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -96,6 +153,8 @@ function confirmStorePurchase({ title, description, price, balance, confirmLabel
   $('#purchaseConfirmBalance').textContent = `${wallet.toLocaleString('ru-RU')} ✦`;
   $('#purchaseConfirmShortfall').hidden = enough;
   $('#purchaseConfirmShortfall').textContent = `Не хватает ${(cost - wallet).toLocaleString('ru-RU')} токенов. Продолжай общаться, чтобы заработать их.`;
+  if (modal.parentElement !== document.body) document.body.append(modal);
+  document.body.classList.add('purchase-confirm-open');
   const confirm = $('#purchaseConfirmButton');
   confirm.disabled = !enough;
   confirm.textContent = enough ? confirmLabel : 'Не хватает токенов';
@@ -106,6 +165,7 @@ function confirmStorePurchase({ title, description, price, balance, confirmLabel
       if (settled) return;
       settled = true;
       modal.hidden = true;
+      document.body.classList.remove('purchase-confirm-open');
       $('#purchaseCancelButton').onclick = null;
       confirm.onclick = null;
       modal.onclick = null;
@@ -247,7 +307,7 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 8 МБ', '10 языков · 12 интересов', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 4 МБ', '5 языков · 8 интересов', 'Набор «Звёздный след»'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 12 МБ', 'Русский язык', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 12 МБ', 'Русский язык', 'Набор «Звёздный след»'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
@@ -268,8 +328,8 @@ function openStorePreview(item) {
     stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
     membership: item.tier === 'premium'
-      ? 'Premium включает VIP, усиливает оформление профиля и расширяет лимиты: 5 000 символов, 8 фото до 12 МБ, голосовые до 4 минут, аватар до 8 МБ, 10 языков и 12 интересов. Поиск и правила безопасности одинаковы для всех.'
-      : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 2:30, аватар до 4 МБ, 5 языков и 8 интересов. Без преимущества в очереди поиска.'
+      ? 'Premium включает VIP, усиливает оформление профиля и расширяет лимиты: 5 000 символов, 10 фото до 12 МБ, голосовые до 1 минуты, аватар до 12 МБ, 10 языков и 12 интересов. Поиск и правила безопасности одинаковы для всех.'
+      : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов. Без преимущества в очереди поиска.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
@@ -284,6 +344,8 @@ function openStorePreview(item) {
     duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360 ✦ = 6 часов' : '180 ✦ = 3 часа'} активного диалога за каждый час статуса. При повторной покупке время прибавляется к остатку.`;
     $('#storePreviewBenefit').append(duration);
   }
+  if (modal.parentElement !== document.body) document.body.append(modal);
+  document.body.classList.add('store-preview-open');
   modal.hidden = false;
 }
 function startStorePreview() {
@@ -303,6 +365,7 @@ function startStorePreview() {
     state.applyingStorePreview = false;
   }
   $('#storePreviewModal').hidden = true;
+  document.body.classList.remove('store-preview-open');
   const restoreButton = $('#storePreviewRestoreButton');
   if (restoreButton) restoreButton.hidden = false;
   showToast('Примерка включена только у тебя. Токены не списаны, покупка не выполнена.', 4200);
@@ -408,7 +471,8 @@ function renderStore(data) {
         await loadStore();
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
-    footer.append(previewButton, price, action); card.append(preview, meta, footer); root.append(card);
+    footer.append(previewButton, price, action);
+    card.append(preview, meta, footer); root.append(card);
   });
   const bundleRoot = $('#customizationBundles');
   bundleRoot.replaceChildren();
@@ -422,8 +486,8 @@ function renderStore(data) {
     const footer = document.createElement('div'); footer.className = 'bundle-footer';
     const price = document.createElement('strong'); price.textContent = `${Number(bundle.price).toLocaleString('ru-RU')} ✦`;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary';
-    button.textContent = bundle.owned ? 'Уже в коллекции' : (bundle.available ? 'Купить набор' : 'Нужен статус');
-    button.disabled = bundle.owned || !bundle.available;
+    button.textContent = bundle.owned ? 'Уже в коллекции' : (bundle.enabled === false ? 'Временно недоступно' : (bundle.available ? 'Купить набор' : 'Нужен статус'));
+    button.disabled = bundle.owned || !bundle.available || bundle.enabled === false;
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Купить ${bundle.name}?`, description: bundle.description, price: bundle.price, balance: data.balance, confirmLabel: 'Забрать набор' });
       if (!approved) return;
@@ -431,7 +495,8 @@ function renderStore(data) {
       try { const result = await api('/api/store/bundle', { method: 'POST', body: JSON.stringify({ bundleId: bundle.id }) }); if (state.user) state.user.tokens = result.balance; showToast(`${bundle.name}: 5 предметов добавлено в инвентарь.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    footer.append(price, button); card.append(label, title, copy, contents, footer); bundleRoot.append(card);
+    footer.append(price, button);
+    card.append(label, title, copy, contents, footer); bundleRoot.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
   (data.memberships || []).forEach(pack => {
@@ -442,7 +507,7 @@ function renderStore(data) {
     const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
     previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Оформить';
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = pack.enabled === false ? 'Временно недоступно' : 'Оформить'; button.disabled = pack.enabled === false;
     button.addEventListener('click', async () => {
       const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
       if (!approved) return;
@@ -450,7 +515,8 @@ function renderStore(data) {
       try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    card.append(label, title, copy, previewButton, price, button); membershipRoot.append(card);
+    card.append(label, title, copy, previewButton, price, button);
+    membershipRoot.append(card);
   });
 }
 async function loadInventory() {
@@ -503,25 +569,24 @@ async function redeemPromo() {
   } catch (error) { $('#promoRedeemError').classList.remove('success-text'); $('#promoRedeemError').textContent = error.message; }
   finally { button.disabled = false; }
 }
-async function loadPaidMemberships(){
-  const root=$('#paidMembershipOffers');if(!root)return;
+async function loadStoreSponsoredAd(){
+  const root=$('#storeSponsoredAd');if(!root)return;
   try{
-    const data=await api('/api/billing/catalog');root.replaceChildren();
-    (data.products||[]).forEach(product=>{
-      const card=document.createElement('article');card.className='paid-membership-card paid-'+product.tier;
-      const kicker=document.createElement('span');kicker.className='membership-kicker';kicker.textContent=product.tier==='premium'?'PREMIUM · 30 ДНЕЙ':'VIP · 30 ДНЕЙ';
-      const title=document.createElement('h3');title.textContent=product.name;
-      const description=document.createElement('p');description.textContent=product.description;
-      const price=document.createElement('strong');price.textContent=(Number(product.amountMinor)/100).toLocaleString('ru-RU',{style:'currency',currency:String(product.currency).toUpperCase()});
-      const button=document.createElement('button');button.type='button';button.className='button button-primary';button.textContent=data.configured?'Оплатить картой':'Онлайн-оплата не подключена';button.disabled=!data.configured;
-      button.addEventListener('click',async()=>{button.disabled=true;try{const checkout=await api('/api/billing/checkout',{method:'POST',body:JSON.stringify({productId:product.id})});if(!checkout.url)throw new Error('Платёжная ссылка не получена.');window.location.assign(checkout.url);}catch(error){showToast(error.message);button.disabled=false;}});
-      card.append(kicker,title,description,price,button);root.append(card);
-    });
-    if(!data.configured){const note=document.createElement('p');note.className='muted billing-note';note.textContent='Stripe подключается владельцем через секреты STRIPE_SECRET_KEY и STRIPE_WEBHOOK_SECRET в Render. До этого кнопки оплаты выключены.';root.append(note);}
-  }catch(error){const note=document.createElement('p');note.className='muted';note.textContent='Денежные тарифы временно недоступны.';root.append(note);}
+    const result=await api('/api/ads/slot?placement=store');const ad=result.ad;root.replaceChildren();
+    if(!ad){root.hidden=true;return;}
+    root.hidden=false;
+    const copy=document.createElement('div');copy.className='store-sponsored-ad-copy';
+    const label=document.createElement('small');label.textContent=ad.sponsor_name?'Реклама · '+ad.sponsor_name:'Реклама';
+    const title=document.createElement('strong');title.textContent=ad.title;
+    const body=document.createElement('p');body.textContent=ad.body||'Партнёрское предложение SOLVI.';
+    copy.append(label,title,body);
+    const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent=ad.cta_label||'Подробнее';
+    button.addEventListener('click',()=>{window.open(ad.target_url,'_blank','noopener,noreferrer');api('/api/ads/'+encodeURIComponent(ad.id)+'/click',{method:'POST',body:'{}'}).catch(()=>{});});
+    root.append(copy,button);
+  }catch{root.hidden=true;}
 }
 async function loadStore() {
-  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadPaidMemberships(); }
+  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadStoreSponsoredAd(); }
   catch (error) { showToast(error.message); }
 }
 async function loadTokenHistory() {
@@ -537,59 +602,6 @@ async function loadTokenHistory() {
       row.append(copy, amount, date); root.append(row);
     });
   } catch { /* token history is supplementary */ }
-}
-
-async function loadAdmin() {
-  try {
-    const [overview, reports] = await Promise.all([api('/api/admin/overview'), api('/api/admin/reports')]);
-    const stats = $('#adminStats'); stats.replaceChildren();
-    [['Пользователи', overview.users], ['Гости', overview.guests], ['Активные чаты', overview.activeMatches], ['Открытые жалобы', overview.openReports], ['Токены в системе', overview.tokenTotal]].forEach(([label, value]) => {
-      const card = document.createElement('div'); card.className = 'admin-stat-card';
-      const strong = document.createElement('strong'); strong.textContent = Number(value).toLocaleString('ru-RU');
-      const caption = document.createElement('span'); caption.textContent = label;
-      card.append(strong, caption); stats.append(card);
-    });
-    const usersRoot = $('#adminUsers'); usersRoot.replaceChildren();
-    (overview.recentUsers || []).forEach(person => {
-      const row = document.createElement('div'); row.className = 'admin-user-row';
-      const label = document.createElement('div'); label.className = 'admin-user-copy';
-      const name = document.createElement('strong'); name.textContent = person.username;
-      const roleNames = { owner: 'Владелец', developer: 'Разработчик', moderator: 'Модератор', member: 'Участник' };
-      const meta = document.createElement('small'); meta.textContent = `${person.public_id} · ${roleNames[person.role] || 'Участник'} · ${person.subscription_tier || 'free'}`;
-      label.append(name, meta);
-      const actions = document.createElement('div'); actions.className = 'admin-user-actions';
-      if (person.role !== 'owner') {
-        for (const [tier, days, text] of [['vip',7,'VIP 7д'],['premium',30,'Premium 30д']]) {
-          const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = text;
-          button.addEventListener('click', async () => { try { await api(`/api/admin/users/${encodeURIComponent(person.id)}/membership`, { method: 'POST', body: JSON.stringify({ tier, days }) }); showToast(`${person.username}: ${tier.toUpperCase()} на ${days} дней.`); await loadAdmin(); } catch (error) { showToast(error.message); } }); actions.append(button);
-        }
-        const nextRole = person.role === 'member' ? 'moderator' : person.role === 'moderator' ? 'developer' : 'member';
-        const roleButton = document.createElement('button'); roleButton.type = 'button'; roleButton.className = 'button button-secondary'; roleButton.textContent = nextRole === 'moderator' ? 'Назначить модератора' : nextRole === 'developer' ? 'Назначить разработчика' : 'Снять роль';
-        roleButton.addEventListener('click', async () => { try { await api(`/api/admin/users/${encodeURIComponent(person.id)}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) }); await loadAdmin(); showToast('Роль обновлена.'); } catch (error) { showToast(error.message); } }); actions.append(roleButton);
-      } else {
-        const ownerLabel = document.createElement('span'); ownerLabel.className = 'owner-account-label'; ownerLabel.textContent = 'Полный доступ'; actions.append(ownerLabel);
-      }
-      row.append(label, actions); usersRoot.append(row);
-    });
-    const list = $('#adminReports'); list.replaceChildren();
-    if (!reports.reports.length) { const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'Жалоб пока нет.'; list.append(empty); return; }
-    reports.reports.forEach(report => {
-      const card = document.createElement('article'); card.className = 'admin-report-card';
-      const heading = document.createElement('div'); heading.className = 'admin-report-heading';
-      const title = document.createElement('strong'); title.textContent = `${report.category} · ${report.reported}`;
-      const status = document.createElement('span'); status.className = `report-status ${report.status}`; status.textContent = report.status === 'resolved' ? 'Рассмотрена' : 'Открыта';
-      heading.append(title, status);
-      const reason = document.createElement('p'); reason.textContent = report.details || `Жалоба от ${report.reporter}`;
-      const context = document.createElement('div'); context.className = 'report-context';
-      report.context.forEach(message => { const line = document.createElement('p'); line.textContent = `${message.sender_id === report.reportedId ? report.reported : report.reporter}: ${message.content || 'Вложение'}`; context.append(line); });
-      const actions = document.createElement('div'); actions.className = 'admin-report-actions';
-      const resolve = document.createElement('button'); resolve.type = 'button'; resolve.className = 'button button-secondary'; resolve.textContent = report.status === 'resolved' ? 'Обновить решение' : 'Отметить рассмотренной';
-      resolve.addEventListener('click', async () => { const resolution = await appDialog({title:'Решение по жалобе',message:'Кратко опиши результат проверки.',input:true,defaultValue:'Проверено',confirmText:'Сохранить'}); if (resolution === null) return; try { await api(`/api/admin/reports/${encodeURIComponent(report.id)}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }); await loadAdmin(); showToast('Жалоба отмечена рассмотренной.'); } catch (error) { showToast(error.message); } });
-      const suspend = document.createElement('button'); suspend.type = 'button'; suspend.className = 'button button-danger'; suspend.textContent = 'Ограничить на 1 час';
-      suspend.addEventListener('click', async () => { if (!await appDialog({title:'Ограничить пользователя?',message:`Доступ для ${report.reported} будет ограничен на 1 час.`,confirmText:'Ограничить',danger:true})) return; try { await api(`/api/admin/users/${encodeURIComponent(report.reportedId)}/suspend`, { method: 'POST', body: JSON.stringify({ minutes: 60, reason: `Жалоба: ${report.category}` }) }); await loadAdmin(); showToast('Доступ пользователя ограничен.'); } catch (error) { showToast(error.message); } });
-      actions.append(resolve, suspend); card.append(heading, reason, context, actions); list.append(card);
-    });
-  } catch (error) { showToast(error.message); }
 }
 
 async function loadFavorites() {
@@ -683,11 +695,65 @@ async function loadGrowthTasks(){
     });
   }catch(error){showToast(error.message);}
 }
+const SOCIAL_ICON_MARKUP = {
+  telegram: '<path d="M21.6 4.1 18.4 19c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.6.6-1.2.6l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.2L5.6 12.7.7 11.2c-1.1-.4-1.1-1.2.2-1.7L20 2.1c.9-.3 1.8.2 1.6 2Z"/>',
+  youtube: '<path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8ZM9.7 15.4V8.6l5.9 3.4-5.9 3.4Z"/>',
+  instagram: '<rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.6" cy="6.6" r="1.2"/>',
+  tiktok: '<path d="M15.5 3h3.1c.2 2 1.3 3.6 3.4 4.3v3.2a9.4 9.4 0 0 1-3.4-1.1v6.7a6.4 6.4 0 1 1-6.4-6.4c.4 0 .8 0 1.2.1v3.3a3.2 3.2 0 1 0 2.1 3V3Z"/>',
+  discord: '<path d="M19.7 5.3a18 18 0 0 0-4.4-1.4l-.5 1a16 16 0 0 0-5.6 0l-.5-1a18 18 0 0 0-4.4 1.4C1.5 9.4.8 13.4 1.2 17.4a18 18 0 0 0 5.4 2.7l1.2-2a11 11 0 0 1-1.9-.9l.5-.4a13 13 0 0 0 11.2 0l.5.4a11 11 0 0 1-1.9.9l1.2 2a18 18 0 0 0 5.4-2.7c.5-4.7-.8-8.7-3.1-12.1ZM8.7 14.8c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>',
+  vk: '<path d="M3.2 7.2h3.4c.2 4.1 1.9 5.8 3.2 6.2V7.2h3.2v3.5c1.3-.1 2.7-1.7 3.2-3.5h3.2a8.6 8.6 0 0 1-2.9 5.1 8.8 8.8 0 0 1 3.6 5.5h-3.5c-.6-1.8-2.1-3.2-3.6-3.3v3.3h-.4c-5.2 0-8.2-3.6-8.4-10.6Z"/>',
+  twitch: '<path d="M4 3h18v12l-5 5h-4l-3 3v-3H5V6l-1  -3Zm3 3v11h5v2l2-2h3l3-3V6H7Zm4 2h2v5h-2V8Zm5 0h2v5h-2V8Z"/>',
+  x: '<path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3l-4.9-7.2L5.7 22H2.5l7.3-8.4L2 2h6.5l4.4 6.6L18.9 2Zm-1.1 18h1.7L7.4 3.9H5.6L17.8 20Z"/>',
+  facebook: '<path d="M13.5 22v-8h2.7l.4-3.1h-3.1v-2c0-.9.3-1.5 1.6-1.5h1.7V4.6c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.1H7.3V14h2.8v8h3.4Z"/>',
+  default: '<path d="M7 17 17 7M8 7h9v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+};
+function socialPlatformKey(link){
+  const value=[link.platform,link.label,link.url].filter(Boolean).join(' ').toLowerCase();
+  if(/telegram|t\.me/.test(value))return 'telegram';
+  if(/youtube|youtu\.be/.test(value))return 'youtube';
+  if(/instagram|instagr\.am/.test(value))return 'instagram';
+  if(/tiktok/.test(value))return 'tiktok';
+  if(/discord|discord\.gg/.test(value))return 'discord';
+  if(/(^|[^a-z])vk([^a-z]|$)|vkontakte/.test(value))return 'vk';
+  if(/twitch/.test(value))return 'twitch';
+  if(/(^|[^a-z])x([^a-z]|$)|twitter/.test(value))return 'x';
+  if(/facebook|fb\.com/.test(value))return 'facebook';
+  return 'default';
+}
 function renderSocialLinks(){
   const root=$('#socialLinksFooter');if(!root)return;root.replaceChildren();
-  (state.config?.socialLinks||[]).forEach(link=>{const a=document.createElement('a');a.className='footer-social-link';a.href=link.url;a.target='_blank';a.rel='noopener noreferrer';a.title=link.label;a.setAttribute('aria-label',link.label);const icon=document.createElement('span');icon.textContent=link.icon||'↗';const label=document.createElement('span');label.textContent=link.label;a.append(icon,label);root.append(a);});
+  (state.config?.socialLinks||[]).forEach(link=>{
+    const platform=socialPlatformKey(link);
+    const a=document.createElement('a');a.className='footer-social-link';a.dataset.platform=platform;
+    a.href=link.url;a.target='_blank';a.rel='noopener noreferrer';a.title=link.label;a.setAttribute('aria-label',link.label);
+    const icon=document.createElement('span');icon.className='footer-social-icon';
+    icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(SOCIAL_ICON_MARKUP[platform]||SOCIAL_ICON_MARKUP.default)+'</svg>';
+    const label=document.createElement('span');label.className='footer-social-label';label.textContent=link.label;
+    a.append(icon,label);root.append(a);
+  });
   root.hidden=!root.children.length;
 }
+
+async function loadInbox() {
+  const root=$('#inboxList');if(!root)return;
+  try{
+    const data=await api('/api/inbox');state.inboxMessages=data.messages||[];state.inboxUnread=Number(data.unread||0);
+    const badge=$('#inboxUnreadBadge');if(badge){badge.hidden=state.inboxUnread<=0;badge.textContent=state.inboxUnread>99?'99+':String(state.inboxUnread);}
+    root.replaceChildren();
+    if(!state.inboxMessages.length){const empty=document.createElement('div');empty.className='favorites-empty';empty.textContent='Пока нет сообщений от команды SOLVI.';root.append(empty);return;}
+    state.inboxMessages.forEach(message=>{
+      const card=document.createElement('article');card.className='inbox-message-card'+(message.read_at?'':' unread');
+      const head=document.createElement('div');head.className='inbox-message-head';
+      const title=document.createElement('strong');title.textContent=message.subject||'Сообщение SOLVI';
+      const time=document.createElement('time');time.textContent=new Date(message.created_at).toLocaleString('ru-RU');head.append(title,time);
+      const sender=document.createElement('small');sender.textContent='От: '+(message.sender_name||'Команда SOLVI');
+      const body=document.createElement('p');body.textContent=message.body;card.append(head,sender,body);
+      if(!message.read_at){const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent='Отметить прочитанным';button.addEventListener('click',async()=>{button.disabled=true;try{await api('/api/inbox/'+encodeURIComponent(message.id)+'/read',{method:'POST',body:'{}'});await loadInbox();}catch(error){showToast(error.message);button.disabled=false;}});card.append(button);}
+      root.append(card);
+    });
+  }catch(error){showToast(error.message);}
+}
+
 async function loadTickets() {
   try { const data = await api('/api/tickets'); state.tickets = data.tickets || []; renderTicketList(); }
   catch (error) { showToast(error.message); }
@@ -792,11 +858,11 @@ async function loadSessions() {
 
 function setAuthError(message = '') { $('#authError').textContent = message; }
 function currentView() {
-  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked', 'admin'].find(name => !$(`#${name}Panel`).hidden) || 'home';
+  return ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'inbox', 'feedback', 'growth', 'blocked'].find(name => !$(`#${name}Panel`).hidden) || 'home';
 }
-function setView(view) {
-  if (view === 'home' && state.activeMatch) view = 'chat';
-  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'feedback', 'growth', 'blocked', 'admin'].forEach(name => {
+function setView(view, forceHome = false) {
+  if (view === 'home' && state.activeMatch && !forceHome) view = 'chat';
+  ['home', 'search', 'chat', 'profile', 'settings', 'store', 'inventory', 'favorites', 'inbox', 'feedback', 'growth', 'blocked'].forEach(name => {
     const panel = $(`#${name}Panel`);
     if (panel) panel.hidden = name !== view;
   });
@@ -806,11 +872,11 @@ function setView(view) {
     requestAnimationFrame(() => activePanel.classList.add('view-enter'));
   }
   $$('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === (view === 'search' || view === 'chat' ? 'home' : view)));
-  if (view === 'chat') scrollMessages();
-  if (view === 'admin' && state.user?.role === 'owner') loadAdmin();
+  if (view === 'chat') scrollMessages(true);
   if (view === 'store') loadStore();
   if (view === 'inventory') loadInventory();
   if (view === 'favorites') loadFavorites();
+  if (view === 'inbox') loadInbox();
   if (view === 'feedback') loadTickets();
   if (view === 'growth') loadGrowthTasks();
   if (view === 'blocked') loadBlockedUsers();
@@ -852,28 +918,31 @@ function setUser(user) {
   $('#profileTokenBalance').textContent = Number(user.tokens || 0).toLocaleString('ru-RU');
   $('#profileCreatedAt').textContent = `В SOLVI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
   $('#profileUsername').value = user.username;
-  if ($('#profileGender')) $('#profileGender').value = user.gender || '';
-  if ($('#profileDescription')) $('#profileDescription').value = user.description || '';
-  $('#profileUsername').disabled = user.accountType === 'guest';
-  $('#saveProfileButton').hidden = user.accountType === 'guest';
+  if (isNewAccount) state.ownGender = ['male', 'female', 'other'].includes(user.gender) ? user.gender : '';
+  else if (['male', 'female', 'other'].includes(user.gender)) state.ownGender = user.gender;
+  if ($('#ownGender')) $('#ownGender').value = state.ownGender;
+  const isGuest = user.accountType === 'guest';
+  $('#profileUsername').disabled = isGuest;
+  $('#profileUsernameLabel').hidden = isGuest;
+  $('#profileUsername').hidden = isGuest;
+  $('#saveProfileButton').hidden = isGuest;
   $('#avatarOptions').hidden = false;
   $('#avatarUploadButton').hidden = false;
   state.settings = { ...state.settings, ...(user.settings || {}) };
   applyEquipped(user.equipped || {});
-  $('#adminNavButton').hidden = user.role !== 'owner';
-  const isGuest = user.accountType === 'guest';
   $('#accountTypeBadge').textContent = isGuest ? 'ГОСТЬ' : 'АККАУНТ';
-  $('#profileAccountType').textContent = isGuest ? 'ГОСТЕВОЙ ПРОФИЛЬ · ДО 180 ДНЕЙ' : 'ПОСТОЯННЫЙ АККАУНТ';
+  $('#profileAccountType').textContent = isGuest ? 'ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ' : 'ПОСТОЯННЫЙ АККАУНТ';
   $('#guestClaimCard').hidden = !isGuest;
-  $('#claimUsername').value = isGuest ? user.username : '';
-  $('#claimPassword').value = '';
-  $('#claimError').textContent = '';
+  const guestExpiry = user.guestExpiresAt ? new Date(user.guestExpiresAt) : null;
+  if ($('#guestExpiryNote')) $('#guestExpiryNote').textContent = isGuest
+    ? `Гостевой профиль действует до ${guestExpiry && !Number.isNaN(guestExpiry.getTime()) ? guestExpiry.toLocaleString('ru-RU', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }) : 'истечения срока'}. Ник и пароль изменить нельзя. Аватар можно менять.`
+    : '';
   $('#sidePublicId').hidden = false;
   renderSettingsControls();
   applySettings();
   renderAvatarOptions();
   renderStickerPanel();
-  try { if (state.token) localStorage.setItem('sovli_user_cache', JSON.stringify(user)); } catch { /* cached profile is optional */ }
+  try { if (state.token) safeStorageSet('sovli_user_cache', JSON.stringify(user)); } catch { /* cached profile is optional */ }
 }
 async function api(url, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -884,21 +953,27 @@ async function api(url, options = {}) {
   if (!response.ok) {
     const error = new Error(payload.error || `Ошибка запроса (${response.status})`);
     error.status = response.status;
-    if (response.status === 401 && state.token && !state.authRestoring) logout(false, false);
+    // Only boot() may invalidate a session after /api/me confirms it.
+    // A 401 from an unrelated background endpoint must not erase the user's token.
     throw error;
   }
   return payload;
 }
 function showAuth() {
   document.documentElement.classList.remove('session-checking');
+  const bootScreen = $('#sessionBootScreen');
+  if (bootScreen) bootScreen.hidden = true;
   $('#authView').hidden = false;
   $('#appView').hidden = true;
 }
 function showApp() {
   document.documentElement.classList.remove('session-checking');
+  const bootScreen = $('#sessionBootScreen');
+  if (bootScreen) bootScreen.hidden = true;
   $('#authView').hidden = true;
   $('#appView').hidden = false;
   setView('home');
+  if (state.token) loadInbox().catch(() => {});
 }
 function switchAuthMode(mode) {
   state.authMode = mode;
@@ -937,63 +1012,35 @@ function toggleChoice(listName, value, container, values, limit) {
 function renderFilters() {
   const tier = state.user?.subscriptionTier || 'free';
   const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
-  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
-  if (!['chat', 'flirt', 'roleplay'].includes(state.matchingMode)) state.matchingMode = 'chat';
-  state.selectedLanguages = state.selectedLanguages.slice(0, languageLimit);
-  state.selectedInterests = state.selectedInterests.slice(0, interestLimit);
-  state.selectedFlirtInterests = state.selectedFlirtInterests.slice(0, interestLimit);
-  state.selectedRoleplayInterests = state.selectedRoleplayInterests.slice(0, interestLimit);
-  $$('[data-match-mode]').forEach(button => {
-    const active = button.dataset.matchMode === state.matchingMode;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-  $('#desiredGender').value = state.desiredGender;
-  $('#roleplayIntent').value = state.roleplayIntent;
-  $('#standardInterestBlock').hidden = state.matchingMode !== 'chat';
-  $('#flirtSettings').hidden = state.matchingMode !== 'flirt';
-  $('#roleplaySettings').hidden = state.matchingMode !== 'roleplay';
-  renderChoices($('#languageOptions'), state.config.languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), state.config.languages, languageLimit));
-  renderChoices($('#interestOptions'), state.config.interests, state.selectedInterests, value => toggleChoice('selectedInterests', value, $('#interestOptions'), state.config.interests, interestLimit));
-  renderChoices($('#flirtInterestOptions'), state.config.flirtInterests || [], state.selectedFlirtInterests, value => toggleChoice('selectedFlirtInterests', value, $('#flirtInterestOptions'), state.config.flirtInterests || [], interestLimit));
-  renderChoices($('#roleplayInterestOptions'), state.config.roleplayInterests || [], state.selectedRoleplayInterests, value => toggleChoice('selectedRoleplayInterests', value, $('#roleplayInterestOptions'), state.config.roleplayInterests || [], interestLimit));
-  const summary = values => values.length ? values.slice(0, 2).join(', ') + (values.length > 2 ? ` +${values.length - 2}` : '') : 'Любые интересы';
-  $('#languageSummary').textContent = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
-  $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / ${languageLimit}` : 'Не ограничивать';
-  $('#interestSummary').textContent = summary(state.selectedInterests);
-  $('#interestCount').textContent = state.selectedInterests.length ? `${state.selectedInterests.length} / ${interestLimit}` : 'Без фильтра';
-  $('#flirtInterestSummary').textContent = summary(state.selectedFlirtInterests);
-  $('#flirtInterestCount').textContent = state.selectedFlirtInterests.length ? `${state.selectedFlirtInterests.length} / ${interestLimit}` : 'Без фильтра';
-  $('#roleplayInterestSummary').textContent = summary(state.selectedRoleplayInterests);
-  $('#roleplayInterestCount').textContent = state.selectedRoleplayInterests.length ? `${state.selectedRoleplayInterests.length} / ${interestLimit}` : 'Без фильтра';
+  const languages = Array.isArray(state.config.languages) ? state.config.languages : [];
+  state.selectedLanguages = (Array.isArray(state.selectedLanguages) ? state.selectedLanguages : [])
+    .filter(value => languages.includes(value)).slice(0, languageLimit);
+  if ($('#desiredGender')) $('#desiredGender').value = state.desiredGender || 'any';
+  if ($('#ownGender')) $('#ownGender').value = state.ownGender || '';
+  if ($('#standardInterestBlock')) $('#standardInterestBlock').hidden = true;
+  if ($('#languageOptions')) renderChoices($('#languageOptions'), languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), languages, languageLimit));
+  if ($('#languageSummary')) $('#languageSummary').textContent = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
+  if ($('#languageCount')) $('#languageCount').textContent = state.selectedLanguages.length ? `${state.selectedLanguages.length} / ${languageLimit}` : 'Не ограничивать';
   try {
-    localStorage.setItem('sovli_languages', JSON.stringify(state.selectedLanguages));
-    localStorage.setItem('sovli_interests', JSON.stringify(state.selectedInterests));
-    localStorage.setItem('solvi_flirt_interests', JSON.stringify(state.selectedFlirtInterests));
-    localStorage.setItem('solvi_roleplay_interests', JSON.stringify(state.selectedRoleplayInterests));
-    localStorage.setItem('solvi_match_mode', state.matchingMode);
-    localStorage.setItem('solvi_desired_gender', state.desiredGender);
-    localStorage.setItem('solvi_roleplay_intent', state.roleplayIntent);
+    safeStorageSet('sovli_languages', JSON.stringify(state.selectedLanguages));
+    safeStorageSet('solvi_desired_gender', state.desiredGender || 'any');
   } catch { /* filter preferences are optional */ }
 }
 
 function buildMatchingPreferences() {
-  const interests = state.matchingMode === 'flirt' ? state.selectedFlirtInterests : (state.matchingMode === 'roleplay' ? state.selectedRoleplayInterests : state.selectedInterests);
   return {
-    mode: state.matchingMode, desiredGender: state.desiredGender, roleplayIntent: state.roleplayIntent,
-    adultConfirmed: state.matchingMode === 'flirt' ? $('#flirtAdultConsent').checked : (state.matchingMode === 'roleplay' ? $('#roleplayAdultConsent').checked : false),
-    languages: state.selectedLanguages, interests
+    mode: 'chat',
+    ownGender: state.ownGender || '',
+    desiredGender: state.desiredGender || 'any',
+    languages: [],
+    interests: []
   };
 }
 
 function validateMatchingPreferences() {
-  if (state.matchingMode !== 'chat' && !buildMatchingPreferences().adultConfirmed) {
-    showToast('Для этого режима подтверди, что тебе уже исполнилось 18 лет.');
-    return false;
-  }
-  if (state.desiredGender !== 'any' && !['male', 'female', 'other'].includes(state.user?.gender)) {
-    showToast('Сначала укажи свой пол в профиле — это нужно для взаимного подбора.');
-    setView('profile');
+  if (!['male', 'female', 'other'].includes(state.ownGender)) {
+    showToast('Сначала выбери свой пол в форме поиска — он нужен для взаимного подбора.');
+    $('#ownGender')?.focus();
     return false;
   }
   return true;
@@ -1047,6 +1094,7 @@ function connectSocket() {
     }
   });
   socket.on('disconnect', () => {
+    state.readPending = false;
     if (state.searching) $('#searchStatusText').textContent = 'Связь прервалась. Восстанавливаем подключение…';
     if (state.activeMatch) $('#partnerStateText').textContent = 'Переподключение…';
   });
@@ -1056,13 +1104,25 @@ function connectSocket() {
     const message = String(payload?.message || '').trim();
     if (message) showToast(`Сообщение от команды SOLVI: ${message}`, 7500);
   });
+  socket.on('site:message', payload => {
+    const subject=String(payload?.subject||'Сообщение от SOLVI').trim(),body=String(payload?.body||'').trim();
+    if(body)showToast(subject+': '+body,8000);
+    if(currentView()==='inbox')loadInbox().catch(()=>{});
+    if(document.visibilityState==='hidden'&&state.settings.browserNotifications&&'Notification' in window&&Notification.permission==='granted')new Notification(subject,{body:body.slice(0,160),icon:'/favicon.svg',tag:payload?.id||'solvi-site-message'});
+  });
   socket.on('queue:waiting', () => {
-    if (state.searching) $('#searchStatusText').textContent = 'Подбираем человека с похожими интересами.';
+    if (state.searching) $('#searchStatusText').textContent = 'Подбираем собеседника на русском языке.';
+  });
+  socket.on('queue:aiUnavailable', data => {
+    if (!state.searching) return;
+    $('#searchStatusText').textContent = data?.reason === 'api_key'
+      ? 'Людей пока не нашли. ИИ-подбор включится после настройки Gemini API.'
+      : 'Продолжаем искать человека.';
   });
   socket.on('queue:cancelled', () => { state.searching = false; clearSearchTimer(); setView('home'); });
   socket.on('match:found', match => activateMatch(match));
   socket.on('chat:restored', payload => {
-    state.activeMatch = { matchId: payload.matchId, partner: payload.partner, commonInterests: payload.commonInterests || [], startedAt: payload.startedAt };
+    state.activeMatch = { matchId: payload.matchId, isAi: Boolean(payload.isAi || payload.partner?.isAi), partner: payload.partner, commonInterests: payload.commonInterests || [], startedAt: payload.startedAt };
     state.messages = payload.messages || [];
     restoreOutbox();
     restoreDraft();
@@ -1082,6 +1142,11 @@ function connectSocket() {
       else if (state.settings.browserNotifications && 'Notification' in window && Notification.permission === 'granted') new Notification(state.activeMatch?.partner?.username || 'Новое сообщение', { body: (message.content || (message.type === 'voice' ? 'Голосовое сообщение' : 'Вложение')).slice(0, 120), icon: '/favicon.svg', tag: state.activeMatch?.matchId });
     }
   });
+  socket.on('ai:message', message => {
+    if (!state.activeMatch?.isAi || message.match_id !== state.activeMatch.matchId) return;
+    mergeMessage(message);
+    playUiSound(740);
+  });
   socket.on('chat:status', data => {
     const item = state.messages.find(message => message.id === data.messageId);
     if (item) { item.delivered_at = data.at; renderMessages(); }
@@ -1096,7 +1161,10 @@ function connectSocket() {
     if (message) { message.reactions = data.reactions || []; renderMessages(); }
   });
   socket.on('chat:typing', data => {
-    if (data.userId === state.activeMatch?.partner?.id) $('#typingIndicator').hidden = !data.typing;
+    if (data.userId !== state.activeMatch?.partner?.id) return;
+    $('#typingIndicator').hidden = !data.typing;
+    clearTimeout(state.partnerTypingTimer);
+    if (data.typing) state.partnerTypingTimer = setTimeout(() => { $('#typingIndicator').hidden = true; }, 2200);
   });
   socket.on('chat:recording', data => {
     if (data.userId === state.activeMatch?.partner?.id) $('#recordingIndicator').hidden = !data.recording;
@@ -1109,7 +1177,7 @@ function connectSocket() {
     releaseMediaUrls();
     state.outbox = [];
     persistOutbox();
-    try { if (draftKey()) localStorage.removeItem(draftKey()); } catch { /* ignore */ }
+    try { if (draftKey()) safeStorageRemove(draftKey()); } catch { /* ignore */ }
     $('#typingIndicator').hidden = true;
     $('#recordingIndicator').hidden = true;
     stopVoiceRecording(true);
@@ -1157,14 +1225,14 @@ function activateMatch(match) {
   renderChatHeader();
   renderMessages();
   setView('chat');
-  showToast('Собеседник найден. Хорошего разговора!');
+  showToast(match.isAi ? 'Это ИИ-персонаж SOLVI. Сообщения обрабатывает Gemini — не отправляй личные данные.' : 'Собеседник найден. Хорошего разговора!', match.isAi ? 6500 : 2800);
 }
 function renderChatHeader() {
   const partner = state.activeMatch?.partner;
   if (!partner) return;
   setAvatarContent($('#partnerAvatar'), partner);
   $('#partnerName').textContent = partner.username || 'Собеседник';
-  $('#partnerStateText').textContent = [partner.badge, partner.cosmeticTitle].filter(Boolean).join(' · ') || 'На связи';
+  $('#partnerStateText').textContent = partner.isAi ? 'ИИ-собеседник · бот-персонаж' : ([partner.badge, partner.cosmeticTitle].filter(Boolean).join(' · ') || 'На связи');
   $('#partnerName').title = partner.description || partner.username || '';
   const common = state.activeMatch.commonInterests || [];
   const container = $('#commonInterests');
@@ -1237,6 +1305,8 @@ function reactToMessage(messageId, emoji) {
 }
 function renderMessages() {
   const container = $('#messages');
+  const stickToBottom = state.forceScrollToBottom || (container.scrollHeight - container.scrollTop - container.clientHeight < 150);
+  state.forceScrollToBottom = false;
   container.replaceChildren();
   if (!state.messages.length) {
     const empty = document.createElement('div');
@@ -1354,7 +1424,7 @@ function renderMessages() {
       const pill = document.createElement(mine ? 'span' : 'button');
       if (!mine) { pill.type = 'button'; pill.addEventListener('click', () => reactToMessage(message.id, reaction.emoji)); }
       pill.className = `reaction-pill${reaction.mine ? ' mine' : ''}`;
-      pill.textContent = `${reaction.emoji} ${reaction.count}`;
+      pill.textContent = `${reaction.emoji}${Number(reaction.count) > 1 ? ` ${reaction.count}` : ''}`;
       reactions.append(pill);
     });
     if (!String(message.id).startsWith('pending:') && !mine) {
@@ -1381,11 +1451,11 @@ function renderMessages() {
     if (reactions.children.length) row.append(reactions);
     container.append(row);
   });
-  scrollMessages();
+  if (stickToBottom) scrollMessages(true);
 }
-function scrollMessages() {
+function scrollMessages(force = false) {
   const container = $('#messages');
-  if (container) container.scrollTop = container.scrollHeight;
+  if (container && force) container.scrollTop = container.scrollHeight;
 }
 function mergeMessage(incoming) {
   const index = state.messages.findIndex(message => message.id === incoming.id || (message.client_id && message.client_id === incoming.client_id && message.sender_id === incoming.sender_id));
@@ -1395,8 +1465,9 @@ function mergeMessage(incoming) {
   renderMessages();
 }
 function markRead() {
-  if (!state.socket?.connected || !state.activeMatch) return;
-  state.socket.emit('chat:read', { matchId: state.activeMatch.matchId });
+  if (!state.socket?.connected || !state.activeMatch || state.readPending || document.visibilityState !== 'visible' || $('#chatPanel')?.hidden) return;
+  state.readPending = true;
+  state.socket.emit('chat:read', { matchId: state.activeMatch.matchId }, () => { state.readPending = false; });
 }
 function startSearch() {
   if (state.config.matchingEnabled === false) { showToast('Публичный подбор пока отключён до завершения проверки безопасности.'); return; }
@@ -1478,6 +1549,7 @@ function sendMessage(content, clientId, extras = {}) {
   if (!state.activeMatch) { showToast('Сначала найди собеседника.'); return; }
   const attachments = Array.isArray(extras.attachments) ? extras.attachments : [];
   const sticker = typeof extras.sticker === 'string' ? extras.sticker : null;
+  if (state.activeMatch.isAi && attachments.length) { showToast('ИИ-собеседник пока поддерживает текст и стикеры, но не фото и голосовые.'); return; }
   const replyToId = extras.replyToId || state.replyTarget?.id || null;
   if (replyToId && state.replyTarget?.sender_id === state.user?.id) {
     showToast('Нельзя отвечать на собственное сообщение.');
@@ -1489,6 +1561,7 @@ function sendMessage(content, clientId, extras = {}) {
     sender_id: state.user.id, client_id: clientId, content, replyTo: replyToId ? { id: replyToId, content: state.replyTarget?.content || '' } : null, attachments: attachments.map(id => ({ id, kind: extras.kind || 'image', url: '' })), sticker, type: sticker ? 'sticker' : (attachments.length ? (extras.kind === 'audio' ? 'voice' : 'media') : 'text'),
     created_at: new Date().toISOString(), status: 'sending'
   };
+  state.forceScrollToBottom = true;
   mergeMessage(message);
   state.outbox.push({ matchId: state.activeMatch.matchId, clientId, content, attachments, attachmentKind: extras.kind || 'image', sticker, replyToId });
   state.replyTarget = null; if ($('#replyPreview')) $('#replyPreview').hidden = true;
@@ -1503,6 +1576,25 @@ function sendMessage(content, clientId, extras = {}) {
 function flushOutbox() {
   if (!state.socket?.connected || !state.activeMatch || !state.outbox.length) return;
   const pending = [...state.outbox];
+  if (state.activeMatch.isAi) {
+    pending.forEach(item => {
+      if (item.matchId !== state.activeMatch?.matchId) return;
+      state.socket.emit('ai:send', { sessionId: item.matchId, clientId: item.clientId, content: item.content, sticker: item.sticker || null, attachments: item.attachments || [] }, result => {
+        const index = state.outbox.findIndex(row => row.clientId === item.clientId);
+        const optimistic = state.messages.find(row => row.client_id === item.clientId);
+        if (!result?.ok) {
+          if (optimistic) { optimistic.status = 'failed'; renderMessages(); }
+          showToast(result?.error || 'Не удалось отправить сообщение ИИ-собеседнику.');
+        } else if (optimistic) {
+          optimistic.status = undefined;
+          renderMessages();
+        }
+        if (index >= 0) state.outbox.splice(index, 1);
+        persistOutbox();
+      });
+    });
+    return;
+  }
   pending.forEach(item => {
     if (item.matchId !== state.activeMatch?.matchId) return;
     state.socket.emit('chat:send', { matchId: item.matchId, clientId: item.clientId, content: item.content, attachments: item.attachments || [], sticker: item.sticker || null, replyToId: item.replyToId || null }, result => {
@@ -1524,12 +1616,12 @@ function flushOutbox() {
 function outboxKey() { return state.user ? `orbit_outbox_${state.user.id}` : ''; }
 function persistOutbox() {
   if (!outboxKey()) return;
-  try { localStorage.setItem(outboxKey(), JSON.stringify(state.outbox)); } catch { /* local storage may be unavailable */ }
+  try { safeStorageSet(outboxKey(), JSON.stringify(state.outbox)); } catch { /* local storage may be unavailable */ }
 }
 function restoreOutbox() {
   if (!outboxKey() || !state.activeMatch) return;
   try {
-    const saved = JSON.parse(localStorage.getItem(outboxKey()) || '[]');
+    const saved = JSON.parse(safeStorageGet(outboxKey()) || '[]');
     state.outbox = Array.isArray(saved) ? saved.filter(item => item && item.matchId === state.activeMatch.matchId && typeof item.clientId === 'string' && typeof item.content === 'string' && (Array.isArray(item.attachments) || typeof item.sticker === 'string' || item.content.length > 0)) : [];
     state.outbox.forEach(item => {
       if (!state.messages.some(message => message.client_id === item.clientId)) {
@@ -1542,15 +1634,15 @@ function restoreOutbox() {
 function draftKey() { return state.user ? `orbit_draft_${state.user.id}` : ''; }
 function saveDraft(value) {
   if (!draftKey()) return;
-  try { localStorage.setItem(draftKey(), JSON.stringify({ matchId: state.activeMatch?.matchId || null, text: value })); }
+  try { safeStorageSet(draftKey(), JSON.stringify({ matchId: state.activeMatch?.matchId || null, text: value })); }
   catch { /* local storage may be unavailable */ }
 }
 function restoreDraft() {
   if (!draftKey() || !state.activeMatch) return;
   try {
-    const draft = JSON.parse(localStorage.getItem(draftKey()) || 'null');
+    const draft = JSON.parse(safeStorageGet(draftKey()) || 'null');
     if (draft?.matchId === state.activeMatch.matchId && typeof draft.text === 'string') $('#messageInput').value = draft.text;
-    else localStorage.removeItem(draftKey());
+    else safeStorageRemove(draftKey());
   } catch { /* ignore malformed draft */ }
 }
 function retryMessage(message) {
@@ -1738,7 +1830,12 @@ async function blockPartner() {
     showToast('Пользователь заблокирован.');
   } catch (error) { showToast(error.message); }
 }
-function closeModals() { $$('.modal-backdrop').forEach(modal => { modal.hidden = true; }); }
+function closeModals() {
+  if (state.storePreviewSnapshot) restoreStorePreview(false);
+  state.storePreviewItem = null;
+  $$('.modal-backdrop').forEach(modal => { modal.hidden = true; });
+  document.body.classList.remove('store-preview-open', 'purchase-confirm-open');
+}
 function logout(showMessage = true, revokeServer = true) {
   restoreStorePreview(false);
   const oldToken = state.token;
@@ -1748,9 +1845,9 @@ function logout(showMessage = true, revokeServer = true) {
   if (state.socket) { state.socket.disconnect(); state.socket = null; }
   releaseMediaUrls();
   stopVoiceRecording(true);
-  localStorage.removeItem('sovli_token');
-  localStorage.removeItem('orbit_token');
-  localStorage.removeItem('sovli_user_cache');
+  safeStorageRemove('sovli_token');
+  safeStorageRemove('orbit_token');
+  safeStorageRemove('sovli_user_cache');
   state.token = '';
   state.user = null;
   state.activeMatch = null;
@@ -1841,68 +1938,85 @@ function playUiSound(frequency = 520) {
   } catch { /* Audio is optional and may be blocked by the browser. */ }
 }
 async function boot() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  applyTheme();
-  let cachedUser = null;
   const bootScreen = $('#sessionBootScreen');
-  if (state.token) {
-    try { cachedUser = JSON.parse(localStorage.getItem('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
-    if (cachedUser?.id) { setUser(cachedUser); showApp(); }
-  }
-  bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
-  try { state.config = await api('/api/config'); }
-  catch { state.config = { languages: [], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] }; }
-  renderSocialLinks();
-  const billingResult = new URL(window.location.href).searchParams.get('billing');
-  if (billingResult === 'success' && state.token) {
-    try { const latest = await api('/api/me'); setUser(latest.user); showToast('Платёж принят. Если Stripe ещё отправляет подтверждение, статус активируется автоматически.'); }
-    catch { showToast('Платёж завершён. Статус обновится после подтверждения платёжного сервиса.'); }
-    history.replaceState({}, '', window.location.pathname + window.location.hash);
-  } else if (billingResult === 'cancelled') {
-    showToast('Оплата отменена. Списание не выполнено.');
-    history.replaceState({}, '', window.location.pathname + window.location.hash);
-  }
-  const tier = state.user?.subscriptionTier || 'free';
-  const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
-  const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
-  state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, languageLimit);
-  state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, interestLimit);
-  renderFilters();
-  renderStickerPanel();
-  $('#inviteCodeField').hidden = !state.config.inviteRequired;
-  if (state.config.inviteRequired) $('#authInviteCode').required = true;
-  if (state.config.matchingEnabled === false) {
-    $('#findButton').disabled = true;
-    $('#findButton').title = 'Подбор отключён в настройках сервера';
-    $('#alphaNotice').querySelector('p').innerHTML = '<strong>Тестовый режим.</strong> Подбор временно выключен администратором. Попроси организатора проверить настройки сервера.';
-  } else if (state.config.publicMode) {
-    $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
-  }
-  if (!state.token) { showAuth(); bootScreen.hidden = true; return; }
-  state.authRestoring = true;
+  let cachedUser = null;
   try {
-    const response = await api('/api/me');
-    setUser(response.user);
-    state.activeMatch = response.activeMatch;
-    showApp();
-    loadFavorites();
-    connectSocket();
-  } catch (error) {
-    if (error.status === 401) {
-      localStorage.removeItem('sovli_user_cache');
-      logout(false);
-      if (error.message?.includes('гостевого')) setAuthError(error.message);
-    } else if (cachedUser?.id) {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+    applyTheme();
+    if (state.token) {
+      try { cachedUser = JSON.parse(safeStorageGet('sovli_user_cache') || 'null'); } catch { cachedUser = null; }
+      if (cachedUser?.id) { setUser(cachedUser); showApp(); }
+    }
+    if (bootScreen) bootScreen.hidden = !state.token || Boolean(cachedUser?.id);
+    try { state.config = await api('/api/config'); }
+    catch {
+      state.config = { languages: ['Русский'], interests: [], avatars: ['🪐', '🌙', '🦊', '🐼'], matchingEnabled: true, publicMode: false, socialLinks: [] };
+    }
+    renderSocialLinks();
+    const billingResult = new URL(window.location.href).searchParams.get('billing');
+    if (billingResult === 'success' && state.token) {
+      try { const latest = await api('/api/me'); setUser(latest.user); showToast('Платёж принят. Если Stripe ещё отправляет подтверждение, статус активируется автоматически.'); }
+      catch { showToast('Платёж завершён. Статус обновится после подтверждения платёжного сервиса.'); }
+      history.replaceState({}, '', window.location.pathname + window.location.hash);
+    } else if (billingResult === 'cancelled') {
+      showToast('Оплата отменена. Списание не выполнено.');
+      history.replaceState({}, '', window.location.pathname + window.location.hash);
+    }
+    const tier = state.user?.subscriptionTier || 'free';
+    const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
+    const interestLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5);
+    if (Array.isArray(state.config.languages)) {
+      state.selectedLanguages = state.selectedLanguages.filter(value => state.config.languages.includes(value)).slice(0, languageLimit);
+    } else state.selectedLanguages = [];
+    if (Array.isArray(state.config.interests)) {
+      state.selectedInterests = state.selectedInterests.filter(value => state.config.interests.includes(value)).slice(0, interestLimit);
+    } else state.selectedInterests = [];renderFilters();
+    renderStickerPanel();
+    $('#inviteCodeField').hidden = !state.config.inviteRequired;
+    if (state.config.inviteRequired) $('#authInviteCode').required = true;
+    if (state.config.matchingEnabled === false) {
+      $('#findButton').disabled = true;
+      $('#findButton').title = 'Подбор отключён в настройках сервера';
+      $('#alphaNotice').querySelector('p').innerHTML = '<strong>Тестовый режим.</strong> Подбор временно выключен администратором. Попроси организатора проверить настройки сервера.';
+    } else if (state.config.publicMode) {
+      $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
+    }
+    if (!state.token) { showAuth(); return; }
+    state.authRestoring = true;
+    try {
+      const response = await api('/api/me');
+      setUser(response.user);
+      state.activeMatch = response.activeMatch;
       showApp();
+      loadFavorites();
       connectSocket();
-      showToast('Восстанавливаем связь с сервером. Аккаунт сохранён.');
+    } catch (error) {
+      if (error.status === 401) {
+        safeStorageRemove('sovli_user_cache');
+        logout(false);
+        if (error.message?.includes('гостевого')) setAuthError(error.message);
+      } else if (cachedUser?.id) {
+        showApp();
+        connectSocket();
+        showToast('Восстанавливаем связь с сервером. Аккаунт сохранён.');
+      } else {
+        showAuth();
+        setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
+      }
+    }
+  } catch (error) {
+    console.error('[SOLVI] Ошибка запуска интерфейса:', error);
+    if (cachedUser?.id) {
+      try { setUser(cachedUser); } catch (cacheError) { console.error('[SOLVI] Не удалось восстановить кеш профиля:', cacheError); }
+      showApp();
+      showToast('Интерфейс открылся в режиме восстановления. Обнови страницу, когда связь восстановится.');
     } else {
       showAuth();
-      setAuthError('Не удалось проверить сессию из-за временной ошибки связи. Обнови страницу — повторный вход не нужен.');
+      setAuthError('Не удалось запустить интерфейс. Обнови страницу; повторная регистрация не нужна.');
     }
   } finally {
     state.authRestoring = false;
-    bootScreen.hidden = true;
+    if (bootScreen) bootScreen.hidden = true;
     document.documentElement.classList.remove('session-checking');
   }
 }
@@ -1924,8 +2038,8 @@ $('#authForm').addEventListener('submit', async event => {
       body: JSON.stringify({ username, password, accessCode: $('#authInviteCode').value.trim() })
     });
     state.token = response.token;
-    localStorage.setItem('sovli_token', state.token);
-    localStorage.removeItem('orbit_token');
+    safeStorageSet('sovli_token', state.token);
+    safeStorageRemove('orbit_token');
     setUser(response.user);
     showApp();
     connectSocket();
@@ -1946,23 +2060,20 @@ $('#guestButton').addEventListener('click', async () => {
   try {
     const response = await api('/api/auth/guest', { method: 'POST', body: JSON.stringify({ accessCode: $('#authInviteCode').value.trim() }) });
     state.token = response.token;
-    localStorage.setItem('sovli_token', state.token);
-    localStorage.removeItem('orbit_token');
+    safeStorageSet('sovli_token', state.token);
+    safeStorageRemove('orbit_token');
     setUser(response.user);
     showApp();
     connectSocket();
     loadFavorites();
-    showToast(`Привет, ${response.user.username}! Гостевой профиль сохранится в этом браузере до 180 дней.`);
+    showToast(`Привет, ${response.user.username}! Гостевой профиль действует 3 дня в этом браузере.`);
   } catch (error) { setAuthError(error.message); }
   finally { button.disabled = false; button.querySelector('span:first-child').textContent = 'Продолжить гостем'; }
 });
-$('[data-match-mode]').forEach(button => button.addEventListener('click', () => {
-  state.matchingMode = button.dataset.matchMode; $('#flirtAdultConsent').checked = false; $('#roleplayAdultConsent').checked = false; renderFilters();
-}));
 $('#desiredGender').addEventListener('change', () => { state.desiredGender = $('#desiredGender').value; renderFilters(); });
-$('#roleplayIntent').addEventListener('change', () => { state.roleplayIntent = $('#roleplayIntent').value; renderFilters(); });
+$('#ownGender').addEventListener('change', () => { state.ownGender = $('#ownGender').value; });
 $('#findButton').addEventListener('click', startSearch);
-$('#clearFiltersButton').addEventListener('click', () => { state.selectedLanguages = []; state.selectedInterests = []; state.selectedFlirtInterests = []; state.selectedRoleplayInterests = []; state.desiredGender = 'any'; $('#flirtAdultConsent').checked = false; $('#roleplayAdultConsent').checked = false; $('#languagesDropdown').open = false; $('#interestsDropdown').open = false; renderFilters(); showToast('Фильтры сброшены.'); });
+$('#clearFiltersButton').addEventListener('click', () => { state.selectedLanguages = []; state.selectedInterests = []; state.desiredGender = 'any'; if ($('#languagesDropdown')) $('#languagesDropdown').open = false; if ($('#interestsDropdown')) $('#interestsDropdown').open = false; renderFilters(); showToast('Фильтры сброшены.'); });
 $('#nextChatButton').addEventListener('click', nextPartner);
 $('#cancelSearchButton').addEventListener('click', cancelSearch);
 $('#expandSearchButton').addEventListener('click', () => {
@@ -1982,7 +2093,12 @@ $('#sidePublicId').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(state.user.publicId); showToast('Технический ID скопирован. Для входа используй ник и пароль.'); }
   catch { showToast(`Твой ID: ${state.user.publicId}`); }
 });
-$$('[data-view]').forEach(button => button.addEventListener('click', () => { setView(button.dataset.view); if (button.dataset.view === 'store') loadStore(); }));
+document.addEventListener('click', event => {
+  const button = event.target?.closest?.('[data-view]');
+  if (!button) return;
+  if (button.tagName === 'A') event.preventDefault();
+  setView(button.dataset.view, button.id === 'brandHomeLink');
+}, true);
 $('#settingSounds').addEventListener('change', () => scheduleSettingsSave({ sounds: $('#settingSounds').checked }));
 $('#settingSoundVolume').addEventListener('input', () => { $('#soundVolumeLabel').textContent = `${$('#settingSoundVolume').value}%`; });
 $('#settingSoundVolume').addEventListener('change', () => scheduleSettingsSave({ soundVolume: Number($('#settingSoundVolume').value) }));
@@ -2004,7 +2120,7 @@ $('#authRulesButton').addEventListener('click', () => { $('#rulesModal').hidden 
 $$('[data-close-modal]').forEach(button => button.addEventListener('click', closeModals));
 $('#storePreviewTryOnButton')?.addEventListener('click', startStorePreview);
 $('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePreview(true));
-$$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; }));
+$$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeModals(); }));
 $('#endChatButton').addEventListener('click', async () => {
   if (!state.activeMatch) return;
   if (!await appDialog({title:'Завершить диалог?',message:'После завершения ты сможешь сохранить текст переписки в Избранное.',confirmText:'Завершить',danger:true})) return;
@@ -2022,7 +2138,6 @@ $('#storeCollectionSelect')?.addEventListener('change', () => { state.storeColle
 $('#storeSearchInput')?.addEventListener('input', () => { state.storeSearch = $('#storeSearchInput').value; if (state.storeData) renderStore(state.storeData); });
 $('#promoRedeemButton')?.addEventListener('click', redeemPromo);
 $('#promoCodeInput')?.addEventListener('keydown', event => { if (event.key === 'Enter') redeemPromo(); });
-$('#refreshReportsButton')?.addEventListener('click', loadAdmin);
 $('#loadSessionsButton')?.addEventListener('click', loadSessions);
 $('#ticketCreateForm')?.addEventListener('submit', async event => {
   event.preventDefault();
@@ -2069,9 +2184,10 @@ $('#messageInput').addEventListener('input', () => {
   input.style.height = `${Math.min(input.scrollHeight, 110)}px`;
   saveDraft(input.value);
   if (!state.activeMatch || !state.socket?.connected) return;
-  state.socket.emit('chat:typing', { matchId: state.activeMatch.matchId, typing: true });
+  const now = Date.now();
+  if (now - state.lastTypingSentAt >= 450) { state.lastTypingSentAt = now; state.socket.emit('chat:typing', { matchId: state.activeMatch.matchId, typing: true }); }
   clearTimeout(state.typingTimer);
-  state.typingTimer = setTimeout(() => state.socket?.emit('chat:typing', { matchId: state.activeMatch?.matchId, typing: false }), 1200);
+  state.typingTimer = setTimeout(() => { state.socket?.emit('chat:typing', { matchId: state.activeMatch?.matchId, typing: false }); state.lastTypingSentAt = 0; }, 1500);
 });
 $('#messageInput').addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && state.settings.enterToSend !== false) { event.preventDefault(); $('#messageForm').requestSubmit(); }
@@ -2089,7 +2205,7 @@ $('#saveProfileButton').addEventListener('click', async () => {
   const button = $('#saveProfileButton');
   button.disabled = true;
   try {
-    const profilePatch = { username: $('#profileUsername').value, description: $('#profileDescription')?.value || '', gender: $('#profileGender').value };
+    const profilePatch = { username: $('#profileUsername').value };
     if (state.selectedAvatar) profilePatch.avatar = state.selectedAvatar;
     const result = await api('/api/profile', { method: 'PATCH', body: JSON.stringify(profilePatch) });
     setUser(result.user);
@@ -2097,28 +2213,13 @@ $('#saveProfileButton').addEventListener('click', async () => {
   } catch (error) { showToast(error.message); }
   finally { button.disabled = false; }
 });
-$('#claimGuestButton').addEventListener('click', async () => {
-  $('#claimError').textContent = '';
-  const button = $('#claimGuestButton');
-  button.disabled = true;
-  try {
-    const result = await api('/api/auth/claim', { method: 'POST', body: JSON.stringify({ username: $('#claimUsername').value.trim(), password: $('#claimPassword').value }) });
-    state.token = result.token;
-    localStorage.setItem('sovli_token', state.token);
-    setUser(result.user);
-    connectSocket();
-    showToast('Гостевой профиль сохранён. Теперь можно входить по нику и паролю.');
-  } catch (error) { $('#claimError').textContent = error.message; }
-  finally { button.disabled = false; }
-});
-
 $('#avatarUploadButton').addEventListener('click', () => $('#avatarFileInput').click());
 $('#avatarFileInput').addEventListener('change', async () => {
   const file = $('#avatarFileInput').files?.[0]; if (!file) return;
   const button = $('#avatarUploadButton');
   if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { showToast('Поддерживаются JPG, PNG и WebP.'); $('#avatarFileInput').value = ''; return; }
   const tier = state.user?.subscriptionTier || 'free';
-  const avatarLimit = tier === 'premium' ? 8 : (tier === 'vip' ? 4 : 2);
+  const avatarLimit = tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 4);
   if (file.size > avatarLimit * 1024 * 1024) { showToast(`Аватар должен быть не больше ${avatarLimit} МБ для твоего статуса.`); $('#avatarFileInput').value = ''; return; }
   button.disabled = true; button.textContent = 'Загружаем…';
   try {

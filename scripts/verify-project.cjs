@@ -9,7 +9,7 @@ const pass = message => console.log(`[OK] ${message}`);
 
 try {
   const pkg = JSON.parse(read('package.json'));
-  if (pkg.version !== '1.10.2') fail(`Ожидалась версия 1.10.2, получена ${pkg.version}`);
+  if (pkg.version !== '1.11.0') fail(`Ожидалась версия 1.11.0, получена ${pkg.version}`);
   else pass(`Версия проекта ${pkg.version}`);
 
   const matchingHtml = read('public/index.html');
@@ -22,8 +22,8 @@ try {
   else pass('Три режима и серверная фильтрация пола/формата подключены');
   if (!matchingServer.includes("preferences?.adultConfirmed !== true") || !matchingServer.includes("UPDATE users SET adult_asserted_at = ?")) fail('Серверное подтверждение 18+ отсутствует');
   else pass('Согласие 18+ проверяется сервером и сохраняется');
-  if (!matchingHtml.includes('id="flirtAdultConsent"') || !matchingHtml.includes('id="roleplayAdultConsent"') || !matchingHtml.includes('id="profileGender"')) fail('Не найдены элементы подтверждения возраста или пола');
-  else pass('Формы взрослых режимов и пола в профиле присутствуют');
+  if (!matchingHtml.includes('id="flirtAdultConsent"') || !matchingHtml.includes('id="roleplayAdultConsent"') || !matchingHtml.includes('id="ownGender"') || matchingHtml.includes('id="profileGender"')) fail('Не найдены формы согласия 18+ или выбор пола в форме поиска');
+  else pass('Согласие для взрослых режимов и выбор пола перед поиском присутствуют');
 
   const html = read('public/index.html');
   const ids = [...html.matchAll(/\bid\s*=\s*["']([^"']+)["']/g)].map(match => match[1]);
@@ -109,29 +109,51 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v26/.test(sw)) fail('Service Worker cache version не соответствует v1.10.2');
+  if (!/sovli-shell-v(?:3[4-9]|[4-9]\d)-/.test(sw)) fail('Service Worker cache version не обновлён');
   else pass('Service Worker cache version обновлён');
-  if (!html.includes('/styles.css?v=26') || !html.includes('/app.js?v=26')) fail('Версии клиентских CSS/JS assets не обновлены');
+  if (!/\/styles\.css\?v=\d+/.test(html) || !/\/app\.js\?v=\d+/.test(html) || Number(html.match(/\/app\.js\?v=(\d+)/)?.[1] || 0) < 33) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
+
+  const filterSection = app.slice(app.indexOf('function renderFilters()'), app.indexOf('function buildMatchingPreferences()'));
+  if (!filterSection || /const interestLimit = 0/.test(filterSection) || /state\.selected(?:Languages|Interests|FlirtInterests|RoleplayInterests)\s*=\s*\[/.test(filterSection)) fail('Фильтры поиска не должны сбрасываться при каждой перерисовке');
+  else pass('Фильтры поиска сохраняют выбор пользователя при перерисовке');
+  if (!app.includes('languages: state.selectedLanguages') || !app.includes('interests\n  };')) fail('Выбранные языки/интересы не передаются в очередь подбора');
+  else pass('Настройки языков и интересов передаются в подбор');
+  if (!app.includes("if (bootScreen) bootScreen.hidden = true;") || !app.includes("document.documentElement.classList.remove('session-checking');")) fail('Экран восстановления сессии не имеет аварийного снятия блокировки');
+  else pass('Экран восстановления гарантированно скрывается при ошибке запуска');
+  const ownerPanelJs = read('public/owner.js');
+  if (!ownerPanelJs.includes('const safeStorageGet') || !ownerPanelJs.includes('const safeStorageSet') || !ownerPanelJs.includes('const safeStorageRemove')) fail('Панель владельца не защищена от недоступного localStorage');
+  else pass('Панель владельца устойчива к ограничениям browser storage');
+  if (!app.includes('Number(reaction.count) > 1')) fail('Одна реакция всё ещё отображается с числом 1');
+  else pass('Одна реакция отображается без счётчика 1');
 
   if (!server.includes('parent.sender_id === userId') || !server.includes('Нельзя отвечать на собственное сообщение')) fail('Сервер не запрещает ответы на собственные сообщения');
   else pass('Ответы на собственные сообщения блокируются сервером');
   if (!app.includes('function openStorePreview') || !html.includes('id="storePreviewModal"')) fail('Предпросмотр предметов магазина отсутствует');
   else pass('У каждого предмета магазина доступен отдельный предпросмотр');
+  if (!app.includes("modal.parentElement !== document.body") || !app.includes("store-preview-open")) fail('Store preview modal не вынесен из контейнера приложения');
+  else pass('Предпросмотр магазина открывается отдельным фиксированным слоем');
+  if (!server.includes("app.get('/api/ping'")) fail('Лёгкий ping endpoint отсутствует');
+  else pass('Лёгкий ping endpoint доступен');
+  if (!server.includes('GEMINI_API_KEY') || !server.includes('function startAiFallback') || !server.includes("socket.on('ai:send'") || !app.includes("socket.on('ai:message'")) fail('ИИ-подбор SOLVI не подключён во всех слоях');
+  else pass('ИИ-подбор с явной маркировкой и Gemini API подключён');
   if (!server.includes('support_tickets') || !server.includes("app.post('/api/tickets'") || !server.includes("app.get('/api/admin/tickets'") || !server.includes("app.post('/api/tickets/:id/close'") || !html.includes('id="ticketCreateForm"') || !html.includes('id="ticketCloseButton"') || !ownerPublicHtml.includes('data-page="tickets"') || !ownerPanel.includes("api('/api/admin/tickets')")) fail('Система тикетов не подключена ко всем слоям');
   else pass('Тикеты: приватные треды, ответы, закрытие и owner inbox подключены');
   if (!server.includes('site_social_links') || !server.includes("app.post('/api/admin/social-links'") || !html.includes('socialLinksFooter') || !ownerPublicHtml.includes('data-page="growth"')) fail('Управление соцсетями не подключено');
   else pass('Социальные ссылки настраиваются владельцем и показываются в подвале');
   if (!server.includes('reward_task_submissions') || !server.includes("app.post('/api/tasks/:id/submit'") || !server.includes("app.post('/api/admin/task-submissions/:id/review'") || !ownerPanel.includes('loadGrowth')) fail('Задания с ручной проверкой награды не подключены');
   else pass('Задания, заявки и ручное начисление токенов подключены');
-  if (!server.includes('effectivePaidSubscription') || !server.includes('paid-membership') || !server.includes('оплаченной реальными деньгами')) fail('Косметические наборы не ограничены реальной оплаченной подпиской');
-  else pass('VIP/Premium наборы закрыты для подписок, купленных только за токены');
+  const bundleRoute = server.slice(server.indexOf("app.post('/api/store/bundle'"), server.indexOf("app.post('/api/store/membership'"));
+  if (!bundleRoute.includes('const activeTier = effectiveSubscription(req.user)') || bundleRoute.includes('effectivePaidSubscription')) fail('Фирменные наборы не учитывают статус VIP/Premium, купленный за токены');
+  else pass('Фирменные VIP/Premium наборы доступны при активном токеновом статусе');
   if (/\b(confirm|prompt|alert)\(/.test(app) || /\b(confirm|prompt|alert)\(/.test(ownerPanel)) fail('В интерфейсе остались нативные диалоги браузера');
   else pass('Подтверждения и текстовые запросы используют фирменные диалоги');
-  if (!server.includes("app.post('/api/billing/checkout'") || !server.includes("app.post('/api/billing/stripe/webhook'") || !server.includes('STRIPE_WEBHOOK_SECRET') || !server.includes('payment_records')) fail('Stripe Checkout и журнал подтверждённых платежей не подключены');
-  else pass('Stripe Checkout, подпись webhook и защита от повторного зачисления подключены');
-  if (!html.includes('id="paidMembershipOffers"') || !app.includes('loadPaidMemberships')) fail('Денежные тарифы не отображаются в магазине');
-  else pass('Денежные подписки VIP/Premium отображаются отдельно от токеновых тарифов');
+  if (!server.includes("app.post('/api/billing/token-topup/checkout'") || !server.includes("app.get('/api/billing/paymentwall/pingback'") || !server.includes("app.post('/api/billing/store/checkout'") || !server.includes("app.get('/api/billing/paymentwall/goods-pingback'") || !server.includes('buildDigitalGoodsCheckoutUrl') || !server.includes('verifyPingback') || !server.includes('paymentwall_token_purchases') || !server.includes('paymentwall_store_orders')) fail('Paymentwall VC/Digital Goods checkout, подписи и журнал заказов не подключены');
+  else pass('Paymentwall: отдельные VC и Digital Goods кассы, подписанные pingback, идемпотентность и возвраты подключены');
+  if (html.includes('id="paidMembershipOffers"') || html.includes('id="storeBillingEmail"') || app.includes('await loadPaidMemberships()')) fail('В интерфейсе остались денежные товары, поле email или вызов денежной кассы из магазина');
+  else pass('Публичный магазин использует токены; денежные товары и email-чек убраны из интерфейса');
+  if (!server.includes("app.get('/api/ads/slot'") || !server.includes("app.post('/api/admin/ad-campaigns'") || !server.includes("app.patch('/api/admin/ad-campaigns/:id'") || !server.includes('payment_status IN (\'paid\',\'comped\')') || !html.includes('id="storeSponsoredAd"') || !ownerPanel.includes('adCampaignForm')) fail('Платные рекламные размещения не связаны между сервером, магазином и панелью владельца');
+  else pass('Прямые рекламные кампании требуют оплаты, показываются в магазине и учитывают статистику');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
   else pass('Новый зарегистрированный аккаунт получает 50 ✦');
   if (!server.includes('favorite_chat_drafts') || !server.includes("app.get('/api/favorite-chats/:id'") || !app.includes('function openFavoriteChat')) fail('Архив избранных переписок не подключён');
@@ -164,6 +186,25 @@ try {
   if (!ownerHtml.includes('id="dashboardView"') || !ownerHtml.includes('id="loginView"') || !ownerHtml.includes('data-page="users"') || !ownerHtml.includes('data-page="tickets"')) fail('Owner panel login, dashboard or key sections missing');
   if (ownerHtml.includes('data-page="public"') || ownerHtml.includes('data-page="cloud"') || ownerPanel.includes('/api/admin/runtime/public/')) fail('Unused public-tunnel or cloud-server panels are still exposed');
   else pass('Новая панель владельца, карточки аккаунтов и основные API подключены; устаревшие панели убраны');
+
+  const guestServer = read('server.js');
+  const darkOwnerHtml = read('public/owner.html');
+  const darkOwnerJs = read('public/owner.js');
+  const darkOwnerCss = read('public/owner.css');
+  const guestAppJs = read('public/app.js');
+  if (!guestServer.includes("3 * 24 * 60 * 60 * 1000") || guestServer.includes("180 * 24 * 60 * 60 * 1000") || guestServer.includes("'180d'")) fail('Guest lifetime must be three days everywhere');
+  else pass('Гостевой срок и серверные сессии ограничены тремя днями');
+  if (!guestServer.includes('Гостевой аккаунт нельзя превратить в постоянный') || !guestAppJs.includes('Гостевой профиль · 3 дня'.toUpperCase()) && !guestAppJs.includes('ГОСТЕВОЙ ПРОФИЛЬ · 3 ДНЯ')) fail('Guest identity restrictions or UI copy missing');
+  if (!darkOwnerHtml.includes('data-theme="dark"') || !darkOwnerHtml.includes('themeToggleButton') || !darkOwnerJs.includes('applyOwnerTheme') || !darkOwnerCss.includes(':root[data-theme="dark"]')) fail('Owner dark theme toggle is incomplete');
+  else pass('Тёмная тема панели владельца подключена');
+  if (!darkOwnerCss.includes('animation:none!important') || !darkOwnerCss.includes('transition-duration:.08s')) fail('Owner motion optimization missing');
+  else pass('Анимации панели владельца облегчены');
+  const staticSelectors = [...guestAppJs.matchAll(/\$\(['"]#([^'"]+)['"]\)\.addEventListener/g)].map(match => match[1]);
+  const pageIds = new Set([...read('public/index.html').matchAll(/\bid=["']([^"']+)["']/g)].map(match => match[1]));
+  const missingSelectors = [...new Set(staticSelectors)].filter(id => !pageIds.has(id));
+  if (missingSelectors.length) fail('Main page buttons reference missing elements: ' + missingSelectors.join(', '));
+  else pass('Все статические обработчики кнопок основного сайта имеют DOM-элементы');
+
   if (!process.exitCode) pass('Комплект запуска и документации на месте');
 } catch (error) {
   fail(error.stack || error.message);

@@ -2,7 +2,7 @@
 
 A random chat for meeting new people through shared languages and interests.
 
-## v1.9.1
+## v1.11.0
 
 - Private idea/bug tickets with owner replies, filters, status handling and close action.
 - 50 ✦ registration bonus.
@@ -10,7 +10,9 @@ A random chat for meeting new people through shared languages and interests.
 - Free/VIP/Premium photo and voice limits.
 - Owner-managed social links displayed as branded footer buttons.
 - Reward tasks and sponsored placements with manual proof review and auditable token payouts.
-- Stripe Checkout for 30-day paid VIP and Premium subscriptions (disabled until Render secrets are configured).
+- Paymentwall Virtual Currency top-ups: signed checkout/pingbacks, duplicate protection, and chargeback reversal (disabled until merchant review and keys are configured).
+- Real-money token top-ups unlock the existing token-priced shop, bundles, and VIP/Premium packages.
+- Direct sponsored store ads with owner-managed booking price, manual payment confirmation, campaign controls, and impression/click statistics.
 - VIP/Premium cosmetic bundles require a verified paid subscription. A membership bought only with tokens does not unlock them.
 - Styled SOLVI dialogs replace native browser confirmation/prompt popups for app actions.
 
@@ -23,15 +25,19 @@ A random chat for meeting new people through shared languages and interests.
 
 The current hostname already matches SOLVI. Keep it for launch; attach a custom domain later if you buy and verify one.
 
-## Payments
+## Payments and advertising
 
-The app uses Stripe Checkout; SOLVI never collects or stores card numbers. Initial suggested monthly prices are VIP €4.99 and Premium €8.99. They are editable in BILLING_PRODUCTS in server.js. Before taking live payments:
-1. Create/verify a Stripe merchant account and confirm your business/tax obligations.
-2. Add STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET and APP_PUBLIC_URL=https://solvi-chat.onrender.com to Render Environment.
-3. Register https://solvi-chat.onrender.com/api/billing/stripe/webhook in Stripe for checkout.session.completed.
-4. Test with Stripe test keys and a successful test card; then switch to live credentials.
+Paymentwall is integrated through two separate Widget API projects because each project has one API type:
 
-The owner panel also supports manual reconciliation of a payment that has already arrived. This requires an actual amount and unique payment reference; it is not a substitute for a hosted checkout or verified bank transfer.
+- **Virtual Currency:** users buy SOLVI tokens on Paymentwall's hosted page. SOLVI credits tokens only after a valid signed type=0 pingback; type=2 reversals subtract the original credit.
+- **Digital Goods:** users buy selected catalogue items and 30-day VIP/Premium for money. The server fixes the amount and currency, creates a unique order, and grants the product only after a valid signed type=0 pingback; type=2 reversals revoke the purchase.
+
+Direct cash prices for catalogue items are set in the owner panel under Monetization. They are separate from token prices. VIP/Premium money prices use VIP_PRICE_MINOR and PREMIUM_PRICE_MINOR (defaults EUR 4.99 / EUR 8.99 when BILLING_CURRENCY=eur). The store asks for a billing email for receipts.
+
+Setup instructions: [docs/real-money-monetization.md](docs/real-money-monetization.md). Configure one Paymentwall project as Widget API – Virtual Currency and another as Widget API – Digital Goods; add PAYMENTWALL_VC_* and PAYMENTWALL_GOODS_* project keys plus APP_PUBLIC_URL to Render; configure each pingback URL; test successful callbacks, duplicate references, invalid signatures, and refunds; then complete Paymentwall's merchant and technical review. Checkouts stay disabled until the matching keys exist.
+
+The owner panel reports delivered/reversed token amounts, direct store order values, and sponsor campaign performance. The Virtual Currency callback reports the number of tokens credited, not the fiat amount charged, so exact fiat gross, local currencies, fees, reserves, and net settlement must be reconciled in Paymentwall Merchant Dashboard. Direct ads are sold by the owner and manually activated after payment; no automatic ad network is connected yet.
+
 
 ## Tasks and rewards
 
@@ -61,3 +67,10 @@ Both adult queues require a fresh explicit 18+ self-attestation for each queue e
 Stripe store currency and prices are configurable through `BILLING_CURRENCY`, `VIP_PRICE_MINOR`, and `PREMIUM_PRICE_MINOR`. Keep `BILLING_CURRENCY=eur` for the current €4.99/€8.99 defaults. For RUB, configure RUB and prices in kopeks (for example RUB 499.00 is 49900). Stripe charge currency and payout currency are not necessarily the same; configure a supported settlement bank account in Stripe Dashboard before switching. Do not assume RUB proceeds can be paid out to a Russian bank account.
 
 Default public links are Telegram https://t.me/ChatSolvi and TikTok https://www.tiktok.com/@slabenk1y_armagedon. Owner edits remain available in the panel.
+
+
+## AI matchmaking fallback
+
+After 25 seconds in the standard Chat queue, SOLVI can connect a Gemini-powered AI character if no human match was found. The character is always visibly labelled **ИИ-собеседник**; AI sessions do not inflate the real online-user count and are not stored as human accounts. The fallback uses the user's selected interests and gender preference to choose a fitting persona. Adult queues (Flirt 18+ and Roleplay 18+) do not use AI fallback.
+
+To enable it, create a Gemini Developer API key in Google AI Studio and add it in Render → service → Environment as `GEMINI_API_KEY`. Optionally set `GEMINI_MODEL=gemini-2.5-flash`. Never commit the API key or paste it into client-side code. The Gemini API has separate quotas and terms from a consumer Gemini subscription. If no API key is configured, users remain in the human queue and see that AI fallback is not enabled. AI sessions currently support text and stickers; photo and voice attachments remain human-chat features.
