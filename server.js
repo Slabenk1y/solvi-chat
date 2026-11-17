@@ -1447,6 +1447,17 @@ async function main() {
       });
       return res.json({ ok:true,kind,tokens,balance:Number(getUserById(req.user.id).tokens || 0),demo:true });
     }
+    if (kind === 'store') {
+      const itemId = String(req.body?.itemId || '');
+      const item = STORE_CATALOG.find(row => row.id === itemId) || STORE_BUNDLES.find(row => row.id === itemId);
+      if (!item) return res.status(404).json({error:'Товар не найден.'});
+      const items = STORE_CATALOG.some(row => row.id === itemId) ? [item] : item.itemIds.map(id => STORE_CATALOG.find(row => row.id === id)).filter(Boolean);
+      transaction(() => {
+        for (const entry of items) dbRun("INSERT OR IGNORE INTO store_inventory (user_id,item_id,acquired_at,source) VALUES (?,?,?,'demo-purchase')", [req.user.id,entry.id,at]);
+        auditAdmin(req.user.id,'demo_billing_store',req.user.id,{itemId,delivered:items.map(entry=>entry.id)});
+      });
+      return res.json({ok:true,kind,itemId,delivered:items.map(entry=>entry.id),demo:true});
+    }
     if (kind === 'membership') {
       const product = BILLING_PRODUCTS.find(item => item.id === req.body?.productId);
       if (!product) return res.status(404).json({ error: 'Тариф не найден.' });
