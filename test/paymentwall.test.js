@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { signature, verifyPingback, buildVirtualCurrencyWidgetUrl, buildDigitalGoodsCheckoutUrl } = require('../lib/paymentwall.cjs');
+const { signature, verifyPingback, buildVirtualCurrencyWidgetUrl, buildDigitalGoodsCheckoutUrl, buildDigitalGoodsSubscriptionUrl } = require('../lib/paymentwall.cjs');
 
 test('Paymentwall signature is independent of parameter insertion order', () => {
   const a = signature({ uid: 'u-1', type: '0', ref: 'ref-1', sign_version: '3', currency: '500' }, 'secret', 3);
@@ -63,4 +63,27 @@ test('Paymentwall Digital Goods creates a one-time checkout for one server-price
   assert.equal(params.ag_type, 'fixed');
   assert.equal(params.amount, '4.99');
   assert.equal(params.currencyCode, 'EUR');
+});
+
+test('Paymentwall monthly recurring subscription URL is signed and explicit about renewal', () => {
+  const url = new URL(buildDigitalGoodsSubscriptionUrl({
+    publicKey: 'public', privateKey: 'private', userId: 'ABCDEF1234', widgetCode: 'p1',
+    orderId: 'solvisubscription123', amountMinor: 49900, currency: 'RUB',
+    productName: 'SOLVI VIP · 30 дней', email: 'buyer@example.com',
+    successUrl: 'https://solvi.example/?billing=success',
+    failureUrl: 'https://solvi.example/?billing=cancelled',
+    registrationTimestamp: 1760000000
+  }));
+  assert.equal(url.hostname, 'api.paymentwall.com');
+  assert.equal(url.pathname, '/api/subscription');
+  const params = Object.fromEntries(url.searchParams.entries());
+  const supplied = params.sign;
+  delete params.sign;
+  assert.equal(supplied, signature(params, 'private', 3));
+  assert.equal(params.ag_type, 'subscription');
+  assert.equal(params.ag_period_length, '1');
+  assert.equal(params.ag_period_type, 'month');
+  assert.equal(params.ag_recurring, '1');
+  assert.equal(params.amount, '499.00');
+  assert.equal(params.currencyCode, 'RUB');
 });
