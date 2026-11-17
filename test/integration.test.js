@@ -225,9 +225,11 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     const profile2 = await fetch(`${baseUrl}/api/profile`, { method: 'PATCH', headers: { Authorization: `Bearer ${user2.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user2.user.username, gender: 'female' }) }).then(response => response.json());
     assert.equal(profile1.user.gender, 'male');
     assert.equal(profile2.user.gender, 'female');
-    const adultDenied = await new Promise(resolve => socket1.emit('queue:join', { mode: 'flirt', adultConfirmed: false }, resolve));
-    assert.equal(adultDenied.ok, false, 'adult queue must reject missing age consent');
-    assert.match(adultDenied.error, /18/);
+    for (const removedMode of ['flirt', 'roleplay']) {
+      const disabled = await new Promise(resolve => socket1.emit('queue:join', { mode: removedMode, adultConfirmed: true }, resolve));
+      assert.equal(disabled.ok, false, `${removedMode} matching must stay disabled`);
+      assert.match(disabled.error, /отключены/i);
+    }
 
     const found1 = waitForEvent(socket1, 'match:found');
     const found2 = waitForEvent(socket2, 'match:found');
@@ -305,32 +307,7 @@ test('two accounts find each other and exchange a real Socket.IO message', { tim
     assert.equal((await ended).matchId, match1.matchId);
     const deletedMedia = await fetch(`${baseUrl}/api/media/${uploadPayload.file.id}`, { headers: { Authorization: `Bearer ${user1.token}` } });
     assert.equal(deletedMedia.status, 404, 'media must be deleted when a chat ends');
-
-    const roleplayFound1 = waitForEvent(socket1, 'match:found');
-    const roleplayFound2 = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', { mode: 'roleplay', adultConfirmed: true, desiredGender: 'female', roleplayIntent: 'seeking', interests: ['Фэнтези'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', { mode: 'roleplay', adultConfirmed: true, desiredGender: 'male', roleplayIntent: 'offering', interests: ['Фэнтези'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    const [roleplay1, roleplay2] = await Promise.all([roleplayFound1, roleplayFound2]);
-    assert.equal(roleplay1.mode, 'roleplay');
-    assert.equal(roleplay2.mode, 'roleplay');
-    assert.equal(roleplay1.matchId, roleplay2.matchId);
-    const adultStamp1 = testDb.prepare('SELECT adult_asserted_at FROM users WHERE id = ?').get(user1.user.id).adult_asserted_at;
-    assert.notEqual(adultStamp1, 'NOT_COLLECTED', 'adult consent timestamp must be persisted');
-    const roleplayEnded = waitForEvent(socket2, 'chat:ended');
-    await new Promise(resolve => socket1.emit('chat:end', { matchId: roleplay1.matchId }, resolve));
-    await roleplayEnded;
-
-    const flirtFound1 = waitForEvent(socket1, 'match:found');
-    const flirtFound2 = waitForEvent(socket2, 'match:found');
-    await new Promise((resolve, reject) => socket1.emit('queue:join', { mode: 'flirt', adultConfirmed: true, desiredGender: 'female', interests: ['Романтика'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    await new Promise((resolve, reject) => socket2.emit('queue:join', { mode: 'flirt', adultConfirmed: true, desiredGender: 'male', interests: ['Романтика'] }, result => result?.ok ? resolve() : reject(new Error(result?.error))));
-    const [flirt1, flirt2] = await Promise.all([flirtFound1, flirtFound2]);
-    assert.equal(flirt1.mode, 'flirt');
-    assert.equal(flirt1.matchId, flirt2.matchId);
-    const flirtEnded = waitForEvent(socket2, 'chat:ended');
-    await new Promise(resolve => socket1.emit('chat:end', { matchId: flirt1.matchId }, resolve));
-    await flirtEnded;
-  } catch (error) {
+} catch (error) {
     if (stderr) error.message += `\nServer stderr:\n${stderr}`;
     throw error;
   } finally {
