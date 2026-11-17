@@ -113,7 +113,7 @@ try {
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
   const sw = read('public/sw.js');
-  if (!/sovli-shell-v26/.test(sw)) fail('Service Worker cache version не соответствует v1.10.2');
+  if (!/sovli-shell-v27/.test(sw)) fail('Service Worker cache version не соответствует обновлённой версии; ожидается v27');
   else pass('Service Worker cache version обновлён');
   if (!html.includes('/styles.css?v=27') || !html.includes('/app.js?v=27')) fail('Версии клиентских CSS/JS assets не обновлены');
   else pass('CSS/JS cache-busting версии согласованы');
