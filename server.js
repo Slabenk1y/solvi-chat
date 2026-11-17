@@ -1648,8 +1648,10 @@ async function main() {
       const charge = dbGet("SELECT * FROM paymentwall_recurring_charges WHERE provider_reference = ? AND event_type = 'payment' AND status = 'confirmed'", [reference]);
       if (!charge) return res.status(200).type('text/plain').send('OK');
       const targetUser = getUserById(order.user_id);
+      const refundProduct = BILLING_PRODUCTS.find(row => row.id === order.item_id);
+      if (!refundProduct) return res.status(400).type('text/plain').send('Unknown recurring product');
       const currentExpiry = targetUser.paid_subscription_expires_at ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
-      const expiry = new Date(Math.max(Date.now(), (Number.isFinite(currentExpiry) ? currentExpiry : Date.now()) - productDurationMs(order.item_id))).toISOString();
+      const expiry = new Date(Math.max(Date.now(), (Number.isFinite(currentExpiry) ? currentExpiry : Date.now()) - refundProduct.days * 86400000)).toISOString();
       transaction(() => {
         dbRun("UPDATE paymentwall_recurring_charges SET status = 'refunded' WHERE provider_reference = ?", [reference]);
         dbRun('INSERT OR IGNORE INTO paymentwall_recurring_charges (id,subscription_id,provider_reference,event_type,status,amount_minor,currency,created_at) VALUES (?,?,?,?,?,?,?,?)',
@@ -1879,13 +1881,13 @@ async function main() {
     const equipped = getEquippedItems(req.user.id);
     const items = STORE_CATALOG.map(item => {
       const override = storePrice(item.id, item.price);
-      return { ...item, price: override.price, enabled: override.enabled, owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
+      return { ...item, price: override.price, enabled: override.enabled, ...cashStorePrice(item.id), owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
     });
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
     res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
-      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), current: effectiveSubscription(user) === item.tier })),
-      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id]) || dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectiveSubscription(user)) : effectiveSubscription(user) === 'premium', requirement: 'Нужен активный VIP или Premium' })) });
+      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), current: effectiveSubscription(user) === item.tier })),
+      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), ...cashStorePrice(bundle.id), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id]) || dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectiveSubscription(user)) : effectiveSubscription(user) === 'premium', requirement: 'Нужен активный VIP или Premium' })) });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
