@@ -937,7 +937,6 @@ function renderFilters() {
   state.selectedLanguages = (Array.isArray(state.selectedLanguages) ? state.selectedLanguages : [])
     .filter(value => languages.includes(value)).slice(0, languageLimit);
   if ($('#desiredGender')) $('#desiredGender').value = state.desiredGender || 'any';
-  if ($('#ownGender')) $('#ownGender').value = state.ownGender || '';
   if ($('#standardInterestBlock')) $('#standardInterestBlock').hidden = true;
   if ($('#languageOptions')) renderChoices($('#languageOptions'), languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), languages, languageLimit));
   if ($('#languageSummary')) $('#languageSummary').textContent = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
