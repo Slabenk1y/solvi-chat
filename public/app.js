@@ -1028,15 +1028,15 @@ function renderFilters() {
 }
 
 function buildMatchingPreferences() {
+  const interests = state.selectedInterests;
   return {
     mode: 'chat',
-    ownGender: state.ownGender || '',
-    desiredGender: state.desiredGender || 'any',
-    languages: [],
-    interests: []
+    ownGender: state.ownGender,
+    desiredGender: state.desiredGender,
+    languages: state.selectedLanguages,
+    interests
   };
 }
-
 function validateMatchingPreferences() {
   if (!['male', 'female', 'other'].includes(state.ownGender)) {
     showToast('Сначала выбери свой пол в форме поиска — он нужен для взаимного подбора.');
