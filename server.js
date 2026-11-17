@@ -14,7 +14,7 @@ const { rateLimit } = require('express-rate-limit');
 const { Server } = require('socket.io');
 const sqlite = require('node:sqlite');
 const { PostgresSnapshotStore } = require('./lib/postgres-snapshot.cjs');
-const { buildVirtualCurrencyWidgetUrl, buildDigitalGoodsCheckoutUrl, verifyPingback } = require('./lib/paymentwall.cjs');
+const { buildVirtualCurrencyWidgetUrl, buildDigitalGoodsCheckoutUrl, buildDigitalGoodsSubscriptionUrl, verifyPingback } = require('./lib/paymentwall.cjs');
 const SqliteDatabase = sqlite.Database || sqlite.DatabaseSync;
 const APP_VERSION = require('./package.json').version;
 
@@ -1012,6 +1012,29 @@ async function main() {
     );
     CREATE INDEX IF NOT EXISTS paymentwall_store_orders_user ON paymentwall_store_orders(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS paymentwall_store_orders_status ON paymentwall_store_orders(status, created_at DESC);
+    CREATE TABLE IF NOT EXISTS paymentwall_recurring_subscriptions (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL UNIQUE REFERENCES paymentwall_store_orders(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','active','cancel_requested','cancelled','expired','past_due')),
+      current_period_end TEXT,
+      cancel_requested_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS paymentwall_recurring_user ON paymentwall_recurring_subscriptions(user_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS paymentwall_recurring_charges (
+      id TEXT PRIMARY KEY,
+      subscription_id TEXT NOT NULL REFERENCES paymentwall_recurring_subscriptions(id) ON DELETE CASCADE,
+      provider_reference TEXT NOT NULL UNIQUE,
+      event_type TEXT NOT NULL CHECK(event_type IN ('payment','refund','cancelled','expired','failed')),
+      status TEXT NOT NULL DEFAULT 'confirmed',
+      amount_minor INTEGER NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS paymentwall_recurring_charges_subscription ON paymentwall_recurring_charges(subscription_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS ad_campaigns (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -1095,6 +1118,8 @@ async function main() {
   // and add synced preferences without collecting birth dates or age declarations.
   const userColumns = dbAll('PRAGMA table_info(users)').map(column => column.name);
   const promoColumns = dbAll('PRAGMA table_info(promo_codes)').map(column => column.name);
+  const paymentwallOrderColumns = dbAll('PRAGMA table_info(paymentwall_store_orders)').map(column => column.name);
+  if (!paymentwallOrderColumns.includes('billing_mode')) db.exec("ALTER TABLE paymentwall_store_orders ADD COLUMN billing_mode TEXT NOT NULL DEFAULT 'one_time'");
   if (!promoColumns.includes('target_user_id')) db.exec('ALTER TABLE promo_codes ADD COLUMN target_user_id TEXT REFERENCES users(id) ON DELETE CASCADE');
   db.exec('CREATE INDEX IF NOT EXISTS promo_codes_target_user_idx ON promo_codes(target_user_id, created_at DESC)');
   if (!userColumns.includes('username_key')) db.exec('ALTER TABLE users ADD COLUMN username_key TEXT');
@@ -1383,6 +1408,18 @@ async function main() {
     const widgetCode = String(process.env.PAYMENTWALL_GOODS_WIDGET_CODE || 'p1').trim();
     return { baseUrl, publicKey, privateKey, widgetCode, configured: Boolean(publicKey && privateKey && /^https:\/\//i.test(baseUrl) && widgetCode) };
   }
+  app.get('/api/billing/subscription', authMiddleware, (req, res) => {
+    const subscription = dbGet("SELECT s.id,s.item_id,s.status,s.current_period_end,s.cancel_requested_at,s.created_at FROM paymentwall_recurring_subscriptions s WHERE s.user_id = ? ORDER BY s.updated_at DESC LIMIT 1", [req.user.id]);
+    res.json({ subscription: subscription || null, paidTier: effectivePaidSubscription(req.user), expiresAt: req.user.paid_subscription_expires_at || null });
+  });
+  app.post('/api/billing/subscription/cancel-request', authMiddleware, (req, res) => {
+    const subscription = dbGet("SELECT * FROM paymentwall_recurring_subscriptions WHERE user_id = ? AND status IN ('active','past_due','cancel_requested') ORDER BY updated_at DESC LIMIT 1", [req.user.id]);
+    if (!subscription) return res.status(404).json({ error: 'Активная автоподписка не найдена.' });
+    if (subscription.status === 'cancel_requested') return res.json({ ok: true, alreadyRequested: true });
+    const at = nowIso();
+    dbRun("UPDATE paymentwall_recurring_subscriptions SET status = 'cancel_requested',cancel_requested_at = ?,updated_at = ? WHERE id = ?", [at,at,subscription.id]);
+    res.json({ ok: true, message: 'Заявка на отмену передана команде SOLVI. Доступ останется до конца уже оплаченного периода.' });
+  });
   app.get('/api/billing/token-topup', authMiddleware, (_req, res) => {
     const settings = paymentwallSettings();
     res.json({
@@ -1392,8 +1429,38 @@ async function main() {
       packages: PAYMENTWALL_TOKEN_PACKAGES,
       billingEmail: String(_req.user?.billing_email || ''),
       goodsConfigured: paymentwallGoodsSettings().configured,
+      demoMode: process.env.BILLING_DEMO_MODE === '1' && process.env.NODE_ENV !== 'production' && isOwner(_req.user),
       membershipProducts: BILLING_PRODUCTS
     });
+  });
+  app.post('/api/billing/demo/checkout', authMiddleware, ownerOnly, rateLimit({ windowMs: 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    if (process.env.NODE_ENV === 'production' || process.env.BILLING_DEMO_MODE !== '1') return res.status(404).json({ error: 'Демо-оплата выключена.' });
+    const kind = String(req.body?.kind || '');
+    const at = nowIso();
+    if (kind === 'tokens') {
+      const tokens = Number(req.body?.tokens);
+      if (![500,1500,5000].includes(tokens)) return res.status(400).json({ error: 'Недопустимый демонстрационный пакет.' });
+      transaction(() => {
+        dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokens,req.user.id]);
+        dbRun('INSERT INTO token_transactions (id,user_id,kind,amount,description,created_at) VALUES (?,?,?,?,?,?)', [crypto.randomUUID(),req.user.id,'demo_topup',tokens,'Демо-пополнение — без реального платежа',at]);
+        auditAdmin(req.user.id,'demo_billing_tokens',req.user.id,{tokens});
+      });
+      return res.json({ ok:true,kind,tokens,balance:Number(getUserById(req.user.id).tokens || 0),demo:true });
+    }
+    if (kind === 'membership') {
+      const product = BILLING_PRODUCTS.find(item => item.id === req.body?.productId);
+      if (!product) return res.status(404).json({ error: 'Тариф не найден.' });
+      const currentUser = getUserById(req.user.id);
+      const currentExpiry = currentUser.paid_subscription_expires_at && Date.parse(currentUser.paid_subscription_expires_at) > Date.now() ? Date.parse(currentUser.paid_subscription_expires_at) : Date.now();
+      const nextTier = currentUser.paid_subscription_tier === 'premium' && currentExpiry > Date.now() || product.tier === 'premium' ? 'premium' : 'vip';
+      const expires = new Date(currentExpiry + product.days * 86400000).toISOString();
+      transaction(() => {
+        dbRun('UPDATE users SET paid_subscription_tier = ?,paid_subscription_expires_at = ? WHERE id = ?', [nextTier,expires,req.user.id]);
+        auditAdmin(req.user.id,'demo_billing_membership',req.user.id,{tier:nextTier,expires});
+      });
+      return res.json({ok:true,kind,tier:nextTier,expiresAt:expires,demo:true});
+    }
+    return res.status(400).json({ error: 'Неизвестный тип демонстрационной покупки.' });
   });
   app.post('/api/billing/token-topup/checkout', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
     if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Пополнение доступно постоянным пользовательским аккаунтам.' });
@@ -1501,10 +1568,11 @@ async function main() {
     try {
       transaction(() => {
         dbRun('UPDATE users SET billing_email = ? WHERE id = ?', [billingEmail, req.user.id]);
-        dbRun('INSERT INTO paymentwall_store_orders (id,user_id,item_id,item_kind,amount_minor,currency,billing_email,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-          [orderId,req.user.id,item.id,itemKind,priceMinor,currency,billingEmail,'pending',at,at]);
+        dbRun('INSERT INTO paymentwall_store_orders (id,user_id,item_id,item_kind,amount_minor,currency,billing_email,status,billing_mode,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          [orderId,req.user.id,item.id,itemKind,priceMinor,currency,billingEmail,'pending',itemKind === 'paid_tier' ? 'recurring' : 'one_time',at,at]);
+        if (itemKind === 'paid_tier') dbRun("INSERT INTO paymentwall_recurring_subscriptions (id,order_id,user_id,item_id,status,created_at,updated_at) VALUES (?,?,?,?, 'pending',?,?)", [crypto.randomUUID(),orderId,req.user.id,item.id,at,at]);
       });
-      const url = buildDigitalGoodsCheckoutUrl({
+      const checkoutOptions = {
         publicKey: settings.publicKey, privateKey: settings.privateKey,
         userId: req.user.public_id, widgetCode: settings.widgetCode,
         orderId, amountMinor: priceMinor, currency, productName: item.name,
@@ -1512,7 +1580,10 @@ async function main() {
         successUrl: settings.baseUrl + '/?billing=success',
         failureUrl: settings.baseUrl + '/?billing=cancelled',
         registrationTimestamp
-      });
+      };
+      const url = itemKind === 'paid_tier'
+        ? buildDigitalGoodsSubscriptionUrl(checkoutOptions)
+        : buildDigitalGoodsCheckoutUrl(checkoutOptions);
       res.json({ url });
     } catch (error) {
       dbRun("UPDATE paymentwall_store_orders SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),orderId]);
