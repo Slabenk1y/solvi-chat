@@ -2078,10 +2078,7 @@ async function boot() {
     if (state.config.inviteRequired) $('#authInviteCode').required = true;
     if (state.config.matchingEnabled === false) {
       $('#findButton').disabled = true;
-      $('#findButton').title = 'Подбор отключён в настройках сервера';
-      $('#alphaNotice').querySelector('p').innerHTML = '<strong>Тестовый режим.</strong> Подбор временно выключен администратором. Попроси организатора проверить настройки сервера.';
-    } else if (state.config.publicMode) {
-      $('#alphaNotice').querySelector('p').innerHTML = '<strong>Закрытая тестовая бета.</strong> Доступ по коду приглашения. Общайся уважительно, не отправляй личные данные и используй жалобу/блокировку при проблемах.';
+      $('#findButton').title = 'Подбор временно недоступен';
     }
     if (!state.token) { showAuth(); return; }
     state.authRestoring = true;
