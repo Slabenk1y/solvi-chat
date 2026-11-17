@@ -1606,6 +1606,59 @@ async function main() {
     const user = getUserById(order.user_id);
     if (!user || user.public_id !== publicId) return res.status(400).type('text/plain').send('User mismatch');
     const at = nowIso();
+    const recurringSubscription = order.billing_mode === 'recurring'
+      ? dbGet('SELECT * FROM paymentwall_recurring_subscriptions WHERE order_id = ?', [order.id])
+      : null;
+    if (recurringSubscription && ['12','13','14'].includes(type)) {
+      const status = type === '12' ? 'cancelled' : type === '13' ? 'expired' : 'past_due';
+      const eventType = type === '12' ? 'cancelled' : type === '13' ? 'expired' : 'failed';
+      transaction(() => {
+        dbRun('INSERT OR IGNORE INTO paymentwall_recurring_charges (id,subscription_id,provider_reference,event_type,status,amount_minor,currency,created_at) VALUES (?,?,?,?,?,?,?,?)',
+          [crypto.randomUUID(),recurringSubscription.id,reference,eventType,'confirmed',0,order.currency,at]);
+        dbRun('UPDATE paymentwall_recurring_subscriptions SET status = ?,updated_at = ? WHERE id = ?', [status,at,recurringSubscription.id]);
+      });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    if (type === '0' && recurringSubscription) {
+      const product = BILLING_PRODUCTS.find(row => row.id === order.item_id);
+      if (!product) return res.status(400).type('text/plain').send('Unknown recurring product');
+      if (dbGet('SELECT id FROM paymentwall_recurring_charges WHERE provider_reference = ?', [reference])) return res.status(200).type('text/plain').send('OK');
+      const targetUser = getUserById(order.user_id);
+      const currentExpiry = targetUser.paid_subscription_expires_at && Date.parse(targetUser.paid_subscription_expires_at) > Date.now() ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
+      const nextTier = targetUser.paid_subscription_tier === 'premium' && currentExpiry > Date.now() || product.tier === 'premium' ? 'premium' : 'vip';
+      const expires = new Date(currentExpiry + product.days * 86400000).toISOString();
+      try {
+        transaction(() => {
+          dbRun('INSERT INTO paymentwall_recurring_charges (id,subscription_id,provider_reference,event_type,status,amount_minor,currency,created_at) VALUES (?,?,?,?,?,?,?,?)',
+            [crypto.randomUUID(),recurringSubscription.id,reference,'payment','confirmed',order.amount_minor,order.currency,at]);
+          dbRun('UPDATE users SET paid_subscription_tier = ?,paid_subscription_expires_at = ? WHERE id = ?', [nextTier,expires,order.user_id]);
+          dbRun("UPDATE paymentwall_recurring_subscriptions SET status = 'active',current_period_end = ?,cancel_requested_at = NULL,updated_at = ? WHERE id = ?", [expires,at,recurringSubscription.id]);
+          dbRun("UPDATE paymentwall_store_orders SET provider_reference = COALESCE(provider_reference, ?),status = 'paid',updated_at = ? WHERE id = ?", [reference,at,order.id]);
+        });
+      } catch (error) {
+        if (!dbGet('SELECT id FROM paymentwall_recurring_charges WHERE provider_reference = ?', [reference])) {
+          console.error('[BILLING] Paymentwall recurring membership failed:', error.message);
+          return res.status(500).type('text/plain').send('Temporary processing error');
+        }
+      }
+      io?.to?.(userRoom(order.user_id))?.emit('billing:store-purchase-completed', { itemId: order.item_id, recurring: true, expiresAt: expires });
+      return res.status(200).type('text/plain').send('OK');
+    }
+    if (type === '2' && recurringSubscription) {
+      const charge = dbGet("SELECT * FROM paymentwall_recurring_charges WHERE provider_reference = ? AND event_type = 'payment' AND status = 'confirmed'", [reference]);
+      if (!charge) return res.status(200).type('text/plain').send('OK');
+      const targetUser = getUserById(order.user_id);
+      const currentExpiry = targetUser.paid_subscription_expires_at ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
+      const expiry = new Date(Math.max(Date.now(), (Number.isFinite(currentExpiry) ? currentExpiry : Date.now()) - productDurationMs(order.item_id))).toISOString();
+      transaction(() => {
+        dbRun("UPDATE paymentwall_recurring_charges SET status = 'refunded' WHERE provider_reference = ?", [reference]);
+        dbRun('INSERT OR IGNORE INTO paymentwall_recurring_charges (id,subscription_id,provider_reference,event_type,status,amount_minor,currency,created_at) VALUES (?,?,?,?,?,?,?,?)',
+          [crypto.randomUUID(),recurringSubscription.id,'refund_'+reference,'refund','confirmed',charge.amount_minor,charge.currency,at]);
+        dbRun('UPDATE users SET paid_subscription_expires_at = ? WHERE id = ?', [expiry,order.user_id]);
+        dbRun("UPDATE paymentwall_recurring_subscriptions SET status = ?,current_period_end = ?,updated_at = ? WHERE id = ?", [Date.parse(expiry) > Date.now() ? 'active' : 'expired',expiry,at,recurringSubscription.id]);
+      });
+      return res.status(200).type('text/plain').send('OK');
+    }
     if (type === '0') {
       if (order.status === 'paid' || order.status === 'reversed' || order.status === 'cancelled') return res.status(200).type('text/plain').send('OK');
       const delivered = [];
@@ -2825,12 +2878,21 @@ async function main() {
     const payments = dbAll('SELECT provider, currency, COUNT(*) AS count, COALESCE(SUM(amount_minor),0) AS amount_minor FROM payment_records GROUP BY provider, currency ORDER BY provider, currency');
     const cashStoreSales = dbAll("SELECT item_id, currency, COUNT(*) AS sales, COALESCE(SUM(amount_minor),0) AS gross_minor FROM paymentwall_store_orders WHERE status = 'paid' GROUP BY item_id, currency ORDER BY sales DESC, gross_minor DESC LIMIT 30");
     const cashStoreRecent = dbAll("SELECT o.id,o.user_id,u.username,o.item_id,o.item_kind,o.amount_minor,o.currency,o.status,o.created_at FROM paymentwall_store_orders o JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC LIMIT 30");
+    const recurringSubscriptions = dbAll("SELECT s.id,s.item_id,s.status,s.current_period_end,s.cancel_requested_at,s.created_at,s.updated_at,u.username,u.public_id FROM paymentwall_recurring_subscriptions s JOIN users u ON u.id=s.user_id ORDER BY CASE s.status WHEN 'cancel_requested' THEN 0 WHEN 'past_due' THEN 1 ELSE 2 END,s.updated_at DESC LIMIT 50");
     const paymentwall = dbGet("SELECT COUNT(*) AS topups, COALESCE(SUM(CASE WHEN status = 'credited' THEN token_amount ELSE 0 END),0) AS tokens_credited, COALESCE(SUM(CASE WHEN status = 'reversed' THEN token_amount ELSE 0 END),0) AS tokens_reversed FROM paymentwall_token_purchases");
     const paymentwallRecent = dbAll("SELECT p.provider_reference, p.user_id, u.username, p.token_amount, p.status, p.created_at, p.updated_at FROM paymentwall_token_purchases p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 20");
     const adStats = dbAll("SELECT currency, COUNT(*) AS campaigns, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(CASE WHEN payment_status IN ('paid','comped') THEN price_minor ELSE 0 END),0) AS booked_minor FROM ad_campaigns GROUP BY currency");
     const adCampaigns = dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100');
     const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), cashSellable: Number(item.price || 0) > 0 && (STORE_CATALOG.some(row => row.id === item.id) || MEMBERSHIP_PACKAGES.some(row => row.id === item.id) || STORE_BUNDLES.some(row => row.id === item.id)), bundleOnly: Boolean(item.bundleOnly) }));
-    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, cashStoreSales, cashStoreRecent, adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured, paymentwallGoodsConfigured: paymentwallGoodsSettings().configured });
+    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, cashStoreSales, cashStoreRecent, recurringSubscriptions, adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured, paymentwallGoodsConfigured: paymentwallGoodsSettings().configured });
+  });
+  app.patch('/api/admin/recurring-subscriptions/:id/cancelled', authMiddleware, ownerOnly, (req,res) => {
+    const subscription = dbGet('SELECT * FROM paymentwall_recurring_subscriptions WHERE id = ?', [req.params.id]);
+    if (!subscription) return res.status(404).json({error:'Подписка не найдена.'});
+    const at = nowIso();
+    dbRun("UPDATE paymentwall_recurring_subscriptions SET status = 'cancelled',updated_at = ? WHERE id = ?", [at,subscription.id]);
+    auditAdmin(req.user.id,'recurring_subscription_cancelled',subscription.user_id,{subscriptionId:subscription.id,itemId:subscription.item_id});
+    res.json({ok:true,status:'cancelled'});
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
