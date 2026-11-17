@@ -476,6 +476,11 @@ function renderStore(data) {
       } catch (error) { showToast(error.message); action.disabled = false; }
     });
     footer.append(previewButton, price, action);
+    if(item.cashEnabled&&(state.billingInfo?.goodsConfigured||state.billingInfo?.demoMode)){
+      const cashButton=document.createElement('button');cashButton.type='button';cashButton.className='button button-secondary store-cash-action';
+      cashButton.textContent=state.billingInfo.demoMode?'Тестовая покупка':('За '+(Number(item.cashPriceMinor||0)/100).toFixed(2)+' '+String(item.cashCurrency||'EUR'));
+      cashButton.addEventListener('click',()=>startCashStoreCheckout(item.id,cashButton));footer.append(cashButton);
+    }
     card.append(preview, meta, footer); root.append(card);
   });
   const bundleRoot = $('#customizationBundles');
@@ -500,6 +505,12 @@ function renderStore(data) {
       catch (error) { showToast(error.message); button.disabled = false; }
     });
     footer.append(price, button);
+    if(bundle.cashEnabled&&(state.billingInfo?.goodsConfigured||state.billingInfo?.demoMode)){
+      const cashButton=document.createElement('button');cashButton.type='button';cashButton.className='button button-secondary store-cash-action';
+      cashButton.textContent=state.billingInfo.demoMode?'Тестовая покупка':('За '+(Number(bundle.cashPriceMinor||0)/100).toFixed(2)+' '+String(bundle.cashCurrency||'EUR'));
+      cashButton.disabled=!bundle.available||bundle.owned;
+      cashButton.addEventListener('click',()=>startCashStoreCheckout(bundle.id,cashButton));footer.append(cashButton);
+    }
     card.append(label, title, copy, contents, footer); bundleRoot.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
@@ -520,6 +531,11 @@ function renderStore(data) {
       catch (error) { showToast(error.message); button.disabled = false; }
     });
     card.append(label, title, copy, previewButton, price, button);
+    if(pack.cashEnabled&&(state.billingInfo?.goodsConfigured||state.billingInfo?.demoMode)){
+      const cashButton=document.createElement('button');cashButton.type='button';cashButton.className='button button-secondary store-cash-action';
+      cashButton.textContent=state.billingInfo.demoMode?'Тестовая покупка':('За '+(Number(pack.cashPriceMinor||0)/100).toFixed(2)+' '+String(pack.cashCurrency||'EUR'));
+      cashButton.addEventListener('click',()=>startCashStoreCheckout(pack.id,cashButton));card.append(cashButton);
+    }
     membershipRoot.append(card);
   });
 }
@@ -573,6 +589,91 @@ async function redeemPromo() {
   } catch (error) { $('#promoRedeemError').classList.remove('success-text'); $('#promoRedeemError').textContent = error.message; }
   finally { button.disabled = false; }
 }
+async function loadBillingPanel(){
+  const root=$('#billingPanel');if(!root)return;
+  const packagesRoot=$('#billingTokenPackages'),tiersRoot=$('#billingSubscriptionPlans'),statusRoot=$('#billingStatus'),emailInput=$('#billingEmailInput'),subscriptionRoot=$('#billingSubscriptionStatus');
+  if(!packagesRoot||!tiersRoot||!statusRoot||!emailInput||!subscriptionRoot)return;
+  try{
+    const [info,account]=await Promise.all([api('/api/billing/token-topup'),api('/api/billing/subscription')]);
+    state.billingInfo=info;
+    if(info.billingEmail&&!emailInput.value)emailInput.value=info.billingEmail;
+    statusRoot.textContent=info.configured?'Защищённая оплата токенов подключена через Paymentwall.':info.demoMode?'ДЕМО-РЕЖИМ: тестовые операции не списывают деньги.':'Оплата пока выключена. Для настоящих платежей владелец должен подключить и подтвердить аккаунт Paymentwall.';
+    packagesRoot.replaceChildren();
+    const tokenInfo=document.createElement('p');tokenInfo.className='billing-note';tokenInfo.textContent='Пакеты: 500 · 1 500 · 5 000 ✦. При реальной оплате доступные способы и суммы выбираются на защищённой странице платёжного сервиса.';packagesRoot.append(tokenInfo);
+    if(info.configured||info.demoMode){
+      const topupButton=document.createElement('button');topupButton.type='button';topupButton.className='button button-primary';topupButton.textContent=info.demoMode?'Проверить тестовое пополнение +1 500 ✦':'Пополнить токены';
+      topupButton.addEventListener('click',async()=>{
+        topupButton.disabled=true;
+        try{
+          const email=emailInput.value.trim();
+          if(info.demoMode){
+            const result=await api('/api/billing/demo/checkout',{method:'POST',body:JSON.stringify({kind:'tokens',tokens:1500})});
+            if(state.user)state.user.tokens=result.balance;
+            showToast('Демо: начислено 1 500 ✦. Реального платежа не было.');
+            await loadStore();
+          }else{
+            const result=await api('/api/billing/token-topup/checkout',{method:'POST',body:JSON.stringify({email})});
+            window.location.assign(result.url);
+          }
+        }catch(error){showToast(error.message);}finally{topupButton.disabled=false;}
+      });
+      packagesRoot.append(topupButton);
+    }else{
+      const disabled=document.createElement('button');disabled.type='button';disabled.className='button button-secondary';disabled.disabled=true;disabled.textContent='Платёжный шлюз не подключён';packagesRoot.append(disabled);
+    }
+    tiersRoot.replaceChildren();
+    (info.membershipProducts||[]).forEach(product=>{
+      const card=document.createElement('article');card.className='billing-plan-card';
+      const title=document.createElement('strong');title.textContent=product.name;
+      const details=document.createElement('p');details.textContent=product.description+' Автопродление раз в месяц; отмену можно запросить в SOLVI.';
+      const price=document.createElement('b');price.textContent=(Number(product.amountMinor)/100).toFixed(2)+' '+product.currency.toUpperCase()+' / месяц';
+      const buy=document.createElement('button');buy.type='button';buy.className='button button-secondary';buy.textContent=info.demoMode?'Демо: активировать на 30 дней':'Оформить подписку';
+      buy.disabled=!(info.goodsConfigured||info.demoMode);
+      buy.addEventListener('click',async()=>{
+        buy.disabled=true;
+        try{
+          if(info.demoMode){
+            const result=await api('/api/billing/demo/checkout',{method:'POST',body:JSON.stringify({kind:'membership',productId:product.id})});
+            showToast('Демо: '+result.tier.toUpperCase()+' активирован на 30 дней без списания денег.');
+          }else{
+            const result=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId:product.id,email:emailInput.value.trim()})});
+            window.location.assign(result.url);
+          }
+        }catch(error){showToast(error.message);}finally{buy.disabled=false;}
+      });
+      card.append(title,details,price,buy);tiersRoot.append(card);
+    });
+    subscriptionRoot.replaceChildren();
+    if(account.subscription){
+      const sub=account.subscription;
+      const line=document.createElement('p');line.className='billing-note';
+      line.textContent='Подписка: '+(sub.item_id==='premium-30d'?'Premium':'VIP')+' · '+({active:'активна',pending:'ожидает оплаты',cancel_requested:'запрошена отмена',cancelled:'автопродление отменено',expired:'завершена',past_due:'ожидает повторной оплаты'}[sub.status]||sub.status)+' · доступ до '+(sub.current_period_end?new Date(sub.current_period_end).toLocaleDateString('ru-RU'):'подтверждения оплаты');
+      subscriptionRoot.append(line);
+      if(['active','past_due'].includes(sub.status)){
+        const cancel=document.createElement('button');cancel.type='button';cancel.className='button button-secondary';cancel.textContent='Запросить отмену автопродления';
+        cancel.addEventListener('click',async()=>{cancel.disabled=true;try{await api('/api/billing/subscription/cancel-request',{method:'POST',body:'{}'});showToast('Заявка на отмену передана команде SOLVI.');await loadBillingPanel();}catch(error){showToast(error.message);cancel.disabled=false;}});
+        subscriptionRoot.append(cancel);
+      }
+    }else{
+      const line=document.createElement('p');line.className='billing-note';line.textContent='Платная месячная подписка пока не активна.';subscriptionRoot.append(line);
+    }
+  }catch(error){statusRoot.textContent='Не удалось загрузить раздел оплаты: '+error.message;}
+}
+async function startCashStoreCheckout(itemId,button){
+  const info=state.billingInfo||{};
+  const email=$('#billingEmailInput')?.value.trim()||'';
+  button.disabled=true;
+  try{
+    if(info.demoMode){
+      const result=await api('/api/billing/demo/checkout',{method:'POST',body:JSON.stringify({kind:'store',itemId})});
+      showToast('Демо: товар добавлен в инвентарь. Реального платежа не было.');
+      await loadStore();
+    }else{
+      const result=await api('/api/billing/store/checkout',{method:'POST',body:JSON.stringify({itemId,email})});
+      window.location.assign(result.url);
+    }
+  }catch(error){showToast(error.message);button.disabled=false;}
+}
 async function loadStoreSponsoredAd(){
   const root=$('#storeSponsoredAd');if(!root)return;
   try{
@@ -590,7 +691,7 @@ async function loadStoreSponsoredAd(){
   }catch{root.hidden=true;}
 }
 async function loadStore() {
-  try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadStoreSponsoredAd(); }
+  try { const data = await api('/api/store'); await loadBillingPanel(); renderStore(data); await loadTokenHistory(); await loadStoreSponsoredAd(); }
   catch (error) { showToast(error.message); }
 }
 async function loadTokenHistory() {
