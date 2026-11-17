@@ -15,15 +15,19 @@ try {
   const matchingHtml = read('public/index.html');
   const matchingServer = read('server.js');
   const matchingApp = read('public/app.js');
-  for (const mode of ['chat', 'flirt', 'roleplay']) {
-    if (!matchingHtml.includes(`data-match-mode="${mode}"`) || !matchingServer.includes(`'${mode}'`) || !matchingApp.includes(`'${mode}'`)) fail(`Режим подбора ${mode} не подключён во всех слоях`);
-  }
-  if (!matchingServer.includes('eligibleByGender(current, candidate)') || !matchingServer.includes('eligibleByMode(current, candidate)')) fail('Серверная фильтрация пола/режима отсутствует');
-  else pass('Три режима и серверная фильтрация пола/формата подключены');
-  if (!matchingServer.includes("preferences?.adultConfirmed !== true") || !matchingServer.includes("UPDATE users SET adult_asserted_at = ?")) fail('Серверное подтверждение 18+ отсутствует');
-  else pass('Согласие 18+ проверяется сервером и сохраняется');
-  if (!matchingHtml.includes('id="flirtAdultConsent"') || !matchingHtml.includes('id="roleplayAdultConsent"') || !matchingHtml.includes('id="ownGender"') || matchingHtml.includes('id="profileGender"')) fail('Не найдены формы согласия 18+ или выбор пола в форме поиска');
-  else pass('Согласие для взрослых режимов и выбор пола перед поиском присутствуют');
+  const hasAdultModeUi = matchingHtml.includes('data-match-mode="flirt"') || matchingHtml.includes('data-match-mode="roleplay"') || matchingHtml.includes('id="flirtAdultConsent"') || matchingHtml.includes('id="roleplayAdultConsent"') || matchingHtml.includes('Флирт 18+') || matchingHtml.includes('Ролка 18+');
+  if (hasAdultModeUi) fail('В интерфейсе остались режимы флирта/ролевой игры или элементы 18+');
+  else pass('Интерфейс содержит только обычное общение');
+  if (!matchingApp.includes("mode: 'chat'") || !matchingServer.includes("const mode = 'chat'") || !matchingServer.includes('preferences?.mode && preferences.mode !== \'chat\'')) fail('Обычный режим чата не закреплён на клиенте и сервере');
+  else pass('Подбор работает только в обычном чате; старые режимы отклоняются сервером');
+  if (!matchingServer.includes('eligibleByGender(current, candidate)') || !matchingServer.includes('eligibleByMode(current, candidate)')) fail('Серверная фильтрация пола и режима отсутствует');
+  else pass('Серверная фильтрация пола и единственного режима подключена');
+  if (!matchingHtml.includes('id="desiredGender"') || (!matchingHtml.includes('id="ownGender"') && !matchingHtml.includes('id="profileGender"'))) fail('Не найден выбор пола собеседника или пола пользователя');
+  else pass('Выбор желаемого пола собеседника сохранён');
+  if (!matchingServer.includes('Режимы флирта и ролевой игры отключены.') || !matchingApp.includes("mode: 'chat'")) fail('Сервер не блокирует запросы отключённых режимов');
+  else pass('Прямые запросы отключённых режимов блокируются сервером');
+  if (!read('test/integration.test.js').includes("for (const removedMode of ['flirt', 'roleplay'])")) fail('Нет интеграционных проверок запрета отключённых режимов');
+  else pass('Есть интеграционные тесты запрета флирта и ролки');
 
   const html = read('public/index.html');
   const ids = [...html.matchAll(/\bid\s*=\s*["']([^"']+)["']/g)].map(match => match[1]);
@@ -117,8 +121,8 @@ try {
   const filterSection = app.slice(app.indexOf('function renderFilters()'), app.indexOf('function buildMatchingPreferences()'));
   if (!filterSection || /const interestLimit = 0/.test(filterSection) || /state\.selected(?:Languages|Interests|FlirtInterests|RoleplayInterests)\s*=\s*\[/.test(filterSection)) fail('Фильтры поиска не должны сбрасываться при каждой перерисовке');
   else pass('Фильтры поиска сохраняют выбор пользователя при перерисовке');
-  if (!app.includes('languages: state.selectedLanguages') || !app.includes('interests\n  };')) fail('Выбранные языки/интересы не передаются в очередь подбора');
-  else pass('Настройки языков и интересов передаются в подбор');
+  if (!app.includes("desiredGender: state.desiredGender") || !app.includes("mode: 'chat'") || !server.includes('eligibleByGender(current, candidate)')) fail('Выбор пола собеседника не передаётся в обычный подбор');
+  else pass('Выбор пола собеседника передаётся в подбор');
   if (!app.includes("if (bootScreen) bootScreen.hidden = true;") || !app.includes("document.documentElement.classList.remove('session-checking');")) fail('Экран восстановления сессии не имеет аварийного снятия блокировки');
   else pass('Экран восстановления гарантированно скрывается при ошибке запуска');
   const ownerPanelJs = read('public/owner.js');
