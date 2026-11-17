@@ -235,8 +235,6 @@ const MEMBERSHIP_PACKAGES = Object.freeze([
 ]);
 const LANGUAGES = ['Русский', 'English', 'Español', 'Deutsch', 'Français', 'Türkçe', 'Português', 'العربية', '中文', '日本語'];
 const INTERESTS = ['Музыка', 'Игры', 'Кино и сериалы', 'Технологии', 'Путешествия', 'Спорт', 'Книги', 'Юмор', 'Наука', 'Искусство', 'Языки', 'Общение'];
-const FLIRT_INTERESTS = ['Флирт', 'Романтика', 'Свидания', 'Симпатия', 'Комплименты', 'Лёгкие намёки', 'Нежность', 'Отношения', 'Искра и химия', 'Общение без обязательств'];
-const ROLEPLAY_INTERESTS = ['Романтический сюжет', 'Фэнтези', 'Приключения', 'Детектив', 'Мистика', 'Драма', 'Комедия', 'Научная фантастика', 'Исторический сюжет', 'Повседневная история', 'Медленное развитие', 'Альтернативный мир'];
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -616,7 +614,7 @@ function eligibleByGender(a, b) {
     && (b.desiredGender === 'any' || b.desiredGender === a.gender);
 }
 function eligibleByMode(a, b) {
-  return a.mode === b.mode && (a.mode !== 'roleplay' || a.roleplayIntent !== b.roleplayIntent);
+  return a.mode === 'chat' && b.mode === 'chat';
 }
 function overlapScore(a, b) {
   return a.interests.filter(item => b.interests.includes(item)).length;
@@ -653,22 +651,18 @@ function addToQueue(socket, preferences) {
   if (getActiveMatch(userId)) return { ok: false, error: 'У вас уже есть активный диалог.' };
   const user = getUserById(userId);
   if (!user) return { ok: false, error: 'Аккаунт не найден. Войдите снова.' };
-  const mode = ['chat', 'flirt', 'roleplay'].includes(preferences?.mode) ? preferences.mode : 'chat';
+  if (preferences?.mode && preferences.mode !== 'chat') {
+    return { ok: false, error: 'Режимы флирта и ролевой игры отключены.' };
+  }
+  const mode = 'chat';
   const desiredGender = ['any', 'male', 'female', 'other'].includes(preferences?.desiredGender) ? preferences.desiredGender : 'any';
   const ownGender = ['male', 'female', 'other'].includes(preferences?.ownGender) ? preferences.ownGender : (['male', 'female', 'other'].includes(user.gender) ? user.gender : '');
   if (!ownGender) return { ok: false, error: 'Выбери свой пол в форме поиска — он нужен для взаимного подбора.' };
   if (user.gender !== ownGender) dbRun('UPDATE users SET gender = ? WHERE id = ?', [ownGender, userId]);
-  if (mode !== 'chat') {
-    if (user.account_type === 'guest') return { ok: false, error: 'Режимы 18+ доступны только постоянным аккаунтам.' };
-    if (preferences?.adultConfirmed !== true) return { ok: false, error: 'Для режима 18+ подтверди, что тебе уже исполнилось 18 лет.' };
-    dbRun('UPDATE users SET adult_asserted_at = ? WHERE id = ?', [nowIso(), userId]);
-  }
-  const roleplayIntent = preferences?.roleplayIntent === 'offering' ? 'offering' : 'seeking';
-  if (mode === 'roleplay' && !['seeking', 'offering'].includes(preferences?.roleplayIntent)) return { ok: false, error: 'Выбери: ищешь сюжет или предлагаешь сюжет.' };
   const limits = membershipLimits(user);
   const languages = ['Русский'];
   const interests = [];
-  const entry = { userId, mode, gender: ownGender, desiredGender, roleplayIntent, languages, interests, joinedAt: Date.now() };
+  const entry = { userId, mode, gender: ownGender, desiredGender, languages, interests, joinedAt: Date.now() };
   if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
   tryMatch(userId);
@@ -1603,7 +1597,7 @@ async function main() {
     return res.status(200).type('text/plain').send('OK');
   });
 
-  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, flirtInterests: FLIRT_INTERESTS, roleplayInterests: ROLEPLAY_INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
+  app.get('/api/config', (_req, res) => res.json({ languages: LANGUAGES, interests: INTERESTS, avatars: AVATARS, stickers: BASE_STICKERS, reactions: ['❤️', '😂', '🔥', '👏'], matchingEnabled: !PUBLIC_MODE || PUBLIC_MATCHING, publicMode: PUBLIC_MODE, inviteRequired: PUBLIC_MODE, guestEnabled: true, socialLinks: dbAll('SELECT id, platform, label, url, icon FROM site_social_links WHERE enabled = 1 ORDER BY sort_order, created_at').map(row => ({...row})), media: { images: true, voice: true, maxImagesPerMessage: { free: 3, vip: 5, premium: 10 }, maxImageBytes: MAX_IMAGE_BYTES, maxAudioBytes: MAX_AUDIO_BYTES, maxVoiceSeconds: { free: 30, vip: 45, premium: 60 } }, economy: { tokensPerMinute: 1, countsWhenBothConnected: true } }));
 
   function checkPublicInvite(req, res) {
     if (!PUBLIC_MODE) return true;
