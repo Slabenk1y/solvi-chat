@@ -36,6 +36,7 @@ try {
   else pass(`HTML: ${ids.length} уникальных id`);
 
   const app = read('public/app.js');
+  const css = read('public/styles.css');
   const selectors = [...new Set([...app.matchAll(/\$\$?\(\s*["']#([A-Za-z][\w:-]*)["']/g)].map(match => match[1]))];
   const missing = selectors.filter(id => !ids.includes(id));
   if (missing.length) fail(`JS-селекторы отсутствуют в HTML: ${missing.join(', ')}`);
