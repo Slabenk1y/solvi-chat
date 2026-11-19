@@ -1431,9 +1431,9 @@ function startSearch() {
   $('#expandSearchButton').hidden = true;
   $('#searchStatusTitle').textContent = 'Ищем собеседника';
   $('#searchStatusText').textContent = 'Подбираем человека с похожими интересами.';
-  $('#mascotMessage').textContent = 'Сосис-Мышь уже побежала искать тебе человека.';
+  $('#mascotMessage').textContent = 'Машка-Мышка поправила усики, проверила лапки и отправилась искать тебе собеседника!';
   $('#mascotStage').classList.add('mascot-active');
-  $('#mascotSpeech').textContent = 'ПИ-ПИ! ИЩУ ЛЮДЕЙ!';
+  $('#mascotSpeech').textContent = 'МАШКА-МЫШКА ИЩЕТ!';
   $('#searchWaitingHint').textContent = state.selectedLanguages.length ? 'Ищем человека, с которым у вас есть общий язык.' : 'Языковых ограничений нет — ищем любого подходящего собеседника.';
   setView('search');
   updateSearchTimer();
@@ -1451,10 +1451,23 @@ function updateSearchTimer() {
   if (!state.searching) return;
   const seconds = Math.floor((Date.now() - state.searchStartedAt) / 1000);
   $('#searchTimer').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-  const mascotLines = ['Мышь-сосиска побежала. Сосиска-мышь покатилась.', 'Проверяю сыр. Собеседник тоже где-то рядом.', 'Это не паника. Это сосисочная аэродинамика.', 'Пи-пи. Простите, профессиональная деформация.', 'Хвост запутался в Wi-Fi, сейчас распутаю.', 'Я маленькая, но коммуникабельная.'];
-  const mascotSpeech = ['ГДЕ МОЙ СЫР?!', 'СОСИСКА НА СВЯЗИ!', 'ПИ-ПИ, НЕ МЕШАЙ!', 'ХВОСТ НЕ ПОДВЕДИ!'];
-  if (seconds % 7 === 0) { $('#mascotMessage').textContent = mascotLines[Math.floor(seconds / 7) % mascotLines.length]; $('#mascotSpeech').textContent = mascotSpeech[Math.floor(seconds / 7) % mascotSpeech.length]; }
-  $('#mascotStage').dataset.mood = seconds > 35 ? 'chaos' : (seconds > 15 ? 'impatient' : 'hopeful');
+  const mascotLines = [
+    'Машка-Мышка на посту! Ищу тебе классного собеседника.',
+    'Усики настроены, лапки готовы — поиск идёт!',
+    'Сыр подождёт: у Машки важная миссия.',
+    'Проверила хвостик, поправила ушки — продолжаю поиск.',
+    'Мышиное чутьё подсказывает: интересный разговор где-то рядом.',
+    'Машка не сдаётся. Сейчас кого-нибудь найдём!',
+    'Одной лапкой держу сыр, другой ищу собеседника.',
+    'Пи-пи! У Машки-Мышки сегодня ответственная смена.',
+    'Не отвлекайте Машку: она высматривает нового друга.',
+    'Хвостик на месте, настроение боевое. Ищем дальше!',
+    'Я маленькая мышка, но поисковая служба у меня серьёзная.',
+    'Машка уже мысленно приготовила приветствие!'
+  ];
+  const mascotSpeech = ['МАШКА ИЩЕТ!', 'УСИКИ НАСТРОЕНЫ!', 'СЫР ПОТОМ!', 'ПИ-ПИ, Я НА ПОСТУ!', 'ХВОСТИК В ДЕЛЕ!', 'МЫШИНОЕ ЧУТЬЁ!'];
+  if (seconds % 6 === 0) { $('#mascotMessage').textContent = mascotLines[Math.floor(seconds / 6) % mascotLines.length]; $('#mascotSpeech').textContent = mascotSpeech[Math.floor(seconds / 6) % mascotSpeech.length]; }
+  $('#mascotStage').dataset.mood = seconds > 15 ? 'impatient' : 'hopeful';
   if (seconds >= 20) $('#searchWaitingHint').textContent = 'Пока ищем — можно подождать или снять часть фильтров.';
   if (seconds >= 30 && (state.selectedLanguages.length || state.selectedInterests.length)) $('#expandSearchButton').hidden = false;
   if (seconds >= 45) $('#searchStatusText').textContent = 'Подходящий собеседник пока не найден. Поиск продолжается.';
@@ -1469,9 +1482,9 @@ function nextPartner() {
   $('#expandSearchButton').hidden = true;
   $('#searchStatusTitle').textContent = 'Ищем следующего';
   $('#searchStatusText').textContent = 'Закрываем предыдущий разговор и ищем новую встречу.';
-  $('#mascotMessage').textContent = 'Следующий! Сосис-Мышь ушла в занос.';
+  $('#mascotMessage').textContent = 'Машка-Мышка уже на старте — ищем следующего собеседника!';
   $('#mascotStage').classList.add('mascot-active');
-  $('#mascotSpeech').textContent = 'ХВОСТ ВПЕРЁД!';
+  $('#mascotSpeech').textContent = 'МАШКА, ВПЕРЁД!';
   setView('search');
   updateSearchTimer();
   state.searchInterval = setInterval(updateSearchTimer, 1000);
