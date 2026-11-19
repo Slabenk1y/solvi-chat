@@ -1783,7 +1783,6 @@ async function blockPartner() {
   } catch (error) { showToast(error.message); }
 }
 function closeModals() {
-  if (state.storePreviewSnapshot) restoreStorePreview(false);
   state.storePreviewItem = null;
   $$('.modal-backdrop').forEach(modal => { modal.hidden = true; });
   document.body.classList.remove('store-preview-open', 'purchase-confirm-open');
