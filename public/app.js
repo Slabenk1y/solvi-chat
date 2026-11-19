@@ -112,9 +112,7 @@ const state = {
   storeCollectionFilter: '',
   storeSearch: '',
   storeData: null,
-  storePreviewSnapshot: null,
   storePreviewItem: null,
-  applyingStorePreview: false,
   favorites: [],
   blockedUsers: [],
   tokenHistoryLoaded: false
@@ -181,7 +179,6 @@ function confirmStorePurchase({ title, description, price, balance, confirmLabel
 }
 
 function applyEquipped(equipped = {}) {
-  if (state.storePreviewSnapshot && !state.applyingStorePreview) restoreStorePreview(false);
   const root = document.documentElement;
   root.dataset.storeTheme = equipped.theme || equipped.wallpaper || 'theme-light';
   delete root.dataset.storeWallpaper;
@@ -288,7 +285,6 @@ function createThemeStorePreview(item) {
   return root;
 }
 function openStorePreview(item) {
-  if (state.storePreviewSnapshot) restoreStorePreview(false);
   state.storePreviewItem = item;
   const modal = $('#storePreviewModal');
   const visual = $('#storePreviewCanvas');
@@ -307,7 +303,7 @@ function openStorePreview(item) {
     const outgoing = document.createElement('span'); outgoing.className = 'membership-demo-message outgoing'; outgoing.textContent = 'Отлично, теперь мой профиль сияет ✨';
     chat.append(incoming, outgoing);
     const perks = document.createElement('div'); perks.className = 'membership-showcase-perks';
-    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 12 МБ', 'Русский язык', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 12 МБ', 'Русский язык', 'Набор «Звёздный след»'];
+    const perkNames = tier === 'premium' ? ['Всё из VIP', '5 000 символов', '10 фото до 12 МБ', 'Голосовые до 1 минуты', 'Аватар до 12 МБ', 'Русский язык', 'До 12 интересов', 'Квантовый набор кастомизаций'] : ['VIP-значок и рамка', '3 000 символов', '5 фото до 8 МБ', 'Голосовые до 45 секунд', 'Аватар до 8 МБ', 'Русский язык', 'До 8 интересов', 'Набор «Звёздный след»'];
     perkNames.forEach(name => { const chip = document.createElement('span'); chip.textContent = '✓ ' + name; perks.append(chip); });
     showcase.append(top, chat, perks); visual.append(showcase);
   } else if (item.slot === 'theme' || item.slot === 'wallpaper') {
@@ -328,17 +324,11 @@ function openStorePreview(item) {
     stickers: 'Открывает дополнительный набор стикеров в панели отправки.',
     title: 'Показывает выбранный титул рядом с твоим именем.',
     membership: item.tier === 'premium'
-      ? 'Premium включает VIP, усиливает оформление профиля и расширяет лимиты: 5 000 символов, 10 фото до 12 МБ, голосовые до 1 минуты, аватар до 12 МБ, 10 языков и 12 интересов. Поиск и правила безопасности одинаковы для всех.'
-      : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов. Без преимущества в очереди поиска.'
+      ? 'Premium включает VIP, усиливает оформление профиля и расширяет лимиты: 5 000 символов, 10 фото до 12 МБ, голосовые до 1 минуты, аватар до 12 МБ, русский язык и до 12 интересов. Небольшой приоритет поиска после владельца — до 8 секунд.'
+      : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 8 МБ, русский язык и до 8 интересов. Небольшой приоритет поиска после владельца и Premium — до 4 секунд.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
   $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
-  const tryOnButton = $('#storePreviewTryOnButton');
-  if (tryOnButton) {
-    const canTryOn = ['theme', 'wallpaper', 'bubble', 'frame', 'membership'].includes(item.slot);
-    tryOnButton.hidden = !canTryOn;
-    tryOnButton.textContent = item.slot === 'membership' ? 'Примерить статус' : 'Примерить на сайте';
-  }
   if (item.slot === 'membership') {
     const duration = document.createElement('p'); duration.className = 'store-preview-duration';
     duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360 ✦ = 6 часов' : '180 ✦ = 3 часа'} активного диалога за каждый час статуса. При повторной покупке время прибавляется к остатку.`;
@@ -347,43 +337,6 @@ function openStorePreview(item) {
   if (modal.parentElement !== document.body) document.body.append(modal);
   document.body.classList.add('store-preview-open');
   modal.hidden = false;
-}
-function startStorePreview() {
-  const item = state.storePreviewItem;
-  if (!item || !['theme', 'wallpaper', 'bubble', 'frame', 'membership'].includes(item.slot)) return;
-  if (state.storePreviewSnapshot) restoreStorePreview(false);
-  const root = document.documentElement;
-  state.storePreviewSnapshot = {
-    equipped: { ...(state.user?.equipped || {}) },
-    memberTier: root.getAttribute('data-member-tier')
-  };
-  if (item.slot === 'membership') {
-    root.dataset.memberTier = item.tier === 'premium' ? 'premium' : 'vip';
-  } else {
-    state.applyingStorePreview = true;
-    applyEquipped({ ...state.storePreviewSnapshot.equipped, [item.slot]: item.id });
-    state.applyingStorePreview = false;
-  }
-  $('#storePreviewModal').hidden = true;
-  document.body.classList.remove('store-preview-open');
-  const restoreButton = $('#storePreviewRestoreButton');
-  if (restoreButton) restoreButton.hidden = false;
-  showToast('Примерка включена только у тебя. Токены не списаны, покупка не выполнена.', 4200);
-}
-function restoreStorePreview(showMessage = false) {
-  const snapshot = state.storePreviewSnapshot;
-  if (!snapshot) return;
-  state.storePreviewSnapshot = null;
-  state.applyingStorePreview = true;
-  applyEquipped(snapshot.equipped || {});
-  state.applyingStorePreview = false;
-  if (snapshot.memberTier === null || snapshot.memberTier === undefined) delete document.documentElement.dataset.memberTier;
-  else document.documentElement.setAttribute('data-member-tier', snapshot.memberTier);
-  const restoreButton = $('#storePreviewRestoreButton');
-  if (restoreButton) restoreButton.hidden = true;
-  state.storePreviewItem = null;
-  renderStickerPanel();
-  if (showMessage) showToast('Твоё оформление восстановлено.');
 }
 function renderStore(data) {
   state.storeData = data;
@@ -1836,7 +1789,6 @@ function closeModals() {
   document.body.classList.remove('store-preview-open', 'purchase-confirm-open');
 }
 function logout(showMessage = true, revokeServer = true) {
-  restoreStorePreview(false);
   const oldToken = state.token;
   if (revokeServer && oldToken) fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${oldToken}` } }).catch(() => {});
   clearSearchTimer();
@@ -2114,8 +2066,6 @@ window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',
 $('#rulesFooterButton').addEventListener('click', () => { $('#rulesModal').hidden = false; });
 $('#authRulesButton').addEventListener('click', () => { $('#rulesModal').hidden = false; });
 $$('[data-close-modal]').forEach(button => button.addEventListener('click', closeModals));
-$('#storePreviewTryOnButton')?.addEventListener('click', startStorePreview);
-$('#storePreviewRestoreButton')?.addEventListener('click', () => restoreStorePreview(true));
 $$('.modal-backdrop').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeModals(); }));
 $('#endChatButton').addEventListener('click', async () => {
   if (!state.activeMatch) return;
