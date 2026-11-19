@@ -78,8 +78,12 @@ try {
   else pass('Почасовые цены VIP и Premium проверены');
   if (!server.includes('function membershipLimits') || !server.includes('membership.attachmentLimit') || !app.includes('function createThemeStorePreview') || !app.includes('languageLimit')) fail('Не все дополнительные возможности VIP/Premium и визуальные предпросмотры подключены');
   else pass('Расширенные лимиты VIP/Premium и визуальные предпросмотры подключены');
-  if (!app.includes('function startStorePreview()') || !app.includes('function restoreStorePreview(showMessage = false)') || !html.includes('id="storePreviewTryOnButton"') || !html.includes('id="storePreviewRestoreButton"')) fail('Локальная примерка и возврат исходного оформления отсутствуют');
-  else pass('Временная примерка работает без покупки и откатывается одной кнопкой');
+  if (app.includes('function startStorePreview()') || app.includes('function restoreStorePreview(') || html.includes('id="storePreviewTryOnButton"') || html.includes('id="storePreviewRestoreButton"') || !html.includes('Предпросмотр не меняет оформление')) fail('Бесплатное применение предметов из предпросмотра ещё доступно');
+  else pass('Предпросмотр только показывает макет и не меняет оформление до покупки или получения предмета');
+  if (!server.includes("const LANGUAGES = ['Русский'];") || !server.includes('languageLimit: 1')) fail('Список языков или лимиты подписок не соответствуют доступному русскому языку');
+  else pass('В подборе доступен только русский язык; лимит подписок синхронизирован');
+  if (!server.includes('function matchmakingPriorityBonusMs(user)') || !server.includes('return 12_000') || !server.includes('return 8_000') || !server.includes('return 4_000') || !server.includes('priorityBonusMs: matchmakingPriorityBonusMs(user)')) fail('Ограниченный приоритет очереди не подключён');
+  else pass('Приоритет очереди ограничен по времени и не вытесняет долго ожидающих пользователей');
   if (collectionNames.length < 10) fail(`Слишком мало коллекций: ${collectionNames.length}`);
   else pass(`Коллекции: ${collectionNames.length}`);
 
