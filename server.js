@@ -226,14 +226,14 @@ const BILLING_PRODUCTS = Object.freeze([
   { id: 'premium-30d', tier: 'premium', days: 30, amountMinor: billingMinorPrice('PREMIUM_PRICE_MINOR', BILLING_CURRENCY === 'rub' ? 89900 : ['eur','usd'].includes(BILLING_CURRENCY) ? 899 : 0), currency: BILLING_CURRENCY, name: 'Premium · 30 дней', description: '30 дней Premium: максимальные лимиты, голосовые до 1 минуты и 10 фото за сообщение.' }
 ]);
 const MEMBERSHIP_PACKAGES = Object.freeze([
-  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 4 МБ, 5 языков и 8 интересов.' },
+  { id: 'vip-1h', tier: 'vip', hours: 1, price: 180, name: 'VIP · 1 час', description: 'VIP-значок и сияющая рамка профиля, до 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 8 МБ, русский язык и до 8 интересов. Небольшой приоритет поиска после владельца и Premium.' },
   { id: 'vip-6h', tier: 'vip', hours: 6, price: 1080, name: 'VIP · 6 часов', description: 'Все возможности VIP на 6 часов. 180 ✦ за час статуса — эквивалент 3 часов активного диалога.' },
   { id: 'vip-24h', tier: 'vip', hours: 24, price: 4320, name: 'VIP · 24 часа', description: 'Полные сутки VIP со всеми расширенными лимитами. Срок прибавляется к оставшемуся времени.' },
-  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс Premium-ореол, до 5 000 символов, 10 фото до 12 МБ, голосовые до 1 минуты, аватар до 8 МБ, 10 языков и 12 интересов.' },
+  { id: 'premium-1h', tier: 'premium', hours: 1, price: 360, name: 'Premium · 1 час', description: 'Всё из VIP плюс Premium-ореол, до 5 000 символов, 10 фото до 12 МБ, голосовые до 1 минуты, аватар до 12 МБ, русский язык и до 12 интересов. Небольшой приоритет поиска после владельца.' },
   { id: 'premium-6h', tier: 'premium', hours: 6, price: 2160, name: 'Premium · 6 часов', description: 'Все возможности Premium на 6 часов. 360 ✦ за час статуса — эквивалент 6 часов активного диалога.' },
   { id: 'premium-24h', tier: 'premium', hours: 24, price: 8640, name: 'Premium · 24 часа', description: 'Полные сутки Premium со всеми максимальными лимитами. Срок прибавляется к оставшемуся времени.' }
 ]);
-const LANGUAGES = ['Русский', 'English', 'Español', 'Deutsch', 'Français', 'Türkçe', 'Português', 'العربية', '中文', '日本語'];
+const LANGUAGES = ['Русский'];
 const INTERESTS = ['Музыка', 'Игры', 'Кино и сериалы', 'Технологии', 'Путешествия', 'Спорт', 'Книги', 'Юмор', 'Наука', 'Искусство', 'Языки', 'Общение'];
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -445,6 +445,15 @@ function effectiveSubscription(user) {
   if (activeTiers.some(entry => entry.tier === 'premium')) return 'premium';
   return activeTiers.some(entry => entry.tier === 'vip') ? 'vip' : 'free';
 }
+function matchmakingPriorityBonusMs(user) {
+  // Short queue credits: owner +12s, Premium +8s, VIP +4s.
+  // A longer wait naturally overtakes this bonus, preventing starvation.
+  if (isOwner(user)) return 12_000;
+  const tier = effectiveSubscription(user);
+  if (tier === 'premium') return 8_000;
+  if (tier === 'vip') return 4_000;
+  return 0;
+}
 function effectivePaidSubscription(user) {
   const tier = ['vip', 'premium'].includes(user?.paid_subscription_tier) ? user.paid_subscription_tier : 'free';
   if (tier === 'free' || (user.paid_subscription_expires_at && user.paid_subscription_expires_at <= nowIso())) return 'free';
@@ -455,7 +464,7 @@ function membershipLimits(user) {
   return {
     tier,
     messageLength: tier === 'premium' ? 5000 : (tier === 'vip' ? 3000 : MAX_MESSAGE_LENGTH),
-    languageLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
+    languageLimit: 1,
     interestLimit: tier === 'premium' ? 12 : (tier === 'vip' ? 8 : 5),
     attachmentLimit: tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3),
     imageBytes: tier === 'premium' ? 12 * 1024 * 1024 : (tier === 'vip' ? 8 * 1024 * 1024 : 6 * 1024 * 1024),
@@ -628,7 +637,13 @@ function tryMatch(userId) {
     .filter(([, candidate]) => eligibleByLanguage(current, candidate))
     .filter(([, candidate]) => eligibleByGender(current, candidate))
     .filter(([, candidate]) => eligibleByMode(current, candidate))
-    .sort((a, b) => overlapScore(current, b[1]) - overlapScore(current, a[1]) || a[1].joinedAt - b[1].joinedAt);
+    .sort((a, b) => {
+      const aPriorityTime = a[1].joinedAt - Number(a[1].priorityBonusMs || 0);
+      const bPriorityTime = b[1].joinedAt - Number(b[1].priorityBonusMs || 0);
+      return aPriorityTime - bPriorityTime
+        || overlapScore(current, b[1]) - overlapScore(current, a[1])
+        || a[1].joinedAt - b[1].joinedAt;
+    });
   if (!candidates.length) return;
   const [partnerId] = candidates[0];
   const partner = queue.get(partnerId);
@@ -662,7 +677,7 @@ function addToQueue(socket, preferences) {
   const limits = membershipLimits(user);
   const languages = Array.isArray(preferences?.languages) ? [...new Set(preferences.languages.filter(value => LANGUAGES.includes(value)))].slice(0, limits.languageLimit) : [];
   const interests = Array.isArray(preferences?.interests) ? [...new Set(preferences.interests.filter(value => INTERESTS.includes(value)))].slice(0, limits.interestLimit) : [];
-  const entry = { userId, mode, gender: ownGender, desiredGender, languages, interests, joinedAt: Date.now() };
+  const entry = { userId, mode, gender: ownGender, desiredGender, languages, interests, joinedAt: Date.now(), priorityBonusMs: matchmakingPriorityBonusMs(user) };
   if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
   tryMatch(userId);
