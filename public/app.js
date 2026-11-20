@@ -188,7 +188,21 @@ async function requestManualCashPurchase(item) {
     if (result.contactUrl) { window.location.assign(result.contactUrl); return; }
     $('#cashPurchaseNote').textContent = 'Заявка ' + result.orderId + ' сохранена. Владелец увидит её в панели SOLVI. Бот пока не подключён — свяжись с владельцем отдельно.';
     $('#cashPurchaseSubmit').hidden = true;
-    $('#cashPurchaseCancel').textContent = 'Понятно';
+    const modal = $('#cashPurchaseModal');
+    const doneButton = $('#cashPurchaseCancel');
+    doneButton.textContent = 'Понятно';
+    doneButton.onclick = () => {
+      modal.hidden = true;
+      doneButton.onclick = null;
+      modal.onclick = null;
+    };
+    modal.onclick = event => {
+      if (event.target === modal) {
+        modal.hidden = true;
+        doneButton.onclick = null;
+        modal.onclick = null;
+      }
+    };
     $('#cashPurchaseModal').hidden = false;
   } catch (error) {
     showToast(error.message); $('#cashPurchaseModal').hidden = true;
@@ -612,10 +626,10 @@ async function redeemPromo() {
   } catch (error) { $('#promoRedeemError').classList.remove('success-text'); $('#promoRedeemError').textContent = error.message; }
   finally { button.disabled = false; }
 }
-async function loadStoreSponsoredAd(){
-  const root=$('#storeSponsoredAd');if(!root)return;
+async function loadSponsoredAd(placement, selector){
+  const root=$(selector);if(!root)return;
   try{
-    const result=await api('/api/ads/slot?placement=store');const ad=result.ad;root.replaceChildren();
+    const result=await api('/api/ads/slot?placement='+encodeURIComponent(placement));const ad=result.ad;root.replaceChildren();
     if(!ad){root.hidden=true;return;}
     root.hidden=false;
     const copy=document.createElement('div');copy.className='store-sponsored-ad-copy';
@@ -628,6 +642,8 @@ async function loadStoreSponsoredAd(){
     root.append(copy,button);
   }catch{root.hidden=true;}
 }
+async function loadStoreSponsoredAd(){return loadSponsoredAd('store','#storeSponsoredAd');}
+async function loadHomeSponsoredAd(){return loadSponsoredAd('home','#homeSponsoredAd');}
 async function loadStore() {
   try { const data = await api('/api/store'); renderStore(data); await loadTokenHistory(); await loadStoreSponsoredAd(); }
   catch (error) { showToast(error.message); }
@@ -916,6 +932,7 @@ function setView(view, forceHome = false) {
   }
   $$('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === (view === 'search' || view === 'chat' ? 'home' : view)));
   if (view === 'chat') scrollMessages(true);
+  if (view === 'home') loadHomeSponsoredAd();
   if (view === 'store') loadStore();
   if (view === 'inventory') loadInventory();
   if (view === 'favorites') loadFavorites();
