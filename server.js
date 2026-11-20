@@ -1580,13 +1580,25 @@ async function main() {
       await telegramApi('setWebhook', { url: expectedWebhookUrl, secret_token: settings.webhookSecret, allowed_updates: ['message'], drop_pending_updates: false });
       const webhookInfo = await telegramApi('getWebhookInfo', {});
       if (webhookInfo.url !== expectedWebhookUrl) throw new Error('Telegram did not confirm the configured webhook URL.');
-      await telegramApi('setMyCommands', { commands: [
+      const publicCommands = [
         { command: 'start', description: 'Открыть поддержку или заявку SOLVI' },
         { command: 'help', description: 'Как работает поддержка SOLVI' },
-        { command: 'paysupport', description: 'Вопросы по оплате' },
+        { command: 'paysupport', description: 'Вопросы по оплате' }
+      ];
+      const ownerCommands = [
+        ...publicCommands,
         { command: 'reply', description: 'Ответить покупателю по номеру заявки' },
         { command: 'id', description: 'Показать ID Telegram-чата' }
-      ] });
+      ];
+      // Public command menu is safe for every user. Owner-only commands are
+      // registered only in the configured private owner chat.
+      await telegramApi('setMyCommands', { commands: publicCommands, scope: { type: 'default' } });
+      if (settings.ownerNotificationsReady) {
+        await telegramApi('setMyCommands', {
+          commands: ownerCommands,
+          scope: { type: 'chat', chat_id: Number(settings.ownerChatId) }
+        });
+      }
       console.log('[SOLVI] Telegram bot @' + settings.username + ' webhook registered and verified: ' + expectedWebhookUrl);
     } catch (error) { console.warn('[SOLVI] Telegram webhook setup failed:', error.message); }
   }
