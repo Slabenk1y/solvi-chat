@@ -2766,7 +2766,7 @@ async function main() {
         (SELECT m.created_at FROM telegram_order_messages m WHERE m.order_id=o.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
         (SELECT COUNT(*) FROM telegram_order_messages m WHERE m.order_id=o.id AND m.direction='buyer' AND m.read_at IS NULL) AS unread_count
       FROM manual_store_orders o JOIN users u ON u.id=o.user_id
-      WHERE o.telegram_chat_id IS NOT NULL AND o.accepted_at IS NOT NULL AND o.status IN ('pending','paid')
+      WHERE o.telegram_chat_id IS NOT NULL AND o.status IN ('pending','paid')
       ORDER BY COALESCE((SELECT MAX(m.created_at) FROM telegram_order_messages m WHERE m.order_id=o.id),o.updated_at) DESC
       LIMIT 100`);
     res.json({ orders });
