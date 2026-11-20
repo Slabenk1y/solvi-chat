@@ -78,18 +78,19 @@
               <article class="card"><div class="card-head"><div><h3>Заявки на покупки за реальные деньги</h3><p class="hint">Проверь оплату самостоятельно, затем подтверди выдачу. Пока заявка ожидает — товар не выдаётся.</p></div></div><div id="manualStoreOrders" class="growth-list"></div></article>
               <article class="card"><div class="card-head"><div><h3>Каталог и цены</h3><p class="hint">Пустое поле денежной цены = только токены. Просто укажи денежную цену и валюту — в магазине появится отдельная кнопка покупки за деньги. Очисти поле, чтобы отключить этот способ.</p></div><button id="refreshMonetizationButton" class="text-button" type="button">↻ Обновить</button></div><div id="monetizationProducts" class="growth-list"></div></article>
               <article class="card">
-                <div class="card-head"><div><h3>Реклама и спонсорские размещения</h3><p class="hint">Прямые рекламные кампании в магазине SOLVI. Сначала получи оплату от рекламодателя, затем отметь её и включи показ.</p></div></div>
+                <div class="card-head"><div><h3>Реклама и спонсорские размещения</h3><p class="hint">Объявления показываются на главной странице SOLVI или в магазине. Бесплатные запускаются сразу; платные — после подтверждения оплаты.</p></div></div>
                 <div id="monetizationAdStats" class="stats-grid compact-stats"></div>
                 <form id="adCampaignForm" class="form-grid">
                   <label>Название кампании<input id="adTitle" maxlength="100" required placeholder="Например, партнёр недели"></label>
                   <label>Рекламодатель<input id="adSponsor" maxlength="80" required placeholder="Название компании"></label>
                   <label class="full">Текст объявления<textarea id="adBody" maxlength="500" rows="2" placeholder="Краткое описание предложения"></textarea></label>
                   <label class="full">HTTPS-ссылка<input id="adTargetUrl" type="url" maxlength="600" required placeholder="https://example.com"></label>
+                  <label>Место показа<select id="adPlacement"><option value="home">Главная страница</option><option value="store">Магазин</option></select></label>
                   <label>Цена размещения<input id="adPrice" type="number" min="0" max="1000000" step="0.01" value="25.00" required></label>
                   <label>Валюта<select id="adCurrency"><option value="RUB" selected>RUB ₽</option><option value="EUR">EUR €</option><option value="USD">USD $</option></select></label>
                   <label>Начало показа<input id="adStartsAt" type="datetime-local"></label>
                   <label>Окончание показа<input id="adEndsAt" type="datetime-local"></label>
-                  <div class="full inline-actions"><button class="primary" type="submit">Создать кампанию</button><span id="adCampaignMessage" class="hint">Сначала создаётся неоплаченное объявление. Показ включается после подтверждения оплаты.</span></div>
+                  <div class="full inline-actions"><button class="primary" type="submit">Создать кампанию</button><span id="adCampaignMessage" class="hint">Цена 0 = опубликовать бесплатно сразу. При платной цене подтверди оплату и запусти объявление в списке ниже.</span></div>
                 </form>
                 <div id="adCampaignList" class="growth-list"></div>
               </article>
@@ -182,7 +183,7 @@
   <div id="dialogInspector" class="modal-backdrop" hidden><section class="modal-card inspector-card" role="dialog" aria-modal="true" aria-labelledby="inspectorTitle"><div class="modal-heading"><div><div class="eyebrow">ПРОВЕРКА АКТИВНОГО ДИАЛОГА</div><h2 id="inspectorTitle">Диалог пользователей</h2></div><button id="closeDialogInspector" class="modal-close" type="button" aria-label="Закрыть">×</button></div><p id="inspectorParticipants" class="hint"></p><label>Причина проверки<input id="inspectReason" maxlength="240" placeholder="Например: проверка жалобы №…"></label><div id="dialogMessages" class="inspector-messages"><p class="empty-state">Для просмотра сообщений сначала укажи причину.</p></div><button id="inspectDialogButton" class="primary wide" type="button">Открыть последние сообщения</button><label>Уведомление участникам<textarea id="dialogNoticeText" rows="3" maxlength="240" placeholder="Сообщение обоим участникам…"></textarea></label><div class="modal-actions"><button id="sendDialogNoticeButton" class="secondary" type="button">Отправить уведомление</button><button id="endInspectedMatch" class="danger" type="button">Завершить диалог</button></div></section></div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/owner.js?v=35" defer></script>
+  <script src="/owner.js?v=36" defer></script>
   <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
 </body>
 </html>
