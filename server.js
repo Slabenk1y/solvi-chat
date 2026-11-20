@@ -1484,15 +1484,11 @@ async function main() {
           [chatId,telegramUsername,nowIso(),orderId]);
         await sendTelegramMessage(chatId, 'Заявка SOLVI принята. Номер: ' + orderId + '. Владелец увидит запрос и свяжется с тобой. Оплата не проходит через этого бота — согласуй её с владельцем отдельно. Не отправляй сюда пароли или данные банковской карты.');
         if (settings.ownerChatId) {
-          const keyboard = { inline_keyboard: [[
-            { text: '✅ Подтвердить оплату и выдать', callback_data: 'mso_paid:' + orderId },
-            { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
-          ]] };
           const ownerText = 'Новая заявка SOLVI\nПокупатель: ' + order.username + ' (' + order.public_id + ')\nTelegram: ' +
             (telegramUsername ? '@' + telegramUsername : 'username не указан') + '\nТовар: ' + order.item_name +
             '\nЦена: ' + (Number(order.amount_minor) / 100).toFixed(2) + ' ' + order.currency +
-            '\nЗаявка: ' + orderId + '\nПроверь оплату вне Telegram, затем подтверди выдачу в панели.';
-          try { await sendTelegramMessage(settings.ownerChatId, ownerText, keyboard); }
+            '\nЗаявка: ' + orderId + '\nСвяжись с покупателем здесь. После получения оплаты подтверди выдачу в веб-панели SOLVI.';
+          try { await sendTelegramMessage(settings.ownerChatId, ownerText); }
           catch (error) { console.warn('[SOLVI] Не удалось уведомить владельца о заявке:', error.message); }
         }
         return;
@@ -1515,46 +1511,6 @@ async function main() {
       }
       return;
     }
-    const callback = update?.callback_query;
-    if (callback?.data) {
-      const current = manualTelegramSettings();
-      const chatId = String(callback.message?.chat?.id || '');
-      const senderId = String(callback.from?.id || '');
-      if (!current.ownerChatId || chatId !== current.ownerChatId || senderId !== current.ownerChatId) {
-        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Эта кнопка доступна только владельцу.' });
-        return;
-      }
-      const match = callback.data.match(/^mso_(paid|cancel):(mso[a-f0-9]{32})$/i);
-      if (!match) {
-        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Неизвестное действие.' });
-        return;
-      }
-      const orderId = match[2];
-      const ownerPublicId = String(process.env.OWNER_PUBLIC_ID || '').trim();
-      const owner = ownerPublicId ? dbGet('SELECT id FROM users WHERE public_id = ?', [ownerPublicId]) : null;
-      if (!owner) {
-        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Владелец SOLVI ещё не назначен.' });
-        return;
-      }
-      try {
-        if (match[1].toLowerCase() === 'paid') {
-          deliverManualStoreOrder(orderId, owner.id);
-          await notifyManualOrderBuyer(orderId, 'Оплата по заявке SOLVI подтверждена. Товар выдан в твой аккаунт.');
-          await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Оплата подтверждена, товар выдан.' });
-        } else {
-          const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
-          if (!order || order.status !== 'pending') throw new Error('Заявка уже обработана.');
-          transaction(() => {
-            dbRun("UPDATE manual_store_orders SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),nowIso(),orderId]);
-            auditAdmin(owner.id, 'manual_store_order_cancelled', orderId, { userId: order.user_id, itemId: order.item_id });
-          });
-          await notifyManualOrderBuyer(orderId, 'Заявка SOLVI отменена. Товар не выдавался.');
-          await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Заявка отклонена.' });
-        }
-      } catch (error) {
-        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: error.message.slice(0, 180), show_alert: true });
-      }
-    }
   }
   async function configureTelegramSupportWebhook() {
     const settings = manualTelegramSettings();
@@ -1563,7 +1519,7 @@ async function main() {
       return;
     }
     try {
-      await telegramApi('setWebhook', { url: settings.publicUrl + '/telegram/webhook', secret_token: settings.webhookSecret, allowed_updates: ['message','callback_query'], drop_pending_updates: false });
+      await telegramApi('setWebhook', { url: settings.publicUrl + '/telegram/webhook', secret_token: settings.webhookSecret, allowed_updates: ['message'], drop_pending_updates: false });
       await telegramApi('setMyCommands', { commands: [
         { command: 'start', description: 'Открыть поддержку или заявку SOLVI' },
         { command: 'help', description: 'Как работает поддержка SOLVI' },
