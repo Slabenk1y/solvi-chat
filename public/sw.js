@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'sovli-shell-v56-0';
+const CACHE_NAME = 'sovli-shell-v57-0';
 const SHELL = [
   '/',
   '/styles.css?v=40',
@@ -10,7 +10,7 @@ const SHELL = [
   '/socket.io/socket.io.js',
   '/owner',
   '/owner.css?v=27',
-  '/owner.js?v=33',
+  '/owner.js?v=34',
   '/owner-manifest.webmanifest'
 ];
 
