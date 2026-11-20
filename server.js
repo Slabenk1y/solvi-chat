@@ -2377,6 +2377,80 @@ async function main() {
     res.json({ users: rows.map(row => ({ ...row, owner: isOwner(row), online: onlineUserIds().has(row.id) })), total, offset, hasMore: offset + rows.length < total });
   });
 
+  app.delete('/api/admin/users/:id', authMiddleware, ownerOnly, (req, res) => {
+    const target = getUserById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'Пользователь не найден.' });
+    if (isOwner(target)) return res.status(403).json({ error: 'Аккаунт владельца нельзя удалить из панели.' });
+    if (target.id === req.user.id) return res.status(403).json({ error: 'Нельзя удалить собственный аккаунт владельца.' });
+    const confirmationUsername = String(req.body?.confirmationUsername || '').trim();
+    if (confirmationUsername !== String(target.username || '').trim()) {
+      return res.status(400).json({ error: 'Никнейм не совпадает. Аккаунт не удалён.' });
+    }
+
+    const matches = dbAll('SELECT * FROM matches WHERE user1_id = ? OR user2_id = ?', [target.id, target.id]);
+    const activeMatches = matches.filter(match => match.status === 'active');
+    const mediaToDelete = dbAll(
+      'SELECT stored_name FROM media_files WHERE owner_id = ? OR match_id IN (SELECT id FROM matches WHERE user1_id = ? OR user2_id = ?)',
+      [target.id, target.id, target.id]
+    );
+    const avatarFile = target.avatar_file;
+
+    try {
+      transaction(() => {
+        // Remove conversations first: their messages and reactions are deleted by foreign-key cascades.
+        dbRun('DELETE FROM matches WHERE user1_id = ? OR user2_id = ?', [target.id, target.id]);
+        dbRun('DELETE FROM messages WHERE sender_id = ?', [target.id]);
+        dbRun('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?', [target.id, target.id]);
+        dbRun('DELETE FROM reports WHERE reporter_id = ? OR reported_id = ?', [target.id, target.id]);
+        dbRun('DELETE FROM favorites WHERE user_id = ? OR target_user_id = ?', [target.id, target.id]);
+        dbRun('DELETE FROM favorite_chat_drafts WHERE user_id = ? OR partner_id = ?', [target.id, target.id]);
+        dbRun('DELETE FROM favorite_chats WHERE user_id = ? OR partner_id = ?', [target.id, target.id]);
+        dbRun('DELETE FROM moderation_actions WHERE actor_id = ?', [target.id]);
+        dbRun('DELETE FROM admin_audit_log WHERE actor_id = ?', [target.id]);
+        dbRun('UPDATE reward_task_submissions SET reviewed_by = NULL WHERE reviewed_by = ?', [target.id]);
+        dbRun('UPDATE reports_status SET reviewed_by = NULL WHERE reviewed_by = ?', [target.id]);
+        dbRun('UPDATE promo_codes SET created_by = NULL WHERE created_by = ?', [target.id]);
+        dbRun('UPDATE store_price_overrides SET updated_by = NULL WHERE updated_by = ?', [target.id]);
+        dbRun('UPDATE cash_store_price_overrides SET updated_by = NULL WHERE updated_by = ?', [target.id]);
+        dbRun('DELETE FROM users WHERE id = ?', [target.id]);
+        auditAdmin(req.user.id, 'delete_user_account', target.id, {
+          accountType: target.account_type,
+          deletedMatches: matches.length
+        });
+      });
+    } catch (error) {
+      console.error('[OWNER] Не удалось полностью удалить аккаунт:', error);
+      return res.status(500).json({ error: 'Не удалось удалить аккаунт. Изменения в базе отменены.' });
+    }
+
+    removeFromQueue(target.id);
+    const deletedMatchIds = new Set(matches.map(match => match.id));
+    for (const socket of io.sockets.sockets.values()) {
+      if (deletedMatchIds.has(socket.data.activeMatchId)) socket.data.activeMatchId = null;
+    }
+    for (const match of activeMatches) {
+      emitToPair(match, 'chat:ended', {
+        matchId: match.id,
+        reason: 'owner_account_deleted',
+        actorId: req.user.id,
+        canFavorite: false
+      });
+    }
+    for (const socket of io.sockets.sockets.values()) {
+      if (socket.data.userId === target.id) socket.disconnect(true);
+    }
+    removeStoredFiles(mediaToDelete);
+    if (avatarFile) {
+      try { fs.unlinkSync(path.join(AVATAR_DIR, path.basename(avatarFile))); }
+      catch (error) { if (error.code !== 'ENOENT') console.warn('[SOLVI] Не удалось удалить аватар аккаунта:', error.message); }
+    }
+    res.json({
+      ok: true,
+      deletedUser: { username: target.username, publicId: target.public_id },
+      deletedMatches: matches.length
+    });
+  });
+
   function resolveCleanupKeepers(){
     const ownerPublicId=String(process.env.OWNER_PUBLIC_ID||'').trim();
     const ownerRef=ownerPublicId?dbGet('SELECT id FROM users WHERE public_id=?',[ownerPublicId]):null;
