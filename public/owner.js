@@ -162,12 +162,29 @@
       const promoRows=(d.personalPromos||[]).map(p=>'<div class="mini-row"><span><strong>'+esc(p.code)+'</strong><small>'+(p.active?'Активен':'Отключён')+' · '+p.uses+'/'+p.max_uses+' · '+date(p.expires_at)+'</small></span><button type="button" class="secondary mini" data-promo-stats="'+esc(p.id)+'">Статистика</button></div>').join('')||'<p class="hint">Персональных кодов пока нет.</p>';
       const tx=(d.transactions||[]).map(t=>'<div class="mini-row"><span><strong>'+esc(t.description||t.kind)+'</strong><small>'+date(t.created_at)+' · '+esc(t.kind)+'</small></span><b class="'+(Number(t.amount)>=0?'positive':'negative')+'">'+(Number(t.amount)>0?'+':'')+num(t.amount)+' ✦</b></div>').join('')||'<p class="hint">История операций пуста.</p>';
       const mod=(d.moderation||[]).map(m=>'<div class="mini-row"><span><strong>'+esc(m.action)+'</strong><small>'+esc(m.reason||'Без комментария')+' · '+date(m.created_at)+'</small></span></div>').join('')||'<p class="hint">Мер модерации нет.</p>';
-      const actions=u.owner?'<p class="hint">Управляющие действия для аккаунта владельца отключены.</p>':'<div class="detail-actions"><button class="primary" data-user-action="tokens">± Токены</button><button class="secondary" data-user-action="vip">VIP / Premium</button><button class="secondary" data-user-action="personalPromo">🎁 Личное промо</button><button class="secondary" data-user-action="starterPack" '+(u.starterGifted?'disabled':'')+'>Стартовый подарок</button><button class="secondary" data-user-action="role">Роль</button>'+(u.suspendedUntil&&new Date(u.suspendedUntil)>new Date()?'<button class="primary" data-user-action="unsuspend">Снять блокировку</button>':'<button class="danger" data-user-action="suspend">Заблокировать</button>')+'<button class="secondary" data-user-action="logout">Завершить сессии</button><button class="secondary" data-user-action="paidMembership">Подтвердить оплату</button></div>';
+      const actions=u.owner?'<p class="hint">Управляющие действия для аккаунта владельца отключены.</p>':'<div class="detail-actions"><button class="primary" data-user-action="tokens">± Токены</button><button class="secondary" data-user-action="vip">VIP / Premium</button><button class="secondary" data-user-action="personalPromo">🎁 Личное промо</button><button class="secondary" data-user-action="starterPack" '+(u.starterGifted?'disabled':'')+'>Стартовый подарок</button><button class="secondary" data-user-action="role">Роль</button>'+(u.suspendedUntil&&new Date(u.suspendedUntil)>new Date()?'<button class="primary" data-user-action="unsuspend">Снять блокировку</button>':'<button class="danger" data-user-action="suspend">Заблокировать</button>')+'<button class="secondary" data-user-action="logout">Завершить сессии</button><button class="secondary" data-user-action="paidMembership">Подтвердить оплату</button><button class="danger" data-user-action="delete">Удалить аккаунт навсегда</button><p class="hint">Удаление необратимо: исчезнут профиль, переписки, медиа, токены, покупки и связанные данные.</p></div>';
       $('#userDetailContent').innerHTML='<div class="user-detail-hero"><div class="detail-avatar">'+(u.owner?'👑':esc(u.avatar||'✦'))+'</div><div><strong>'+esc(u.username)+'</strong><span>'+esc(u.role)+' · '+esc(u.subscriptionTier||'free')+'</span><small>Регистрация: '+date(u.createdAt)+'</small><small>Последний вход: '+date(s.lastLoginAt)+'</small></div></div><div class="detail-balance"><div><span>Баланс</span><strong>'+num(u.tokens)+' ✦</strong></div><div><span>Привилегия</span><strong>'+esc(u.subscriptionTier||'free')+'</strong><small>до '+date(u.subscriptionExpiresAt)+'</small></div><div><span>Доступ</span><strong>'+(u.suspendedUntil&&new Date(u.suspendedUntil)>new Date()?'Ограничен':'Активен')+'</strong><small>'+esc(u.suspensionReason||'')+'</small></div></div><section class="detail-section"><h3>Действия с аккаунтом</h3>'+actions+'</section><section class="detail-section"><h3>Статистика</h3><div class="detail-stat-grid">'+stats.map(x=>'<div><span>'+esc(x[0])+'</span><strong>'+esc(x[1])+'</strong></div>').join('')+'</div></section><section class="detail-section"><h3>Персональные промокоды</h3><div class="mini-list">'+promoRows+'</div></section><section class="detail-section"><h3>Последние операции с токенами</h3><div class="mini-list">'+tx+'</div></section><section class="detail-section"><h3>Модерация</h3><div class="mini-list">'+mod+'</div></section>';
     }catch(error){$('#userDetailContent').innerHTML='<p class="error">'+esc(error.message)+'</p>';}
   }
   async function runUserAction(action){
     const id=state.selectedUserId;if(!id)return;
+    if(action==='delete'){
+      const expectedUsername=String($('#userDetailTitle').textContent||'').trim();
+      if(!expectedUsername)return toast('Не удалось определить никнейм аккаунта.');
+      const confirmation=await confirmDialog({
+        title:'Удалить аккаунт навсегда?',
+        message:'Будут удалены профиль, переписки, фотографии, голосовые сообщения, баланс, покупки, сессии и связанные данные. Это действие нельзя отменить. Введи никнейм «'+expectedUsername+'» для подтверждения.',
+        input:true,
+        confirmText:'Удалить навсегда',
+        danger:true
+      });
+      if(confirmation===null)return;
+      if(confirmation!==expectedUsername)return toast('Никнейм не совпадает. Аккаунт не удалён.');
+      await api('/api/admin/users/'+encodeURIComponent(id),{method:'DELETE',body:JSON.stringify({confirmationUsername:confirmation})});
+      $('#userDetailModal').hidden=true;state.selectedUserId='';
+      await Promise.all([loadUsers(state.userQuery,false),loadOverview()]);
+      return toast('Аккаунт «'+expectedUsername+'» полностью удалён.');
+    }
     if(action==='unsuspend'){
       if(!await confirmDialog({title:'Снять блокировку?',message:'Пользователь снова получит доступ к аккаунту.',confirmText:'Снять'}))return;
       await api('/api/admin/users/'+encodeURIComponent(id)+'/suspend',{method:'DELETE'});
