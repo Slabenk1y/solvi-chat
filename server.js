@@ -422,7 +422,7 @@ function storePrice(itemId, fallbackPrice) {
 }
 function cashStorePrice(itemId) {
   const row = dbGet('SELECT price_minor, currency, enabled FROM cash_store_price_overrides WHERE item_id = ?', [itemId]);
-  return row ? { cashPriceMinor: Number(row.price_minor), cashCurrency: String(row.currency || 'EUR'), cashEnabled: Boolean(row.enabled) } : { cashPriceMinor: 0, cashCurrency: 'RUB', cashEnabled: false };
+  return row ? { cashPriceMinor: Number(row.price_minor), cashCurrency: String(row.currency || 'EUR'), cashEnabled: Number(row.price_minor) >= 30 } : { cashPriceMinor: 0, cashCurrency: 'RUB', cashEnabled: false };
 }
 function auditAdmin(actorId, action, targetId = null, details = {}) {
   dbRun('INSERT INTO admin_audit_log (id, actor_id, action, target_id, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
