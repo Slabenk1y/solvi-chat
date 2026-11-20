@@ -1466,7 +1466,7 @@ async function main() {
           await sendTelegramMessage(chatId, 'У этой заявки нет привязанного Telegram-чата.');
           return;
         }
-        await sendTelegramMessage(targetOrder.telegram_chat_id, 'Ответ владельца SOLVI по заявке ' + orderId + ':\\n' + replyText);
+        await sendTelegramMessage(targetOrder.telegram_chat_id, 'Ответ владельца SOLVI по заявке ' + orderId + ':\n' + replyText);
         await sendTelegramMessage(chatId, 'Ответ отправлен покупателю по заявке ' + orderId + '.');
         return;
       }
