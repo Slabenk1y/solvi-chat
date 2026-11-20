@@ -455,6 +455,7 @@
     return state.telegramOrders;
   }
   function showTelegramChatEmpty(){
+    $('.telegram-chat-layout').classList.remove('chat-selected');
     $('#telegramChatEmpty').hidden=false;$('#telegramChatActive').hidden=true;
   }
   async function loadTelegramMessages(){
@@ -476,6 +477,7 @@
     const order=state.telegramOrders.find(o=>o.id===id);
     if(!order)return showTelegramChatEmpty();
     if(!order.accepted_at){showTelegramChatEmpty();toast('Сначала нажми «Принять заявку» на карточке покупателя.');return;}
+    $('.telegram-chat-layout').classList.add('chat-selected');
     await loadTelegramMessages();await loadTelegramOrders();
   }
   async function sendTelegramBuyerMessage(e){
@@ -532,6 +534,7 @@
   $('#refreshAllButton').addEventListener('click',refreshAll);
   $('#refreshTelegramChats').addEventListener('click',()=>loadTelegramOrders().then(()=>state.activeTelegramOrderId&&loadTelegramMessages()).catch(err=>toast(err.message)));
   $('#telegramChatRefresh').addEventListener('click',()=>loadTelegramMessages().catch(err=>toast(err.message)));
+  $('#telegramChatBack').addEventListener('click',showTelegramChatEmpty);
   $('#telegramOrderList').addEventListener('click',e=>{
     const action=e.target.closest('[data-telegram-order-action]');
     if(action){runTelegramOrderAction(action.dataset.telegramOrderAction,action.dataset.telegramOrderId,action);return;}
