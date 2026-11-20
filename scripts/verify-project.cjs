@@ -168,6 +168,14 @@ try {
   else pass('Paymentwall: отдельные VC и Digital Goods кассы, подписанные pingback, идемпотентность и возвраты подключены');
   if (html.includes('id="paidMembershipOffers"') || html.includes('id="storeBillingEmail"') || app.includes('await loadPaidMemberships()')) fail('В интерфейсе остались денежные товары, поле email или вызов денежной кассы из магазина');
   else pass('Публичный магазин использует токены; денежные товары и email-чек убраны из интерфейса');
+  if (!server.includes('CREATE TABLE IF NOT EXISTS manual_store_orders') || !server.includes("app.post('/api/billing/manual-store/orders'") || !server.includes("app.patch('/api/admin/manual-store-orders/:id'") || !server.includes("app.delete('/api/admin/store/:itemId/cash-price'")) fail('Ручные денежные заявки или очистка денежной цены не подключены');
+  else pass('Ручные денежные заявки, выдача после подтверждения и сброс денежной цены подключены');
+  if (!server.includes("app.post('/telegram/webhook'") || !server.includes('configureTelegramSupportWebhook') || !server.includes('answerCallbackQuery')) fail('Telegram support webhook не подключён');
+  else pass('Telegram-бот поддерживает deep links, уведомление владельца и ручное подтверждение заказа');
+  if (!server.includes('cashPriceMinor: cash.cashPriceMinor') || !app.includes("requestManualCashPurchase(item)") || !app.includes("cashAction.textContent = 'За деньги'") || !app.includes('tokenEnabled: token.enabled')) fail('Магазин не отображает отдельные способы покупки за токены и реальные деньги');
+  else pass('Публичный магазин показывает цену в валюте и отдельную кнопку покупки за деньги');
+  if (!ownerPanel.includes('manualStoreOrders') || !ownerPanel.includes('data-manual-order-action="paid"')) fail('В панели владельца нет очереди ручных денежных заявок');
+  else pass('Панель владельца показывает заявки, подтверждает оплату и выдаёт товар');
   if (!server.includes("app.get('/api/ads/slot'") || !server.includes("app.post('/api/admin/ad-campaigns'") || !server.includes("app.patch('/api/admin/ad-campaigns/:id'") || !server.includes('payment_status IN (\'paid\',\'comped\')') || !html.includes('id="storeSponsoredAd"') || !ownerPanel.includes('adCampaignForm')) fail('Платные рекламные размещения не связаны между сервером, магазином и панелью владельца');
   else pass('Прямые рекламные кампании требуют оплаты, показываются в магазине и учитывают статистику');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
