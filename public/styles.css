@@ -665,3 +665,15 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 
 /* SOLVI: fast spin for the sausage-mouse during long searches; keep reduced-motion overrides intact. */
 #mascotStage[data-mood="chaos"] .search-mascot.sausage-mouse{animation:sausage-chaos .54s steps(2,end) infinite}
+
+/* Separate token and manual-cash purchase paths. */
+.store-price-stack{display:grid;gap:4px;min-width:88px;align-content:center}
+.store-price-stack .store-item-price{margin:0}
+.store-cash-price{color:var(--primary);font-size:11px;font-weight:850;white-space:nowrap}
+.store-purchase-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.store-cash-action{white-space:nowrap}
+.store-item-footer{align-items:center;flex-wrap:wrap}
+.store-item-footer .store-price-stack{margin-right:auto}
+.membership-price-stack{margin:3px 0}
+.bundle-footer .store-price-stack{margin-right:auto}
+@media(max-width:520px){.store-purchase-actions{width:100%;justify-content:stretch}.store-purchase-actions button{flex:1;min-width:0}.store-item-footer .store-price-stack{width:100%}}
