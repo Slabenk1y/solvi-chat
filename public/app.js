@@ -578,7 +578,7 @@ async function loadInventory() {
       const category = document.createElement('span'); category.className = 'store-item-category'; category.textContent = `${item.category} · ${item.rarity}`;
       const title = document.createElement('h3'); title.textContent = item.name;
       const desc = document.createElement('p'); desc.textContent = item.description;
-      const source = document.createElement('small'); source.className = 'store-item-collection'; source.textContent = `Получено: ${item.source === 'promo' ? 'промокод' : item.source === 'purchase' ? 'покупка' : item.source === 'starter' ? 'стартовый предмет' : 'коллекция'} · ${new Date(item.acquiredAt).toLocaleDateString('ru-RU')}`;
+      const source = document.createElement('small'); source.className = 'store-item-collection'; source.textContent = `Получено: ${item.source === 'promo' ? 'промокод' : item.source === 'purchase' ? 'покупка' : item.source === 'manual-cash-purchase' ? 'покупка за деньги' : item.source === 'cash-purchase' ? 'покупка за деньги' : item.source === 'starter' ? 'стартовый предмет' : 'коллекция'} · ${new Date(item.acquiredAt).toLocaleDateString('ru-RU')}`;
       meta.append(category, title, desc, source);
       const footer = document.createElement('div'); footer.className = 'store-item-footer';
       const label = document.createElement('strong'); label.className = 'store-item-price'; label.textContent = item.equipped ? 'Используется' : 'В коллекции';
