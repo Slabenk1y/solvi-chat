@@ -114,6 +114,11 @@ try {
   });
   if (missingRoutes.length) fail(`Не найдены owner API маршруты: ${missingRoutes.join(', ')}`);
   else pass('Ключевые маршруты owner-console связаны с сервером');
+  if (!server.includes("app.delete('/api/admin/users/:id'") || !server.includes('confirmationUsername') || !server.includes("DELETE FROM favorite_chat_drafts WHERE user_id = ? OR partner_id = ?") || !server.includes("DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?") || !server.includes("DELETE FROM reports WHERE reporter_id = ? OR reported_id = ?")) fail('Полное удаление аккаунта не очищает все связанные данные или не требует подтверждение ника');
+  else pass('Полное удаление аккаунта очищает связанные данные и проверяет никнейм');
+  if (!ownerPanel.includes('data-user-action="delete"') || !ownerPanel.includes("action==='delete'") || !ownerPanel.includes("method:'DELETE'")) fail('В карточке аккаунта отсутствует безопасное действие полного удаления');
+  else pass('В карточке пользователя есть удаление с подтверждением и обновлением списка');
+
   if (!owner.includes("choice === '14'") || !owner.includes("choice === '15'")) fail('Не найдены пункты 14/15 owner-console');
   else pass('Команды отзыва сессий и закрытия жалоб присутствуют');
 
