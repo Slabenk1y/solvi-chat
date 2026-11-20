@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=40">
+  <link rel="stylesheet" href="/styles.css?v=41">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -260,6 +260,24 @@
           </div>
           <section class="membership-section"><div class="store-collections-heading"><div><span class="eyebrow">ОСОБЫЕ СТАТУСЫ</span><h2>VIP и Premium</h2></div><span>Расширенные возможности и небольшой приоритет в поиске</span></div><p class="membership-explainer">Каждый участник получает 1 ✦ за минуту активного диалога, пока оба собеседника онлайн. 180 ✦ дают 1 час VIP, 360 ✦ — 1 час Premium. В очереди небольшой приоритет: владелец — до 12 секунд, Premium — до 8 секунд, VIP — до 4 секунд. Длительное ожидание обычных пользователей постепенно перекрывает этот бонус; мгновенный подбор не гарантируется.</p><div id="membershipOffers" class="membership-grid"></div></section>
           <details class="token-history" id="tokenHistory"><summary>История токенов</summary><div id="tokenHistoryList" class="token-history-list"></div></details>
+          <div id="cashPurchaseModal" class="purchase-confirm-backdrop" hidden>
+            <section class="purchase-confirm-card" role="dialog" aria-modal="true" aria-labelledby="cashPurchaseTitle">
+              <div class="purchase-confirm-mark">₽</div>
+              <span class="eyebrow">РУЧНАЯ ПОКУПКА SOLVI</span>
+              <h2 id="cashPurchaseTitle">Покупка за реальные деньги</h2>
+              <p id="cashPurchaseItem" class="purchase-confirm-description"></p>
+              <div class="purchase-confirm-ledger">
+                <div><span>Цена</span><strong id="cashPurchasePrice">—</strong></div>
+                <div><span>Способ</span><strong>Через владельца SOLVI</strong></div>
+              </div>
+              <p id="cashPurchaseNote" class="purchase-confirm-description">Сначала создастся заявка. Оплата вручную согласуется с владельцем; деньги здесь не списываются.</p>
+              <div class="purchase-confirm-actions">
+                <button id="cashPurchaseCancel" class="button button-secondary" type="button">Отмена</button>
+                <button id="cashPurchaseSubmit" class="button button-primary" type="button">Создать заявку</button>
+              </div>
+              <small>Не отправляй в чат пароли или данные банковской карты.</small>
+            </section>
+          </div>
           <div id="purchaseConfirmModal" class="purchase-confirm-backdrop" hidden>
             <section class="purchase-confirm-card" role="dialog" aria-modal="true" aria-labelledby="purchaseConfirmTitle">
               <div class="purchase-confirm-mark">✦</div>
@@ -356,6 +374,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=55" defer></script>
+  <script src="/app.js?v=56" defer></script>
 </body>
 </html>
