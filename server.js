@@ -1348,7 +1348,7 @@ async function main() {
     const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
     const username = String(process.env.TELEGRAM_BOT_USERNAME || '').trim().replace(/^@/, '');
     const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
-    const publicUrl = String(process.env.TELEGRAM_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || process.env.APP_PUBLIC_URL || '').trim().replace(/\/$/, '');
+    const publicUrl = String(process.env.TELEGRAM_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || process.env.APP_PUBLIC_URL || '').trim().replace(/\/telegram\/webhook\/?$/i, '').replace(/\/$/, '');
     const ownerChatId = String(process.env.TELEGRAM_OWNER_CHAT_ID || '').trim();
     const botUsernameValid = /^[A-Za-z0-9_]{5,32}$/.test(username);
     return { token, username, webhookSecret, publicUrl, ownerChatId, botUsernameValid,
@@ -1559,9 +1559,15 @@ async function main() {
   async function configureTelegramSupportWebhook() {
     const settings = manualTelegramSettings();
     if (!settings.ready) {
-      console.log('[SOLVI] Telegram support bot is not configured; manual orders remain available in the owner panel.');
+      const missing = [];
+      if (!settings.token) missing.push('TELEGRAM_BOT_TOKEN');
+      if (!settings.botUsernameValid) missing.push('TELEGRAM_BOT_USERNAME');
+      if (!settings.webhookSecret) missing.push('TELEGRAM_WEBHOOK_SECRET');
+      if (!settings.publicUrl || !/^https:\/\//i.test(settings.publicUrl)) missing.push('TELEGRAM_PUBLIC_URL / Render public URL');
+      console.warn('[SOLVI] Telegram bot is NOT configured. Missing or invalid: ' + missing.join(', ') + '. Values are not logged.');
       return;
     }
+    if (!settings.ownerNotificationsReady) console.warn('[SOLVI] Telegram webhook can run, but owner notifications need TELEGRAM_OWNER_CHAT_ID.');
     try {
       await telegramApi('setWebhook', { url: settings.publicUrl + '/telegram/webhook', secret_token: settings.webhookSecret, allowed_updates: ['message','callback_query'], drop_pending_updates: false });
       await telegramApi('setMyCommands', { commands: [
@@ -1590,7 +1596,24 @@ async function main() {
     const ownerConfigured = Boolean(String(process.env.OWNER_PUBLIC_ID || '').trim());
     const ownerAccountPresent = ownerConfigured && Boolean(dbGet("SELECT id FROM users WHERE public_id = ? AND account_type = 'registered'", [process.env.OWNER_PUBLIC_ID]));
     const resetCompleted = Boolean(dbGet("SELECT id FROM admin_audit_log WHERE action = 'solvi_initial_user_reset' LIMIT 1"));
-    res.json({ ok: true, service: 'solvi-chat', brand: 'SOLVI', version: APP_VERSION, node: process.version, sqlite: db.prepare('SELECT sqlite_version() AS version').get().version, storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral', persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE, ownerConfigured, ownerAccountPresent, resetCompleted, users: Number(dbGet('SELECT COUNT(*) AS n FROM users').n) });
+    const telegram = manualTelegramSettings();
+    const telegramMissing = [];
+    if (!telegram.token) telegramMissing.push('TELEGRAM_BOT_TOKEN');
+    if (!telegram.botUsernameValid) telegramMissing.push('TELEGRAM_BOT_USERNAME');
+    if (!telegram.webhookSecret) telegramMissing.push('TELEGRAM_WEBHOOK_SECRET');
+    if (!telegram.publicUrl || !/^https:\/\//i.test(telegram.publicUrl)) telegramMissing.push('TELEGRAM_PUBLIC_URL / Render public URL');
+    res.json({
+      ok: true, service: 'solvi-chat', brand: 'SOLVI', version: APP_VERSION, node: process.version,
+      sqlite: db.prepare('SELECT sqlite_version() AS version').get().version,
+      storage: persistentStore?.ready ? 'node:sqlite+neon-persistent-snapshot' : 'node:sqlite-ephemeral',
+      persistentStorage: Boolean(persistentStore?.ready), online: onlineUserIds().size, publicMode: PUBLIC_MODE,
+      ownerConfigured, ownerAccountPresent, resetCompleted, users: Number(dbGet('SELECT COUNT(*) AS n FROM users').n),
+      telegram: {
+        configured: telegram.ready, missing: telegramMissing,
+        ownerChatConnected: telegram.ownerNotificationsReady,
+        webhookUrl: telegram.ready ? telegram.publicUrl + '/telegram/webhook' : null
+      }
+    });
   });
   app.get('/api/billing/catalog', authMiddleware, (_req, res) => {
     const configured = Boolean(String(process.env.STRIPE_SECRET_KEY || '').trim() && String(process.env.STRIPE_WEBHOOK_SECRET || '').trim() && String(process.env.APP_PUBLIC_URL || process.env.RENDER_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim() && BILLING_PRODUCTS.every(product => product.amountMinor > 0));
@@ -3094,7 +3117,7 @@ async function main() {
 
   app.get('/api/ads/slot', authMiddleware, (req, res) => {
     const placement = String(req.query?.placement || 'store');
-    if (placement !== 'store') return res.json({ ad: null });
+    if (!['store','home'].includes(placement)) return res.json({ ad: null });
     const now = nowIso();
     const ad = dbGet("SELECT id,title,body,sponsor_name,target_url,cta_label,impressions FROM ad_campaigns WHERE placement = ? AND status = 'active' AND payment_status IN ('paid','comped') AND (starts_at IS NULL OR starts_at <= ?) AND (ends_at IS NULL OR ends_at > ?) ORDER BY created_at DESC LIMIT 1", [placement, now, now]);
     if (!ad) return res.json({ ad: null });
@@ -3120,17 +3143,20 @@ async function main() {
     const ctaLabel = String(req.body?.ctaLabel || 'Подробнее').trim().slice(0, 32) || 'Подробнее';
     const priceMinor = Math.trunc(Number(req.body?.priceMinor || 0));
     const currency = String(req.body?.currency || 'EUR').trim().toUpperCase();
+    const placement = String(req.body?.placement || 'home');
     let parsed; try { parsed = new URL(targetUrl); } catch { return res.status(400).json({ error: 'Укажи корректную ссылку рекламодателя.' }); }
-    if (!title || !sponsorName || parsed.protocol !== 'https:' || !Number.isSafeInteger(priceMinor) || priceMinor < 0 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Проверь название, рекламодателя, HTTPS-ссылку, цену и валюту.' });
+    if (!title || !sponsorName || parsed.protocol !== 'https:' || !Number.isSafeInteger(priceMinor) || priceMinor < 0 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency) || !['home','store'].includes(placement)) return res.status(400).json({ error: 'Проверь название, рекламодателя, место показа, HTTPS-ссылку, цену и валюту.' });
     const startsMs = req.body?.startsAt ? Date.parse(req.body.startsAt) : null;
     const endsMs = req.body?.endsAt ? Date.parse(req.body.endsAt) : null;
     if (startsMs !== null && !Number.isFinite(startsMs) || endsMs !== null && !Number.isFinite(endsMs) || startsMs !== null && endsMs !== null && endsMs <= startsMs) return res.status(400).json({ error: 'Проверь период размещения.' });
     const startsAt = startsMs === null ? null : new Date(startsMs).toISOString();
     const endsAt = endsMs === null ? null : new Date(endsMs).toISOString();
     const id = crypto.randomUUID(), at = nowIso();
+    const paymentStatus = priceMinor === 0 ? 'comped' : 'unpaid';
+    const initialStatus = priceMinor === 0 ? 'active' : 'paused';
     dbRun('INSERT INTO ad_campaigns (id,title,body,sponsor_name,target_url,cta_label,placement,price_minor,currency,payment_status,status,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      [id,title,body,sponsorName,targetUrl,ctaLabel,'store',priceMinor,currency,'unpaid','paused',startsAt,endsAt,at,at]);
-    auditAdmin(req.user.id,'ad_campaign_created',id,{ title,sponsorName,priceMinor,currency });
+      [id,title,body,sponsorName,targetUrl,ctaLabel,placement,priceMinor,currency,paymentStatus,initialStatus,startsAt,endsAt,at,at]);
+    auditAdmin(req.user.id,'ad_campaign_created',id,{ title,sponsorName,priceMinor,currency,placement,paymentStatus,status:initialStatus });
     res.status(201).json({ ok: true, campaign: dbGet('SELECT * FROM ad_campaigns WHERE id = ?', [id]) });
   });
   app.patch('/api/admin/ad-campaigns/:id', authMiddleware, ownerOnly, (req, res) => {
