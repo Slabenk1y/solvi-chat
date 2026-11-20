@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=38">
+  <link rel="stylesheet" href="/styles.css?v=39">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -139,11 +139,11 @@
         </section>
 
         <section id="searchPanel" class="search-panel" hidden>
-          <div class="mascot-stage" id="mascotStage" aria-hidden="true">
+          <div class="mascot-stage" id="mascotStage" data-emotion="angry" aria-hidden="true">
             <span class="mascot-orbit mascot-orbit-one"></span><span class="mascot-orbit mascot-orbit-two"></span>
             <span class="mascot-speech" id="mascotSpeech">Б-БАКА! Я УЖЕ ИЩУ!</span>
             <span class="mascot-star mascot-star-one">✦</span><span class="mascot-star mascot-star-two">✧</span>
-            <img class="search-mascot tsundere-mascot" src="/mascot-tsundere.avif" alt="" width="244" height="242" decoding="async">
+            <div class="search-mascot tsundere-mascot" role="img" aria-label="Цундере-мышка SOLVI"></div>
           </div>
           <div class="eyebrow">ЦУНДЕРЕ-МЫШКА НА ПОСТУ</div><h2 id="searchStatusTitle">Ищем собеседника</h2><p id="searchStatusText">Подбираем человека по настройкам поиска.</p>
           <div class="search-companion-line"><span class="companion-dot"></span><span id="mascotMessage">Машка-Мышка поправила усики и готова искать тебе собеседника!</span></div>
@@ -330,6 +330,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=53" defer></script>
+  <script src="/mascot-emotions-loader.js?v=1" defer></script>
+  <script src="/app.js?v=54" defer></script>
 </body>
 </html>

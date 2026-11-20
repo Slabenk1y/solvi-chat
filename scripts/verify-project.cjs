@@ -128,7 +128,7 @@ try {
   else pass('Фильтры поиска сохраняют выбор пользователя при перерисовке');
   if (!app.includes("desiredGender: state.desiredGender") || !app.includes("mode: 'chat'") || !server.includes('eligibleByGender(current, candidate)')) fail('Выбор пола собеседника не передаётся в обычный подбор');
   else pass('Выбор пола собеседника передаётся в подбор');
-  if (!html.includes('ЦУНДЕРЕ-МЫШКА НА ПОСТУ') || !html.includes('/mascot-tsundere.avif') || !app.includes('Б-бака! Я не сдаюсь.') || !css.includes('.search-mascot.tsundere-mascot')) fail('Цундере-мышка SOLVI не подключена или потеряла реплики');
+  if (!html.includes('ЦУНДЕРЕ-МЫШКА НА ПОСТУ') || !html.includes('/mascot-emotions-loader.js') || !app.includes('function setMascotEmotion') || !app.includes('Б-бака! Я не сдаюсь.') || !css.includes('data-emotion="stomp"')) fail('Цундере-мышка SOLVI не подключена или потеряла набор эмоций');
   else pass('Цундере-мышка SOLVI имеет фирменный образ, имя и реплики');
   if (css.includes('sausage-chaos') || css.includes('sausage-shake') || css.includes('data-mood="chaos"') || app.includes("dataset.mood = seconds > 35 ? 'chaos'")) fail('У маскота осталась хаотичная анимация или вращение');
   else pass('Цундере-мышка двигается без хаотичного вращения');

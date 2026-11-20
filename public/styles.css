@@ -674,3 +674,18 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 @keyframes tsundereStomp{0%,100%{transform:translateY(0) rotate(0) scale(1,1)}22%{transform:translateY(-8px) rotate(-3deg) scale(.98,1.03)}46%{transform:translateY(3px) rotate(3deg) scale(1.04,.94)}70%{transform:translateY(-4px) rotate(-1deg) scale(.99,1.02)}}
 @media(max-width:700px){.search-mascot.tsundere-mascot{width:218px;height:216px}}
 @media(prefers-reduced-motion:reduce){.search-mascot.tsundere-mascot{animation:none!important}}
+
+/* Six original SOLVI mascot expressions, cropped from one transparent AVIF sprite sheet. */
+.search-mascot.tsundere-mascot {
+  background-image: var(--mascot-sprite, url('/mascot-tsundere.avif'));
+  background-repeat: no-repeat;
+  background-size: 300% 200%;
+  background-position: 0% 0%;
+  object-fit: initial;
+}
+#mascotStage[data-emotion="angry"] .search-mascot.tsundere-mascot { background-position: 0% 0%; }
+#mascotStage[data-emotion="shy"] .search-mascot.tsundere-mascot { background-position: 50% 0%; }
+#mascotStage[data-emotion="surprised"] .search-mascot.tsundere-mascot { background-position: 100% 0%; }
+#mascotStage[data-emotion="bored"] .search-mascot.tsundere-mascot { background-position: 0% 100%; }
+#mascotStage[data-emotion="happy"] .search-mascot.tsundere-mascot { background-position: 50% 100%; }
+#mascotStage[data-emotion="stomp"] .search-mascot.tsundere-mascot { background-position: 100% 100%; }
