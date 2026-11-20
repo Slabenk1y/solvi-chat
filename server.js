@@ -1623,7 +1623,7 @@ async function main() {
           ] }); }
           catch (error) { console.warn('[SOLVI] Не удалось переслать сообщение покупателя владельцу:', error.message); }
         }
-        await sendTelegramMessage(chatId, 'Сообщение передано владельцу SOLVI.');
+        console.log('[SOLVI] Telegram buyer message stored for order ' + activeOrder.id + ' (' + String(message.message_id || '') + ').');
       } else if (activeOrder) {
         await sendTelegramMessage(chatId, 'Твоя заявка ещё ожидает принятия владельцем. Как только он примет её, вы сможете общаться здесь.');
       } else {
