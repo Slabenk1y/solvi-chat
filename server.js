@@ -1351,9 +1351,12 @@ async function main() {
     const publicUrl = String(process.env.TELEGRAM_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || process.env.APP_PUBLIC_URL || '').trim().replace(/\/telegram\/webhook\/?$/i, '').replace(/\/$/, '');
     const ownerChatId = String(process.env.TELEGRAM_OWNER_CHAT_ID || '').trim();
     const botUsernameValid = /^[A-Za-z0-9_]{5,32}$/.test(username);
-    return { token, username, webhookSecret, publicUrl, ownerChatId, botUsernameValid,
-      ready: Boolean(token && botUsernameValid && webhookSecret && publicUrl),
-      ownerNotificationsReady: Boolean(ownerChatId) };
+    const webhookSecretValid = /^[A-Za-z0-9_-]{1,256}$/.test(webhookSecret);
+    const publicUrlValid = /^https:\/\/[^\s/]+(?::\d+)?$/i.test(publicUrl);
+    const ownerChatIdValid = /^\d{1,24}$/.test(ownerChatId);
+    return { token, username, webhookSecret, publicUrl, ownerChatId, botUsernameValid, webhookSecretValid, publicUrlValid,
+      ready: Boolean(token && botUsernameValid && webhookSecretValid && publicUrlValid),
+      ownerNotificationsReady: ownerChatIdValid };
   }
   async function telegramApi(method, payload) {
     const settings = manualTelegramSettings();
@@ -1562,14 +1565,21 @@ async function main() {
       const missing = [];
       if (!settings.token) missing.push('TELEGRAM_BOT_TOKEN');
       if (!settings.botUsernameValid) missing.push('TELEGRAM_BOT_USERNAME');
-      if (!settings.webhookSecret) missing.push('TELEGRAM_WEBHOOK_SECRET');
-      if (!settings.publicUrl || !/^https:\/\//i.test(settings.publicUrl)) missing.push('TELEGRAM_PUBLIC_URL / Render public URL');
+      if (!settings.webhookSecretValid) missing.push('TELEGRAM_WEBHOOK_SECRET (1–256 символов: латиница, цифры, _ и -)');
+      if (!settings.publicUrlValid) missing.push('TELEGRAM_PUBLIC_URL / Render public URL (HTTPS, только домен без пути)');
       console.warn('[SOLVI] Telegram bot is NOT configured. Missing or invalid: ' + missing.join(', ') + '. Values are not logged.');
       return;
     }
-    if (!settings.ownerNotificationsReady) console.warn('[SOLVI] Telegram webhook can run, but owner notifications need TELEGRAM_OWNER_CHAT_ID.');
+    if (!settings.ownerNotificationsReady) console.warn('[SOLVI] Telegram webhook can run, but owner notifications need a numeric TELEGRAM_OWNER_CHAT_ID from /id.');
     try {
-      await telegramApi('setWebhook', { url: settings.publicUrl + '/telegram/webhook', secret_token: settings.webhookSecret, allowed_updates: ['message','callback_query'], drop_pending_updates: false });
+      const bot = await telegramApi('getMe', {});
+      if (!bot.username || bot.username.toLowerCase() !== settings.username.toLowerCase()) {
+        throw new Error('TELEGRAM_BOT_USERNAME does not match the bot token.');
+      }
+      const expectedWebhookUrl = settings.publicUrl + '/telegram/webhook';
+      await telegramApi('setWebhook', { url: expectedWebhookUrl, secret_token: settings.webhookSecret, allowed_updates: ['message'], drop_pending_updates: false });
+      const webhookInfo = await telegramApi('getWebhookInfo', {});
+      if (webhookInfo.url !== expectedWebhookUrl) throw new Error('Telegram did not confirm the configured webhook URL.');
       await telegramApi('setMyCommands', { commands: [
         { command: 'start', description: 'Открыть поддержку или заявку SOLVI' },
         { command: 'help', description: 'Как работает поддержка SOLVI' },
@@ -1577,7 +1587,7 @@ async function main() {
         { command: 'reply', description: 'Ответить покупателю по номеру заявки' },
         { command: 'id', description: 'Показать ID Telegram-чата' }
       ] });
-      console.log('[SOLVI] Telegram support webhook configured.');
+      console.log('[SOLVI] Telegram bot @' + settings.username + ' webhook registered and verified: ' + expectedWebhookUrl);
     } catch (error) { console.warn('[SOLVI] Telegram webhook setup failed:', error.message); }
   }
   app.post('/telegram/webhook', (req, res) => {
@@ -1600,8 +1610,8 @@ async function main() {
     const telegramMissing = [];
     if (!telegram.token) telegramMissing.push('TELEGRAM_BOT_TOKEN');
     if (!telegram.botUsernameValid) telegramMissing.push('TELEGRAM_BOT_USERNAME');
-    if (!telegram.webhookSecret) telegramMissing.push('TELEGRAM_WEBHOOK_SECRET');
-    if (!telegram.publicUrl || !/^https:\/\//i.test(telegram.publicUrl)) telegramMissing.push('TELEGRAM_PUBLIC_URL / Render public URL');
+    if (!telegram.webhookSecretValid) telegramMissing.push('TELEGRAM_WEBHOOK_SECRET');
+    if (!telegram.publicUrlValid) telegramMissing.push('TELEGRAM_PUBLIC_URL / Render public URL');
     res.json({
       ok: true, service: 'solvi-chat', brand: 'SOLVI', version: APP_VERSION, node: process.version,
       sqlite: db.prepare('SELECT sqlite_version() AS version').get().version,
