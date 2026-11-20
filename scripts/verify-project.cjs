@@ -172,7 +172,7 @@ try {
   else pass('Ручные денежные заявки, выдача после подтверждения и сброс денежной цены подключены');
   if (!server.includes("app.post('/telegram/webhook'") || !server.includes('configureTelegramSupportWebhook') || !server.includes('answerCallbackQuery')) fail('Telegram support webhook не подключён');
   else pass('Telegram-бот поддерживает deep links, уведомление владельца и ручное подтверждение заказа');
-  if (!server.includes('cashPriceMinor: cash.cashPriceMinor') || !app.includes("requestManualCashPurchase(item)") || !app.includes("cashAction.textContent = 'За деньги'") || !app.includes('tokenEnabled: token.enabled')) fail('Магазин не отображает отдельные способы покупки за токены и реальные деньги');
+  if (!server.includes('cashPriceMinor: cash.cashPriceMinor') || !app.includes("requestManualCashPurchase(item)") || !app.includes("cashAction.textContent = 'За деньги'") || !server.includes('tokenEnabled: token.enabled')) fail('Магазин не отображает отдельные способы покупки за токены и реальные деньги');
   else pass('Публичный магазин показывает цену в валюте и отдельную кнопку покупки за деньги');
   if (!ownerPanel.includes('manualStoreOrders') || !ownerPanel.includes('data-manual-order-action="paid"')) fail('В панели владельца нет очереди ручных денежных заявок');
   else pass('Панель владельца показывает заявки, подтверждает оплату и выдаёт товар');
