@@ -1456,7 +1456,7 @@ async function main() {
           return;
         }
         const orderId = String(parts[1] || '');
-        const replyText = message.text.trim().split(/\\s+/).slice(2).join(' ').trim();
+        const replyText = message.text.trim().split(/\s+/).slice(2).join(' ').trim();
         if (!/^mso[a-f0-9]{32}$/i.test(orderId) || !replyText) {
           await sendTelegramMessage(chatId, 'Формат ответа: /reply НОМЕР_ЗАЯВКИ текст сообщения');
           return;
@@ -1502,7 +1502,7 @@ async function main() {
         WHERE o.telegram_chat_id = ? AND o.status = 'pending'
         ORDER BY o.updated_at DESC LIMIT 1`, [chatId]);
       if (activeOrder) {
-        const ownerText = 'Сообщение покупателя по заявке ' + activeOrder.id + '\\nПокупатель: ' + activeOrder.username + ' (' + activeOrder.public_id + ')\\nТовар: ' + activeOrder.item_name + '\\n\\n' + message.text.slice(0, 2500) + '\\n\\nОтветь командой: /reply ' + activeOrder.id + ' текст ответа';
+        const ownerText = 'Сообщение покупателя по заявке ' + activeOrder.id + '\nПокупатель: ' + activeOrder.username + ' (' + activeOrder.public_id + ')\nТовар: ' + activeOrder.item_name + '\n\n' + message.text.slice(0, 2500) + '\n\nОтветь командой: /reply ' + activeOrder.id + ' текст ответа';
         if (settings.ownerChatId) {
           try { await sendTelegramMessage(settings.ownerChatId, ownerText); }
           catch (error) { console.warn('[SOLVI] Не удалось переслать сообщение покупателя владельцу:', error.message); }
