@@ -1536,8 +1536,9 @@ async function main() {
           await sendTelegramMessage(chatId, 'Сначала прими заявку кнопкой «Принять заявку». До принятия переписка с покупателем закрыта.');
           return;
         }
-        await sendTelegramMessage(targetOrder.telegram_chat_id, 'Ответ владельца SOLVI по заявке ' + orderId + ':\n' + replyText);
-        await sendTelegramMessage(chatId, 'Ответ отправлен покупателю по заявке ' + orderId + '.');
+        const sent = await sendTelegramMessage(targetOrder.telegram_chat_id, replyText);
+        dbRun('INSERT OR IGNORE INTO telegram_order_messages (id,order_id,telegram_message_id,direction,body,created_at) VALUES (?,?,?,?,?,?)',
+          [crypto.randomUUID(),targetOrder.id,String(sent?.message_id || ''),'owner',replyText,nowIso()]);
         return;
       }
       if (command === '/start' && parts[1] && /^mso[a-f0-9]{32}$/i.test(parts[1])) {
@@ -1600,8 +1601,10 @@ async function main() {
             : 'Нет принятых заявок с открытой перепиской. Сначала прими заявку покупателя.', keyboard);
           return;
         }
-        await sendTelegramMessage(selected.telegram_chat_id, 'Ответ владельца SOLVI:\n' + message.text.slice(0, 2500));
-        await sendTelegramMessage(chatId, '✓ Отправлено · ' + selected.username + ' · ' + selected.item_name);
+        const ownerBody = message.text.trim().slice(0, 3000);
+        const sent = await sendTelegramMessage(selected.telegram_chat_id, ownerBody);
+        dbRun('INSERT OR IGNORE INTO telegram_order_messages (id,order_id,telegram_message_id,direction,body,created_at) VALUES (?,?,?,?,?,?)',
+          [crypto.randomUUID(),selected.id,String(sent?.message_id || ''),'owner',ownerBody,nowIso()]);
         return;
       }
       const activeOrder = dbGet(`SELECT o.id,o.item_name,o.accepted_at,o.status,u.username,u.public_id
