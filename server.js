@@ -3261,6 +3261,10 @@ async function main() {
     });
   });
 
+  // Periodically rebroadcast presence so the public counter self-heals after missed events.
+  const presenceRefreshTimer = setInterval(emitOnlineCount, 15000);
+  presenceRefreshTimer.unref?.();
+
   server.on('error', error => {
     if (error.code === 'EADDRINUSE') console.error(`[SOLVI] Порт ${PORT} уже занят. Закрой другое окно SOLVI или измени PORT в start.bat.`);
     else console.error('[SOLVI] Ошибка HTTP-сервера:', error);

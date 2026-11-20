@@ -21,7 +21,7 @@
   function toast(message){ const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),3200); }
   async function api(url,options){
     const opts=options||{};
-    const response=await fetch(url,{...opts,headers:{'Content-Type':'application/json',...(state.token?{Authorization:'Bearer '+state.token}:{}),...(opts.headers||{})}});
+    const response=await fetch(url,{...opts,cache:opts.cache||(String(opts.method||'GET').toUpperCase()==='GET'?'no-store':'default'),headers:{'Content-Type':'application/json',...(state.token?{Authorization:'Bearer '+state.token}:{}),...(opts.headers||{})}});
     const body=await response.json().catch(()=>({}));
     if(!response.ok){ if(response.status===401)clearAuth(); throw new Error(body.error||('HTTP '+response.status)); }
     return body;
@@ -385,11 +385,20 @@
     document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
     document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
     if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
-    if(load===false)return;
     const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),messages:()=>{},promos:loadPromos,monetization:loadMonetization,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
-    Promise.resolve(loaders[name]()).catch(err=>toast(err.message));
-    if(name==='dialogs')state.matchesTimer=setInterval(()=>loadMatches().catch(err=>toast(err.message)),15000);
+    if(load!==false)Promise.resolve(loaders[name]()).catch(err=>toast(err.message));
+    if(name==='dialogs')state.matchesTimer=setInterval(()=>{if(!document.hidden&&!$('#dashboardView').hidden)loadMatches().catch(err=>toast(err.message));},15000);
+    else if(name==='overview')state.matchesTimer=setInterval(()=>{if(!document.hidden&&!$('#dashboardView').hidden)loadOverview().catch(err=>toast(err.message));},15000);
+    else if(name==='users')state.matchesTimer=setInterval(()=>{if(!document.hidden&&!$('#dashboardView').hidden)loadUsers(state.userQuery,false).catch(err=>toast(err.message));},20000);
   }
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden||$('#dashboardView').hidden)return;
+    const active=document.querySelector('[data-tab].active')?.dataset.tab||'overview';
+    if(active==='overview')loadOverview().catch(err=>toast(err.message));
+    else if(active==='users')loadUsers(state.userQuery,false).catch(err=>toast(err.message));
+    else if(active==='dialogs')loadMatches().catch(err=>toast(err.message));
+  });
 
   applyOwnerTheme();
   $('#themeToggleButton').addEventListener('click',()=>applyOwnerTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));

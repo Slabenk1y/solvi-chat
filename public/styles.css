@@ -663,3 +663,14 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 #mascotStage.mascot-active .search-mascot.sausage-mouse{animation:sausage-bounce 2.8s ease-in-out infinite}
 #mascotStage.mascot-active .sausage-body-group{animation:sausage-wiggle 2.2s ease-in-out infinite}
 #mascotStage.mascot-active .sausage-dizzy{opacity:.18;animation:none}
+
+
+/* SOLVI official mascot: tsundere mouse girl */
+.search-mascot.tsundere-mascot{width:244px;height:242px;object-fit:contain;overflow:visible;filter:drop-shadow(0 16px 20px rgba(97,55,170,.22));animation:tsundereIdle 3.2s ease-in-out infinite;transform-origin:50% 88%}
+#mascotStage[data-mood="impatient"] .search-mascot.tsundere-mascot{animation:tsunderePout 2.1s ease-in-out infinite}
+#mascotStage.mascot-active .search-mascot.tsundere-mascot{animation:tsundereStomp .62s cubic-bezier(.36,.08,.54,.96) infinite}
+@keyframes tsundereIdle{0%,100%{transform:translateY(3px) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1.2deg)}}
+@keyframes tsunderePout{0%,100%{transform:translateY(2px) rotate(2deg)}50%{transform:translateY(-4px) rotate(-2deg)}}
+@keyframes tsundereStomp{0%,100%{transform:translateY(0) rotate(0) scale(1,1)}22%{transform:translateY(-8px) rotate(-3deg) scale(.98,1.03)}46%{transform:translateY(3px) rotate(3deg) scale(1.04,.94)}70%{transform:translateY(-4px) rotate(-1deg) scale(.99,1.02)}}
+@media(max-width:700px){.search-mascot.tsundere-mascot{width:218px;height:216px}}
+@media(prefers-reduced-motion:reduce){.search-mascot.tsundere-mascot{animation:none!important}}
