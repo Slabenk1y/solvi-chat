@@ -1450,12 +1450,36 @@ async function main() {
         await sendTelegramMessage(chatId, 'Бот SOLVI не принимает и не подтверждает платежи. По вопросам оплаты обратись к владельцу проекта; Telegram support не обрабатывает покупки SOLVI.');
         return;
       }
+      if (command === '/reply') {
+        if (!settings.ownerChatId || chatId !== settings.ownerChatId || String(message.from?.id || '') !== settings.ownerChatId) {
+          await sendTelegramMessage(chatId, 'Команда /reply доступна только владельцу SOLVI.');
+          return;
+        }
+        const orderId = String(parts[1] || '');
+        const replyText = message.text.trim().split(/\\s+/).slice(2).join(' ').trim();
+        if (!/^mso[a-f0-9]{32}$/i.test(orderId) || !replyText) {
+          await sendTelegramMessage(chatId, 'Формат ответа: /reply НОМЕР_ЗАЯВКИ текст сообщения');
+          return;
+        }
+        const targetOrder = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
+        if (!targetOrder || !targetOrder.telegram_chat_id) {
+          await sendTelegramMessage(chatId, 'У этой заявки нет привязанного Telegram-чата.');
+          return;
+        }
+        await sendTelegramMessage(targetOrder.telegram_chat_id, 'Ответ владельца SOLVI по заявке ' + orderId + ':\\n' + replyText);
+        await sendTelegramMessage(chatId, 'Ответ отправлен покупателю по заявке ' + orderId + '.');
+        return;
+      }
       if (command === '/start' && parts[1] && /^mso[a-f0-9]{32}$/i.test(parts[1])) {
         const orderId = parts[1];
         const order = dbGet('SELECT o.*,u.username,u.public_id FROM manual_store_orders o JOIN users u ON u.id=o.user_id WHERE o.id = ?', [orderId]);
         if (!order) { await sendTelegramMessage(chatId, 'Не нашёл эту заявку. Создай новую из магазина SOLVI.'); return; }
         if (order.status !== 'pending') { await sendTelegramMessage(chatId, 'Эта заявка уже обработана. Статус: ' + order.status + '.'); return; }
         const telegramUsername = String(message.from?.username || '');
+        if (order.telegram_chat_id && String(order.telegram_chat_id) !== chatId) {
+          await sendTelegramMessage(chatId, 'Эта заявка уже привязана к другому Telegram-чату. Напиши владельцу SOLVI через панель сайта.');
+          return;
+        }
         dbRun("UPDATE manual_store_orders SET telegram_chat_id = ?, telegram_username = ?, updated_at = ? WHERE id = ? AND status = 'pending'",
           [chatId,telegramUsername,nowIso(),orderId]);
         await sendTelegramMessage(chatId, 'Заявка SOLVI принята. Номер: ' + orderId + '. Владелец увидит запрос и свяжется с тобой. Оплата не проходит через этого бота — согласуй её с владельцем отдельно. Не отправляй сюда пароли или данные банковской карты.');
@@ -1472,6 +1496,22 @@ async function main() {
           catch (error) { console.warn('[SOLVI] Не удалось уведомить владельца о заявке:', error.message); }
         }
         return;
+      }
+      const activeOrder = dbGet(`SELECT o.id,o.item_name,u.username,u.public_id
+        FROM manual_store_orders o JOIN users u ON u.id=o.user_id
+        WHERE o.telegram_chat_id = ? AND o.status = 'pending'
+        ORDER BY o.updated_at DESC LIMIT 1`, [chatId]);
+      if (activeOrder) {
+        const ownerText = 'Сообщение покупателя по заявке ' + activeOrder.id + '\\nПокупатель: ' + activeOrder.username + ' (' + activeOrder.public_id + ')\\nТовар: ' + activeOrder.item_name + '\\n\\n' + message.text.slice(0, 2500) + '\\n\\nОтветь командой: /reply ' + activeOrder.id + ' текст ответа';
+        if (settings.ownerChatId) {
+          try { await sendTelegramMessage(settings.ownerChatId, ownerText); }
+          catch (error) { console.warn('[SOLVI] Не удалось переслать сообщение покупателя владельцу:', error.message); }
+          await sendTelegramMessage(chatId, 'Сообщение передано владельцу SOLVI. Он сможет ответить здесь.');
+        } else {
+          await sendTelegramMessage(chatId, 'Заявка сохранена. Владелец увидит её в панели SOLVI, но уведомления Telegram ещё не настроены.');
+        }
+      } else {
+        await sendTelegramMessage(chatId, 'Чтобы связаться с владельцем по покупке, сначала создай заявку в магазине SOLVI и открой бота по ссылке из неё.');
       }
       return;
     }
@@ -1524,6 +1564,13 @@ async function main() {
     }
     try {
       await telegramApi('setWebhook', { url: settings.publicUrl + '/telegram/webhook', secret_token: settings.webhookSecret, allowed_updates: ['message','callback_query'], drop_pending_updates: false });
+      await telegramApi('setMyCommands', { commands: [
+        { command: 'start', description: 'Открыть поддержку или заявку SOLVI' },
+        { command: 'help', description: 'Как работает поддержка SOLVI' },
+        { command: 'paysupport', description: 'Вопросы по оплате' },
+        { command: 'reply', description: 'Ответить покупателю по номеру заявки' },
+        { command: 'id', description: 'Показать ID Telegram-чата' }
+      ] });
       console.log('[SOLVI] Telegram support webhook configured.');
     } catch (error) { console.warn('[SOLVI] Telegram webhook setup failed:', error.message); }
   }
