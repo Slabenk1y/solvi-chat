@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="/owner-manifest.webmanifest">
   <title>SOLVI · Панель владельца</title>
-  <link rel="stylesheet" href="/owner.css?v=27">
+  <link rel="stylesheet" href="/owner.css?v=28">
 </head>
 <body>
   <div class="owner-shell">
@@ -46,6 +46,7 @@
             <nav class="tabs" aria-label="Разделы панели">
               <button class="tab active" type="button" data-tab="overview"><span>⌂</span> Обзор</button>
               <button class="tab" type="button" data-tab="users"><span>♙</span> Пользователи</button>
+              <button class="tab" type="button" data-tab="tgchats"><span>☏</span> Покупатели <span id="telegramChatBadge" class="telegram-chat-badge" hidden>0</span></button>
               <button class="tab" type="button" data-tab="messages"><span>✉</span> Сообщения</button>
               <button class="tab" type="button" data-tab="promos"><span>✦</span> Промокоды</button>
               <button class="tab" type="button" data-tab="monetization"><span>₽</span> Монетизация</button>
@@ -109,6 +110,31 @@
                 <button id="executeCleanupButton" class="danger" type="button" disabled>Удалить остальные аккаунты</button>
                 <p class="hint">Необратимо удаляет аккаунты и их связанные данные. Перед удалением обязательно просмотри полный список.</p>
               </article>
+            </section>
+
+            <section class="tab-page" data-page="tgchats" hidden>
+              <div class="section-intro"><div class="eyebrow">ПОКУПКИ И ПОДДЕРЖКА</div><h2>Покупатели</h2><p>Покупатель пишет боту @solvi_shop_bot, а ты отвечаешь здесь. История переписки сохраняется. Сначала прими заявку в разделе «Монетизация» — после этого откроется чат.</p></div>
+              <div class="telegram-chat-layout">
+                <aside class="card telegram-chat-list-panel">
+                  <div class="card-head"><div><h3>Диалоги</h3><p class="hint" id="telegramChatsSummary">Загружаем заявки…</p></div><button id="refreshTelegramChats" class="text-button" type="button">↻</button></div>
+                  <div id="telegramOrderList" class="telegram-order-list"><div class="empty-state">Загружаем диалоги…</div></div>
+                </aside>
+                <section class="card telegram-chat-room">
+                  <div id="telegramChatEmpty" class="telegram-chat-empty"><span>☏</span><strong>Выбери покупателя</strong><p>Все сообщения из Telegram будут появляться здесь.</p></div>
+                  <div id="telegramChatActive" class="telegram-chat-active" hidden>
+                    <header class="telegram-chat-header">
+                      <div><div class="eyebrow">ЗАКАЗ SOLVI</div><h3 id="telegramChatTitle">Покупатель</h3><p id="telegramChatMeta" class="hint"></p></div>
+                      <button id="telegramChatRefresh" class="secondary mini" type="button">Обновить</button>
+                    </header>
+                    <div id="telegramChatMessages" class="telegram-chat-messages" aria-live="polite"></div>
+                    <form id="telegramChatForm" class="telegram-chat-compose">
+                      <textarea id="telegramChatInput" maxlength="3000" rows="2" placeholder="Напиши сообщение покупателю…" required></textarea>
+                      <button id="telegramChatSend" class="primary" type="submit" aria-label="Отправить сообщение">➤</button>
+                    </form>
+                    <p id="telegramChatStatus" class="hint">Сообщение уйдёт покупателю в чат с ботом SOLVI.</p>
+                  </div>
+                </section>
+              </div>
             </section>
 
             <section class="tab-page" data-page="messages" hidden>
@@ -183,7 +209,8 @@
   <div id="dialogInspector" class="modal-backdrop" hidden><section class="modal-card inspector-card" role="dialog" aria-modal="true" aria-labelledby="inspectorTitle"><div class="modal-heading"><div><div class="eyebrow">ПРОВЕРКА АКТИВНОГО ДИАЛОГА</div><h2 id="inspectorTitle">Диалог пользователей</h2></div><button id="closeDialogInspector" class="modal-close" type="button" aria-label="Закрыть">×</button></div><p id="inspectorParticipants" class="hint"></p><label>Причина проверки<input id="inspectReason" maxlength="240" placeholder="Например: проверка жалобы №…"></label><div id="dialogMessages" class="inspector-messages"><p class="empty-state">Для просмотра сообщений сначала укажи причину.</p></div><button id="inspectDialogButton" class="primary wide" type="button">Открыть последние сообщения</button><label>Уведомление участникам<textarea id="dialogNoticeText" rows="3" maxlength="240" placeholder="Сообщение обоим участникам…"></textarea></label><div class="modal-actions"><button id="sendDialogNoticeButton" class="secondary" type="button">Отправить уведомление</button><button id="endInspectedMatch" class="danger" type="button">Завершить диалог</button></div></section></div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/owner.js?v=37" defer></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="/owner.js?v=38" defer></script>
   <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
 </body>
 </html>
