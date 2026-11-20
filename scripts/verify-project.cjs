@@ -128,10 +128,10 @@ try {
   else pass('Фильтры поиска сохраняют выбор пользователя при перерисовке');
   if (!app.includes("desiredGender: state.desiredGender") || !app.includes("mode: 'chat'") || !server.includes('eligibleByGender(current, candidate)')) fail('Выбор пола собеседника не передаётся в обычный подбор');
   else pass('Выбор пола собеседника передаётся в подбор');
-  if (!app.includes('Машка-Мышка на посту!') || !html.includes('МАШКА-МЫШКА · ГЛАВНАЯ МЫШЬ SOLVI') || !app.includes('УСИКИ НАСТРОЕНЫ!')) fail('Реплики и название Машки-Мышки не настроены');
-  else pass('Машка-Мышка имеет своё имя и набор реплик');
+  if (!html.includes('ЦУНДЕРЕ-МЫШКА НА ПОСТУ') || !html.includes('/mascot-tsundere.avif') || !app.includes('Б-бака! Я не сдаюсь.') || !css.includes('.search-mascot.tsundere-mascot')) fail('Цундере-мышка SOLVI не подключена или потеряла реплики');
+  else pass('Цундере-мышка SOLVI имеет фирменный образ, имя и реплики');
   if (css.includes('sausage-chaos') || css.includes('sausage-shake') || css.includes('data-mood="chaos"') || app.includes("dataset.mood = seconds > 35 ? 'chaos'")) fail('У маскота осталась хаотичная анимация или вращение');
-  else pass('Машка-Мышка двигается без хаотичного вращения');
+  else pass('Цундере-мышка двигается без хаотичного вращения');
   if (!app.includes("if (bootScreen) bootScreen.hidden = true;") || !app.includes("document.documentElement.classList.remove('session-checking');")) fail('Экран восстановления сессии не имеет аварийного снятия блокировки');
   else pass('Экран восстановления гарантированно скрывается при ошибке запуска');
   const ownerPanelJs = read('public/owner.js');
