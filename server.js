@@ -1348,7 +1348,7 @@ async function main() {
     const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
     const username = String(process.env.TELEGRAM_BOT_USERNAME || '').trim().replace(/^@/, '');
     const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
-    const publicUrl = String(process.env.TELEGRAM_PUBLIC_URL || process.env.APP_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
+    const publicUrl = String(process.env.TELEGRAM_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || process.env.APP_PUBLIC_URL || '').trim().replace(/\/$/, '');
     const ownerChatId = String(process.env.TELEGRAM_OWNER_CHAT_ID || '').trim();
     const botUsernameValid = /^[A-Za-z0-9_]{5,32}$/.test(username);
     return { token, username, webhookSecret, publicUrl, ownerChatId, botUsernameValid,
