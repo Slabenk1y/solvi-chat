@@ -1612,10 +1612,13 @@ async function main() {
             setActiveTelegramOrder(chatId, orderId);
             await telegramApi('editMessageReplyMarkup', {
               chat_id: chatId, message_id: callback.message.message_id,
-              reply_markup: { inline_keyboard: [[
-                { text: '💸 Оплата получена · выдать товар', callback_data: 'mso_paid:' + orderId },
-                { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
-              ]] }
+              reply_markup: { inline_keyboard: [
+                [{ text: '💬 Выбрать этот диалог', callback_data: 'mso_chat:' + orderId }],
+                [
+                  { text: '💸 Оплата получена · выдать товар', callback_data: 'mso_paid:' + orderId },
+                  { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
+                ]
+              ] }
             });
             await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Заявка уже принята. Можно подтвердить оплату после получения денег.' });
             return;
@@ -1628,10 +1631,13 @@ async function main() {
           await notifyManualOrderBuyer(orderId, 'Владелец SOLVI принял твою заявку на «' + order.item_name + '». Теперь можешь писать сюда, чтобы обсудить покупку и оплату. Не отправляй данные банковской карты или пароли.');
           await telegramApi('editMessageReplyMarkup', {
             chat_id: chatId, message_id: callback.message.message_id,
-            reply_markup: { inline_keyboard: [[
-              { text: '💸 Оплата получена · выдать товар', callback_data: 'mso_paid:' + orderId },
-              { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
-            ]] }
+            reply_markup: { inline_keyboard: [
+              [{ text: '💬 Выбрать этот диалог', callback_data: 'mso_chat:' + orderId }],
+              [
+                { text: '💸 Оплата получена · выдать товар', callback_data: 'mso_paid:' + orderId },
+                { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
+              ]
+            ] }
           });
           await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Заявка принята. Переписка открыта.' });
         } else if (match[1].toLowerCase() === 'paid') {
