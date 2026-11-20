@@ -4,7 +4,7 @@
   const safeStorageGet = key => { try { return window.localStorage.getItem(key); } catch { return null; } };
   const safeStorageSet = (key, value) => { try { window.localStorage.setItem(key, value); return true; } catch { return false; } };
   const safeStorageRemove = key => { try { window.localStorage.removeItem(key); return true; } catch { return false; } };
-  const state = { token:safeStorageGet('sovli_admin_token')||safeStorageGet('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null };
+  const state = { token:safeStorageGet('sovli_admin_token')||safeStorageGet('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null, telegramOrders:[], activeTelegramOrderId:'', telegramMiniApp:false };
   const esc = v => String(v==null?'':v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num = v => Number(v||0).toLocaleString('ru-RU');
   const date = v => v ? new Date(v).toLocaleString('ru-RU',{dateStyle:'medium',timeStyle:'short'}) : '—';
@@ -430,16 +430,86 @@
     }catch(err){toast(err.message);}finally{target.disabled=false;}
   });
   async function loadAudit(){const r=await api('/api/admin/audit');$('#auditList').textContent=(r.entries||[]).map(x=>date(x.created_at)+'  '+x.action+'  '+(x.target_id||'')+'\n'+JSON.stringify(x.details||{})).join('\n\n')||'Журнал пока пуст.';}
+
+  function renderTelegramOrders(){
+    const orders=state.telegramOrders||[];
+    const unread=orders.reduce((n,o)=>n+Number(o.unread_count||0),0);
+    const badge=$('#telegramChatBadge');badge.textContent=unread>99?'99+':String(unread);badge.hidden=unread<1;
+    $('#telegramChatsSummary').textContent=orders.length?orders.length+' покупателя · '+unread+' новых сообщений':'Пока нет заявок с Telegram';
+    $('#telegramOrderList').innerHTML=orders.map(o=>{
+      const selected=o.id===state.activeTelegramOrderId;
+      const accepted=Boolean(o.accepted_at);
+      const status=o.status==='paid'?'Товар выдан':accepted?'Диалог открыт':'Ожидает принятия';
+      const preview=o.last_message||'Переписка пока пуста';
+      const actions=o.status==='pending'
+        ?(accepted
+          ?'<button class="secondary mini" type="button" data-telegram-order-action="paid" data-telegram-order-id="'+esc(o.id)+'">Оплату получил · выдать</button><button class="danger mini" type="button" data-telegram-order-action="cancel" data-telegram-order-id="'+esc(o.id)+'">Отменить</button>'
+          :'<button class="primary mini" type="button" data-telegram-order-action="accept" data-telegram-order-id="'+esc(o.id)+'">Принять заявку</button><button class="danger mini" type="button" data-telegram-order-action="cancel" data-telegram-order-id="'+esc(o.id)+'">Отклонить</button>')
+        :'';
+      return '<article class="telegram-order-card'+(selected?' selected':'')+'"><button class="telegram-order-select" type="button" data-telegram-order="'+esc(o.id)+'"><span class="telegram-order-avatar">'+esc((o.username||'?').slice(0,1).toUpperCase())+'</span><span class="telegram-order-main"><strong>'+esc(o.username)+' '+(Number(o.unread_count)>0?'<em>'+num(o.unread_count)+'</em>':'')+'</strong><small>'+esc(o.item_name)+' · '+(Number(o.amount_minor)/100).toFixed(2)+' '+esc(o.currency)+'</small><small>'+esc(preview)+'</small></span><span class="telegram-order-status">'+esc(status)+'</span></button><div class="telegram-order-actions">'+actions+'</div></article>';
+    }).join('')||'<div class="empty-state">Новые заявки появятся здесь после того, как покупатель откроет бота по ссылке из магазина.</div>';
+  }
+  async function loadTelegramOrders(){
+    const r=await api('/api/admin/telegram/orders');state.telegramOrders=r.orders||[];renderTelegramOrders();
+    if(state.activeTelegramOrderId&&!state.telegramOrders.some(o=>o.id===state.activeTelegramOrderId)){state.activeTelegramOrderId='';showTelegramChatEmpty();}
+    return state.telegramOrders;
+  }
+  function showTelegramChatEmpty(){
+    $('#telegramChatEmpty').hidden=false;$('#telegramChatActive').hidden=true;
+  }
+  async function loadTelegramMessages(){
+    if(!state.activeTelegramOrderId)return;
+    const r=await api('/api/admin/telegram/orders/'+encodeURIComponent(state.activeTelegramOrderId)+'/messages');
+    const order=state.telegramOrders.find(o=>o.id===state.activeTelegramOrderId)||{};
+    $('#telegramChatTitle').textContent=order.username||'Покупатель';
+    $('#telegramChatMeta').textContent=(order.item_name||'Заказ SOLVI')+' · '+(Number(order.amount_minor||0)/100).toFixed(2)+' '+(order.currency||'')+' · '+(order.status==='paid'?'товар выдан':'заявка ожидает оплаты');
+    const messages=r.messages||[];
+    $('#telegramChatMessages').innerHTML=messages.map(m=>'<div class="telegram-message '+(m.direction==='owner'?'outgoing':'incoming')+'"><div>'+esc(m.body).replace(/\n/g,'<br>')+'</div><small>'+(m.direction==='owner'?'Ты':'Покупатель')+' · '+date(m.created_at)+'</small></div>').join('')||'<div class="empty-state">Пока сообщений нет. Напиши покупателю первым.</div>';
+    const canReply=order.status==='pending'&&Boolean(order.accepted_at);
+    $('#telegramChatForm').hidden=!canReply;
+    $('#telegramChatStatus').textContent=canReply?'Сообщение уйдёт покупателю в Telegram через @solvi_shop_bot.':order.status==='paid'?'Заявка закрыта после выдачи товара. История доступна только для просмотра.':'Сначала прими заявку, чтобы начать переписку.';
+    $('#telegramChatMessages').scrollTop=$('#telegramChatMessages').scrollHeight;
+    $('#telegramChatEmpty').hidden=true;$('#telegramChatActive').hidden=false;
+  }
+  async function selectTelegramOrder(id){
+    state.activeTelegramOrderId=id;renderTelegramOrders();
+    const order=state.telegramOrders.find(o=>o.id===id);
+    if(!order)return showTelegramChatEmpty();
+    if(!order.accepted_at){showTelegramChatEmpty();toast('Сначала нажми «Принять заявку» на карточке покупателя.');return;}
+    await loadTelegramMessages();await loadTelegramOrders();
+  }
+  async function sendTelegramBuyerMessage(e){
+    e.preventDefault();
+    const body=$('#telegramChatInput').value.trim();
+    if(!body||!state.activeTelegramOrderId)return;
+    const button=$('#telegramChatSend');button.disabled=true;
+    try{
+      await api('/api/admin/telegram/orders/'+encodeURIComponent(state.activeTelegramOrderId)+'/messages',{method:'POST',body:JSON.stringify({body})});
+      $('#telegramChatInput').value='';await loadTelegramOrders();await loadTelegramMessages();
+    }catch(err){toast(err.message);}finally{button.disabled=false;$('#telegramChatInput').focus();}
+  }
+  async function runTelegramOrderAction(action,id,button){
+    const b=button;if(b)b.disabled=true;
+    try{
+      await api('/api/admin/manual-store-orders/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({action})});
+      await loadTelegramOrders();
+      if(action==='accept'){state.activeTelegramOrderId=id;await selectTelegramOrder(id);toast('Заявка принята. Можно переписываться.');}
+      else if(action==='paid'){state.activeTelegramOrderId=id;await loadTelegramMessages().catch(()=>showTelegramChatEmpty());toast('Оплата подтверждена, товар выдан на сайте.');}
+      else{if(state.activeTelegramOrderId===id){state.activeTelegramOrderId='';showTelegramChatEmpty();}toast('Заявка отменена.');}
+      if(state.monetization)await loadMonetization();
+    }catch(err){toast(err.message);}finally{if(b)b.disabled=false;}
+  }
   function showTab(name,load){
     if(!document.querySelector('[data-page="'+name+'"]'))name='overview';
     document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
     document.querySelectorAll('[data-page]').forEach(p=>p.hidden=p.dataset.page!==name);
     if(state.matchesTimer){clearInterval(state.matchesTimer);state.matchesTimer=null;}
-    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),messages:()=>{},promos:loadPromos,monetization:loadMonetization,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
+    const loaders={overview:loadOverview,users:()=>loadUsers(state.userQuery,false),tgchats:loadTelegramOrders,messages:()=>{},promos:loadPromos,monetization:loadMonetization,dialogs:loadMatches,reports:loadReports,tickets:loadTickets,growth:loadGrowth,audit:loadAudit};
     if(load!==false)Promise.resolve(loaders[name]()).catch(err=>toast(err.message));
     if(name==='dialogs')state.matchesTimer=setInterval(()=>{if(!document.hidden&&!$('#dashboardView').hidden)loadMatches().catch(err=>toast(err.message));},15000);
     else if(name==='overview')state.matchesTimer=setInterval(()=>{if(!document.hidden&&!$('#dashboardView').hidden)loadOverview().catch(err=>toast(err.message));},15000);
     else if(name==='users')state.matchesTimer=setInterval(()=>{if(!document.hidden&&!$('#dashboardView').hidden)loadUsers(state.userQuery,false).catch(err=>toast(err.message));},20000);
+    else if(name==='tgchats')state.matchesTimer=setInterval(async()=>{if(!document.hidden&&!$('#dashboardView').hidden){try{await loadTelegramOrders();if(state.activeTelegramOrderId)await loadTelegramMessages();}catch(err){/* transient polling failure */}}},3500);
   }
 
   document.addEventListener('visibilitychange',()=>{
@@ -448,6 +518,7 @@
     if(active==='overview')loadOverview().catch(err=>toast(err.message));
     else if(active==='users')loadUsers(state.userQuery,false).catch(err=>toast(err.message));
     else if(active==='dialogs')loadMatches().catch(err=>toast(err.message));
+    else if(active==='tgchats'){loadTelegramOrders().then(()=>state.activeTelegramOrderId&&loadTelegramMessages()).catch(err=>toast(err.message));}
   });
 
   applyOwnerTheme();
@@ -459,6 +530,15 @@
   });
   $('#logoutButton').addEventListener('click',()=>{clearAuth();setConnection('Выход выполнен');});
   $('#refreshAllButton').addEventListener('click',refreshAll);
+  $('#refreshTelegramChats').addEventListener('click',()=>loadTelegramOrders().then(()=>state.activeTelegramOrderId&&loadTelegramMessages()).catch(err=>toast(err.message)));
+  $('#telegramChatRefresh').addEventListener('click',()=>loadTelegramMessages().catch(err=>toast(err.message)));
+  $('#telegramOrderList').addEventListener('click',e=>{
+    const action=e.target.closest('[data-telegram-order-action]');
+    if(action){runTelegramOrderAction(action.dataset.telegramOrderAction,action.dataset.telegramOrderId,action);return;}
+    const order=e.target.closest('[data-telegram-order]');
+    if(order)selectTelegramOrder(order.dataset.telegramOrder).catch(err=>toast(err.message));
+  });
+  $('#telegramChatForm').addEventListener('submit',sendTelegramBuyerMessage);
   document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
   document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.go)));
   $('#userSearchForm').addEventListener('submit',e=>{e.preventDefault();loadUsers($('#userSearchInput').value.trim(),false).catch(err=>toast(err.message));});
@@ -505,6 +585,34 @@
     if(!$('#dialogInspector').hidden){$('#dialogInspector').hidden=true;state.inspectMatchId='';return;}
     if(!$('#userDetailModal').hidden){$('#userDetailModal').hidden=true;state.selectedUserId='';}
   });
-  async function boot(){if(await verifyOwner())await loadStoreItems();else{setConnection('Нужен вход',false);if(state.token&&!$('#loginError').textContent)$('#loginError').textContent='Сессия не имеет прав владельца. Войди аккаунтом владельца.';}}
+  async function boot(){
+    const tg=window.Telegram&&window.Telegram.WebApp;
+    if(tg&&tg.initData){
+      state.telegramMiniApp=true;
+      try{
+        tg.ready();tg.expand();
+        try{tg.setHeaderColor('#10131c');tg.setBackgroundColor('#10131c');}catch{}
+        $('#loginForm').hidden=true;
+        $('#loginError').textContent='Проверяем защищённый вход владельца через Telegram…';
+        setConnection('Проверяем Telegram…');
+        const r=await api('/api/auth/telegram-miniapp',{method:'POST',body:JSON.stringify({initData:tg.initData})});
+        state.token=r.token;safeStorageSet('sovli_admin_token',state.token);
+        if(!await verifyOwner())throw new Error('Telegram авторизовал сессию, но права владельца не подтверждены.');
+        $('#loginError').textContent='';await loadStoreItems();
+        const params=new URLSearchParams(window.location.search);
+        const tab=params.get('tab')||'overview';const requestedOrder=params.get('order');
+        if(requestedOrder)state.activeTelegramOrderId=requestedOrder;
+        showTab(tab);
+        if(tab==='tgchats'&&requestedOrder){await loadTelegramOrders();await selectTelegramOrder(requestedOrder);}
+        return;
+      }catch(err){
+        setConnection('Доступ запрещён',false);
+        $('#loginError').textContent=err.message||'Не удалось войти через Telegram.';
+        return;
+      }
+    }
+    if(await verifyOwner())await loadStoreItems();
+    else{setConnection('Нужен вход',false);if(state.token&&!$('#loginError').textContent)$('#loginError').textContent='Сессия не имеет прав владельца. Войди аккаунтом владельца.';}
+  }
   boot();
 })();
