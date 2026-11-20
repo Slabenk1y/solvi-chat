@@ -596,6 +596,7 @@
         tg.ready();tg.expand();
         try{tg.setHeaderColor('#10131c');tg.setBackgroundColor('#10131c');}catch{}
         $('#loginForm').hidden=true;
+        $('#logoutButton').hidden=true;
         $('#loginError').textContent='Проверяем защищённый вход владельца через Telegram…';
         setConnection('Проверяем Telegram…');
         const r=await api('/api/auth/telegram-miniapp',{method:'POST',body:JSON.stringify({initData:tg.initData})});
