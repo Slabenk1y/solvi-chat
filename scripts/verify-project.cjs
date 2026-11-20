@@ -170,7 +170,7 @@ try {
   else pass('Публичный магазин использует токены; денежные товары и email-чек убраны из интерфейса');
   if (!server.includes('CREATE TABLE IF NOT EXISTS manual_store_orders') || !server.includes("app.post('/api/billing/manual-store/orders'") || !server.includes("app.patch('/api/admin/manual-store-orders/:id'") || !server.includes("app.delete('/api/admin/store/:itemId/cash-price'")) fail('Ручные денежные заявки или очистка денежной цены не подключены');
   else pass('Ручные денежные заявки, выдача после подтверждения и сброс денежной цены подключены');
-  if (!server.includes("app.post('/telegram/webhook'") || !server.includes('configureTelegramSupportWebhook') || !server.includes('answerCallbackQuery')) fail('Telegram support webhook не подключён');
+  if (!server.includes("app.post('/telegram/webhook'") || !server.includes('configureTelegramSupportWebhook') || !server.includes("command === '/reply'")) fail('Telegram support webhook не подключён');
   else pass('Telegram-бот поддерживает deep links, уведомление владельца и ручное подтверждение заказа');
   if (!server.includes('cashPriceMinor: cash.cashPriceMinor') || !app.includes("requestManualCashPurchase(item)") || !app.includes("cashAction.textContent = 'За деньги'") || !app.includes('tokenEnabled: token.enabled')) fail('Магазин не отображает отдельные способы покупки за токены и реальные деньги');
   else pass('Публичный магазин показывает цену в валюте и отдельную кнопку покупки за деньги');
