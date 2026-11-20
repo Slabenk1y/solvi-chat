@@ -140,6 +140,60 @@ function showToast(message, duration = 2800) {
   state.toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
+function formatCashStorePrice(priceMinor, currency) {
+  const amount = Number(priceMinor || 0) / 100;
+  const code = String(currency || 'EUR').toUpperCase();
+  try { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: code }).format(amount); }
+  catch { return amount.toFixed(2) + ' ' + code; }
+}
+function confirmManualCashPurchase(item) {
+  const modal = $('#cashPurchaseModal');
+  $('#cashPurchaseTitle').textContent = 'Покупка за реальные деньги';
+  $('#cashPurchaseItem').textContent = item.name;
+  $('#cashPurchasePrice').textContent = formatCashStorePrice(item.cashPriceMinor, item.cashCurrency);
+  $('#cashPurchaseNote').textContent = 'Сначала создастся заявка. Оплата вручную согласуется с владельцем; деньги здесь не списываются. После проверки оплаты владелец выдаст товар.';
+  $('#cashPurchaseSubmit').hidden = false;
+  $('#cashPurchaseSubmit').textContent = 'Создать заявку';
+  $('#cashPurchaseCancel').textContent = 'Отмена';
+  if (modal.parentElement !== document.body) document.body.append(modal);
+  modal.hidden = false;
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true; modal.hidden = true;
+      $('#cashPurchaseCancel').onclick = null;
+      $('#cashPurchaseSubmit').onclick = null;
+      modal.onclick = null;
+      window.removeEventListener('keydown', onKeyDown);
+      resolve(value);
+    };
+    const onKeyDown = event => { if (event.key === 'Escape') finish(false); };
+    $('#cashPurchaseCancel').onclick = () => finish(false);
+    $('#cashPurchaseSubmit').onclick = () => finish(true);
+    modal.onclick = event => { if (event.target === modal) finish(false); };
+    window.addEventListener('keydown', onKeyDown);
+  });
+}
+async function requestManualCashPurchase(item) {
+  const approved = await confirmManualCashPurchase(item);
+  if (!approved) return;
+  const button = $('#cashPurchaseSubmit');
+  button.disabled = true; button.textContent = 'Создаём заявку…';
+  try {
+    const result = await api('/api/billing/manual-store/orders', { method: 'POST', body: JSON.stringify({ itemId: item.id }) });
+    $('#cashPurchaseModal').hidden = true;
+    showToast('Заявка ' + result.orderId + ' создана. Владелец увидит её в панели.');
+    if (result.telegramUrl) { window.location.assign(result.telegramUrl); return; }
+    if (result.contactUrl) { window.location.assign(result.contactUrl); return; }
+    $('#cashPurchaseNote').textContent = 'Заявка ' + result.orderId + ' сохранена. Владелец увидит её в панели SOLVI. Бот пока не подключён — свяжись с владельцем отдельно.';
+    $('#cashPurchaseSubmit').hidden = true;
+    $('#cashPurchaseCancel').textContent = 'Понятно';
+    $('#cashPurchaseModal').hidden = false;
+  } catch (error) {
+    showToast(error.message); $('#cashPurchaseModal').hidden = true;
+  } finally { button.disabled = false; button.textContent = 'Создать заявку'; }
+}
 function confirmStorePurchase({ title, description, price, balance, confirmLabel = 'Купить' }) {
   const modal = $('#purchaseConfirmModal');
   const cost = Math.max(0, Number(price) || 0);
@@ -328,7 +382,10 @@ function openStorePreview(item) {
       : 'VIP добавляет значок и сияющую рамку профиля, 3 000 символов, 5 фото до 8 МБ, голосовые до 45 секунд, аватар до 8 МБ, русский язык и до 8 интересов. Небольшой приоритет поиска после владельца и Premium — до 4 секунд.'
   };
   $('#storePreviewBenefit').textContent = effects[item.slot] || 'Добавляет этот предмет в твою коллекцию оформления.';
-  $('#storePreviewPrice').textContent = Number(item.price || 0).toLocaleString('ru-RU') + ' ✦';
+  const previewPrices = [];
+  if (item.tokenEnabled !== false) previewPrices.push(Number(item.price || 0).toLocaleString('ru-RU') + ' ✦');
+  if (item.cashEnabled && Number(item.cashPriceMinor) >= 30) previewPrices.push(formatCashStorePrice(item.cashPriceMinor, item.cashCurrency));
+  $('#storePreviewPrice').textContent = previewPrices.join(' · ') || 'Цена не задана';
   if (item.slot === 'membership') {
     const duration = document.createElement('p'); duration.className = 'store-preview-duration';
     duration.textContent = `Срок: ${item.hours || 1} ч. · ${item.tier === 'premium' ? '360 ✦ = 6 часов' : '180 ✦ = 3 часа'} активного диалога за каждый час статуса. При повторной покупке время прибавляется к остатку.`;
@@ -396,35 +453,52 @@ function renderStore(data) {
     const collection = document.createElement('small'); collection.className = 'store-item-collection'; collection.textContent = `Коллекция: ${item.collection || 'SOLVI'}`;
     meta.append(category, title, description, collection);
     const footer = document.createElement('div'); footer.className = 'store-item-footer';
-    const price = document.createElement('strong'); price.className = 'store-item-price'; price.textContent = item.owned ? (item.equipped ? 'Уже используется' : 'В коллекции') : `${Number(item.price).toLocaleString('ru-RU')} ✦`;
+    const prices = document.createElement('div'); prices.className = 'store-price-stack';
+    const price = document.createElement('strong'); price.className = 'store-item-price';
+    price.textContent = item.owned ? (item.equipped ? 'Уже используется' : 'В коллекции')
+      : (item.tokenEnabled === false ? 'Токены недоступны' : `${Number(item.price).toLocaleString('ru-RU')} ✦`);
+    prices.append(price);
+    if (!item.owned && item.cashEnabled && Number(item.cashPriceMinor) >= 30) {
+      const cashPrice = document.createElement('span'); cashPrice.className = 'store-cash-price';
+      cashPrice.textContent = formatCashStorePrice(item.cashPriceMinor, item.cashCurrency); prices.append(cashPrice);
+    }
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Предпросмотр';
     previewButton.addEventListener('click', () => openStorePreview(item));
-    const action = document.createElement('button'); action.type = 'button'; action.className = 'button button-secondary store-action';
-    if (item.equipped) action.textContent = 'Снять';
-    else if (item.owned) action.textContent = 'Применить';
-    else action.textContent = 'Купить';
-    action.addEventListener('click', async () => {
-      action.disabled = true;
-      try {
-        if (item.equipped) {
-          const result = await api(`/api/store/equip/${encodeURIComponent(item.slot)}`, { method: 'DELETE' });
-          applyEquipped(result.equipped); if (state.user) state.user.equipped = result.equipped;
-          renderStickerPanel(); showToast(`Снято: ${item.name}.`);
-        } else if (!item.owned) {
-          const approved = await confirmStorePurchase({ title: `Купить «${item.name}»?`, description: item.description, price: item.price, balance: data.balance });
-          if (!approved) { action.disabled = false; return; }
-          const result = await api('/api/store/buy', { method: 'POST', body: JSON.stringify({ itemId: item.id }) });
-          if (state.user) state.user.tokens = result.balance;
-          showToast(`«${item.name}» добавлен в коллекцию.`);
-        } else {
-          const result = await api('/api/store/equip', { method: 'POST', body: JSON.stringify({ itemId: item.id }) });
-          applyEquipped(result.equipped); if (state.user) state.user.equipped = result.equipped;
-          renderStickerPanel(); showToast(`Применено: ${item.name}.`);
-        }
-        await loadStore();
-      } catch (error) { showToast(error.message); action.disabled = false; }
-    });
-    footer.append(previewButton, price, action);
+    const actions = document.createElement('div'); actions.className = 'store-purchase-actions';
+    if (item.equipped || item.owned || item.tokenEnabled !== false) {
+      const action = document.createElement('button'); action.type = 'button'; action.className = 'button button-secondary store-action';
+      if (item.equipped) action.textContent = 'Снять';
+      else if (item.owned) action.textContent = 'Применить';
+      else action.textContent = 'За токены';
+      action.addEventListener('click', async () => {
+        action.disabled = true;
+        try {
+          if (item.equipped) {
+            const result = await api(`/api/store/equip/${encodeURIComponent(item.slot)}`, { method: 'DELETE' });
+            applyEquipped(result.equipped); if (state.user) state.user.equipped = result.equipped;
+            renderStickerPanel(); showToast(`Снято: ${item.name}.`);
+          } else if (!item.owned) {
+            const approved = await confirmStorePurchase({ title: `Купить «${item.name}» за токены?`, description: item.description, price: item.price, balance: data.balance });
+            if (!approved) { action.disabled = false; return; }
+            const result = await api('/api/store/buy', { method: 'POST', body: JSON.stringify({ itemId: item.id }) });
+            if (state.user) state.user.tokens = result.balance;
+            showToast(`«${item.name}» добавлен в коллекцию.`);
+          } else {
+            const result = await api('/api/store/equip', { method: 'POST', body: JSON.stringify({ itemId: item.id }) });
+            applyEquipped(result.equipped); if (state.user) state.user.equipped = result.equipped;
+            renderStickerPanel(); showToast(`Применено: ${item.name}.`);
+          }
+          await loadStore();
+        } catch (error) { showToast(error.message); action.disabled = false; }
+      });
+      actions.append(action);
+    }
+    if (!item.owned && item.cashEnabled && Number(item.cashPriceMinor) >= 30) {
+      const cashAction = document.createElement('button'); cashAction.type = 'button';
+      cashAction.className = 'button button-primary store-cash-action'; cashAction.textContent = 'За деньги';
+      cashAction.addEventListener('click', () => requestManualCashPurchase(item)); actions.append(cashAction);
+    }
+    footer.append(previewButton, prices, actions);
     card.append(preview, meta, footer); root.append(card);
   });
   const bundleRoot = $('#customizationBundles');
@@ -437,18 +511,25 @@ function renderStore(data) {
     const contents = document.createElement('div'); contents.className = 'bundle-contents';
     bundle.itemIds.forEach(id => { const item = data.items.find(entry => entry.id === id); if (item) { const chip = document.createElement('span'); chip.textContent = `${item.name} · ${item.category}`; contents.append(chip); } });
     const footer = document.createElement('div'); footer.className = 'bundle-footer';
-    const price = document.createElement('strong'); price.textContent = `${Number(bundle.price).toLocaleString('ru-RU')} ✦`;
+    const prices = document.createElement('div'); prices.className = 'store-price-stack';
+    if (bundle.tokenEnabled !== false) { const price = document.createElement('strong'); price.textContent = `${Number(bundle.price).toLocaleString('ru-RU')} ✦`; prices.append(price); }
+    if (bundle.cashEnabled && Number(bundle.cashPriceMinor) >= 30) { const cashPrice = document.createElement('span'); cashPrice.className = 'store-cash-price'; cashPrice.textContent = formatCashStorePrice(bundle.cashPriceMinor,bundle.cashCurrency); prices.append(cashPrice); }
+    const actions = document.createElement('div'); actions.className = 'store-purchase-actions';
     const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary';
-    button.textContent = bundle.owned ? 'Уже в коллекции' : (bundle.enabled === false ? 'Временно недоступно' : (bundle.available ? 'Купить набор' : 'Нужен статус'));
-    button.disabled = bundle.owned || !bundle.available || bundle.enabled === false;
+    button.textContent = bundle.owned ? 'Уже в коллекции' : (bundle.tokenEnabled === false ? 'Токены недоступны' : (bundle.available ? 'За токены' : 'Нужен статус'));
+    button.disabled = bundle.owned || !bundle.available || bundle.tokenEnabled === false;
     button.addEventListener('click', async () => {
-      const approved = await confirmStorePurchase({ title: `Купить ${bundle.name}?`, description: bundle.description, price: bundle.price, balance: data.balance, confirmLabel: 'Забрать набор' });
+      const approved = await confirmStorePurchase({ title: `Купить ${bundle.name} за токены?`, description: bundle.description, price: bundle.price, balance: data.balance, confirmLabel: 'Забрать набор' });
       if (!approved) return;
       button.disabled = true;
-      try { const result = await api('/api/store/bundle', { method: 'POST', body: JSON.stringify({ bundleId: bundle.id }) }); if (state.user) state.user.tokens = result.balance; showToast(`${bundle.name}: 5 предметов добавлено в инвентарь.`); await loadStore(); }
+      try { const result = await api('/api/store/bundle', { method: 'POST', body: JSON.stringify({ bundleId: bundle.id }) }); if (state.user) state.user.tokens = result.balance; showToast(`${bundle.name}: предметы добавлены в инвентарь.`); await loadStore(); }
       catch (error) { showToast(error.message); button.disabled = false; }
     });
-    footer.append(price, button);
+    actions.append(button);
+    if (!bundle.owned && bundle.cashEnabled && Number(bundle.cashPriceMinor) >= 30) {
+      const cashButton = document.createElement('button'); cashButton.type = 'button'; cashButton.className = 'button button-primary store-cash-action'; cashButton.textContent = 'За деньги'; cashButton.addEventListener('click', () => requestManualCashPurchase(bundle)); actions.append(cashButton);
+    }
+    footer.append(prices, actions);
     card.append(label, title, copy, contents, footer); bundleRoot.append(card);
   });
   const membershipRoot = $('#membershipOffers'); membershipRoot.replaceChildren();
@@ -457,18 +538,27 @@ function renderStore(data) {
     const label = document.createElement('span'); label.className = 'membership-kicker'; label.textContent = pack.tier === 'premium' ? 'МАКСИМАЛЬНЫЙ СТАТУС' : 'РАСШИРЕННЫЙ СТАТУС';
     const title = document.createElement('h3'); title.textContent = pack.name;
     const copy = document.createElement('p'); copy.textContent = pack.description;
-    const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`;
+    const prices = document.createElement('div'); prices.className = 'store-price-stack membership-price-stack';
+    if (pack.tokenEnabled !== false) { const price = document.createElement('strong'); price.textContent = `${Number(pack.price).toLocaleString('ru-RU')} ✦`; prices.append(price); }
+    if (pack.cashEnabled && Number(pack.cashPriceMinor) >= 30) { const cashPrice = document.createElement('span'); cashPrice.className = 'store-cash-price'; cashPrice.textContent = formatCashStorePrice(pack.cashPriceMinor,pack.cashCurrency); prices.append(cashPrice); }
     const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'store-preview-button'; previewButton.textContent = 'Что входит';
     previewButton.addEventListener('click', () => openStorePreview({ ...pack, slot: 'membership', description: pack.description + ' Срок добавится к уже активной привилегии.' }));
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = pack.enabled === false ? 'Временно недоступно' : 'Оформить'; button.disabled = pack.enabled === false;
-    button.addEventListener('click', async () => {
-      const approved = await confirmStorePurchase({ title: `Оформить ${pack.name}?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
-      if (!approved) return;
-      button.disabled = true;
-      try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
-      catch (error) { showToast(error.message); button.disabled = false; }
-    });
-    card.append(label, title, copy, previewButton, price, button);
+    const actions = document.createElement('div'); actions.className = 'store-purchase-actions';
+    if (pack.tokenEnabled !== false) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'За токены';
+      button.addEventListener('click', async () => {
+        const approved = await confirmStorePurchase({ title: `Оформить ${pack.name} за токены?`, description: `${pack.description} Срок добавится к уже активной привилегии.`, price: pack.price, balance: state.storeData?.balance ?? state.user?.tokens ?? 0, confirmLabel: 'Подтвердить покупку' });
+        if (!approved) return;
+        button.disabled = true;
+        try { const result = await api('/api/store/membership', { method: 'POST', body: JSON.stringify({ packageId: pack.id }) }); setUser(result.user); showToast(`${pack.name} активирован.`); await loadStore(); }
+        catch (error) { showToast(error.message); button.disabled = false; }
+      });
+      actions.append(button);
+    }
+    if (pack.cashEnabled && Number(pack.cashPriceMinor) >= 30) {
+      const cashButton = document.createElement('button'); cashButton.type = 'button'; cashButton.className = 'button button-primary store-cash-action'; cashButton.textContent = 'За деньги'; cashButton.addEventListener('click', () => requestManualCashPurchase(pack)); actions.append(cashButton);
+    }
+    card.append(label, title, copy, previewButton, prices, actions);
     membershipRoot.append(card);
   });
 }
