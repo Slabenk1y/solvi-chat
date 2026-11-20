@@ -174,6 +174,10 @@ try {
   else pass('Telegram-бот поддерживает deep links, уведомление владельца и ручное подтверждение заказа');
   if (!server.includes('telegram_owner_chat_state') || !server.includes("mso_chat:") || !server.includes('selected.telegram_chat_id') || !server.includes('setActiveTelegramOrder(chatId, orderId)')) fail('Автоматическая переписка владельца с выбранным покупателем не подключена');
   else pass('Владелец может отвечать обычными сообщениями; выбор диалога и переключение между заявками работают без /reply');
+  if (!server.includes('verifyTelegramWebAppInitData') || !server.includes("app.post('/api/auth/telegram-miniapp'") || !server.includes("app.get('/api/admin/telegram/orders'") || !server.includes("app.post('/api/admin/telegram/orders/:id/messages'") || !server.includes('setChatMenuButton') || !server.includes('telegram_order_messages')) fail('Telegram Mini App auth, buyer inbox or message storage is incomplete');
+  else pass('Telegram Mini App: verified owner login, persistent buyer messages, order chat API and owner menu button connected');
+  if (!ownerPublicHtml.includes('data-page="tgchats"') || !ownerPublicHtml.includes('telegram.org/js/telegram-web-app.js') || !ownerPanel.includes('function loadTelegramOrders') || !ownerPanel.includes('function sendTelegramBuyerMessage') || !ownerPublicHtml.includes('id="telegramChatForm"')) fail('Telegram Mini App buyer chat interface is incomplete');
+  else pass('Telegram Mini App owner workspace includes buyer list, chat composer and Telegram SDK');
   if (!server.includes('cashPriceMinor: cash.cashPriceMinor') || !app.includes("requestManualCashPurchase(item)") || !app.includes("cashAction.textContent = 'За деньги'") || !server.includes('tokenEnabled: token.enabled')) fail('Магазин не отображает отдельные способы покупки за токены и реальные деньги');
   else pass('Публичный магазин показывает цену в валюте и отдельную кнопку покупки за деньги');
   if (!ownerPanel.includes('manualStoreOrders') || !ownerPanel.includes('data-manual-order-action="paid"')) fail('В панели владельца нет очереди ручных денежных заявок');
