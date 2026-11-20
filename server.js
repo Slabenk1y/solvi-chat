@@ -1558,7 +1558,17 @@ async function main() {
         const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
         if (!order || order.status !== 'pending') throw new Error('Заявка уже обработана.');
         if (match[1].toLowerCase() === 'accept') {
-          if (order.accepted_at) throw new Error('Заявка уже принята.');
+          if (order.accepted_at) {
+            await telegramApi('editMessageReplyMarkup', {
+              chat_id: chatId, message_id: callback.message.message_id,
+              reply_markup: { inline_keyboard: [[
+                { text: '💸 Оплата получена · выдать товар', callback_data: 'mso_paid:' + orderId },
+                { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
+              ]] }
+            });
+            await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Заявка уже принята. Можно подтвердить оплату после получения денег.' });
+            return;
+          }
           const acceptedAt = nowIso();
           const updated = dbRun("UPDATE manual_store_orders SET accepted_at = ?, updated_at = ? WHERE id = ? AND status = 'pending' AND accepted_at IS NULL", [acceptedAt,acceptedAt,orderId]);
           if (Number(updated.changes) !== 1) throw new Error('Заявку уже принял другой оператор.');
