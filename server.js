@@ -2024,6 +2024,11 @@ async function main() {
           dbGet("SELECT id FROM manual_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,item.id])) return res.status(409).json({ error: 'Этот набор уже приобретён.' });
     }
     let order = dbGet("SELECT * FROM manual_store_orders WHERE user_id = ? AND item_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1", [req.user.id,item.id]);
+    if (order && (Number(order.amount_minor) !== cash.cashPriceMinor || String(order.currency) !== String(cash.cashCurrency))) {
+      const at = nowIso();
+      dbRun("UPDATE manual_store_orders SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'", [at,at,order.id]);
+      order = null;
+    }
     if (!order) {
       const id = 'mso' + crypto.randomUUID().replace(/-/g, '');
       const at = nowIso();
