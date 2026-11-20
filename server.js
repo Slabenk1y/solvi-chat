@@ -1045,6 +1045,18 @@ async function main() {
       active_order_id TEXT,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS telegram_order_messages (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL REFERENCES manual_store_orders(id) ON DELETE CASCADE,
+      telegram_message_id TEXT,
+      direction TEXT NOT NULL CHECK(direction IN ('buyer','owner','system')),
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      read_at TEXT,
+      UNIQUE(order_id, telegram_message_id, direction)
+    );
+    CREATE INDEX IF NOT EXISTS telegram_order_messages_order_created
+      ON telegram_order_messages(order_id, created_at);
     CREATE TABLE IF NOT EXISTS ad_campaigns (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -1367,6 +1379,35 @@ async function main() {
       ready: Boolean(token && botUsernameValid && webhookSecretValid && publicUrlValid),
       ownerNotificationsReady: ownerChatIdValid };
   }
+  function verifyTelegramWebAppInitData(initData) {
+    const settings = manualTelegramSettings();
+    if (!settings.ready || !settings.ownerNotificationsReady) throw new Error('Telegram Mini App пока не настроен.');
+    if (typeof initData !== 'string' || initData.length < 20 || initData.length > 8192) throw new Error('Не удалось проверить данные Telegram. Открой панель через бота.');
+    const params = new URLSearchParams(initData);
+    const receivedHash = String(params.get('hash') || '');
+    const authDate = Number(params.get('auth_date') || 0);
+    const userRaw = params.get('user');
+    if (!/^[a-f0-9]{64}$/i.test(receivedHash) || !Number.isInteger(authDate) || !userRaw) throw new Error('Telegram передал неполные данные авторизации.');
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (authDate > nowSeconds + 60 || nowSeconds - authDate > 86400) throw new Error('Сессия Telegram устарела. Закрой Mini App и открой его снова.');
+    const dataCheckString = [...params.entries()]
+      .filter(([key]) => key !== 'hash')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => key + '=' + value)
+      .join('\n');
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(settings.token).digest();
+    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    const a = Buffer.from(receivedHash, 'hex');
+    const b = Buffer.from(calculatedHash, 'hex');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error('Подпись Telegram не прошла проверку.');
+    let tgUser;
+    try { tgUser = JSON.parse(userRaw); } catch { throw new Error('Некорректные данные пользователя Telegram.'); }
+    if (!tgUser || String(tgUser.id || '') !== settings.ownerChatId) throw new Error('Эта панель доступна только владельцу SOLVI.');
+    const ownerPublicId = String(process.env.OWNER_PUBLIC_ID || '').trim();
+    const owner = ownerPublicId ? dbGet("SELECT * FROM users WHERE public_id = ? AND account_type = 'registered'", [ownerPublicId]) : null;
+    if (!owner || !isOwner(owner)) throw new Error('Аккаунт владельца SOLVI не найден. Проверь OWNER_PUBLIC_ID.');
+    return owner;
+  }
   async function telegramApi(method, payload) {
     const settings = manualTelegramSettings();
     if (!settings.token) throw new Error('Telegram bot token is not configured.');
@@ -1521,10 +1562,14 @@ async function main() {
         }
         await sendTelegramMessage(chatId, 'Заявка SOLVI зарегистрирована. Номер: ' + orderId + '. Сначала владелец должен принять её — после этого вы сможете обсудить товар и способ оплаты. Оплата не проходит через этого бота. Не отправляй сюда пароли или данные банковской карты.');
         if (settings.ownerChatId && !order.telegram_chat_id) {
-          const keyboard = { inline_keyboard: [[
-            { text: '✅ Принять заявку', callback_data: 'mso_accept:' + orderId },
-            { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
-          ]] };
+          const miniAppUrl = settings.publicUrl + '/owner?telegram=1&tab=tgchats&order=' + encodeURIComponent(orderId);
+          const keyboard = { inline_keyboard: [
+            [
+              { text: '✅ Принять заявку', callback_data: 'mso_accept:' + orderId },
+              { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
+            ],
+            [{ text: 'Открыть SOLVI OWNER', web_app: { url: miniAppUrl } }]
+          ] };
           const ownerText = 'Новая заявка SOLVI · ожидает принятия\nПокупатель: ' + order.username + ' (' + order.public_id + ')\nTelegram: ' +
             (telegramUsername ? '@' + telegramUsername : 'username не указан') + '\nТовар: ' + order.item_name +
             '\nЦена: ' + (Number(order.amount_minor) / 100).toFixed(2) + ' ' + order.currency +
@@ -1564,14 +1609,18 @@ async function main() {
         WHERE o.telegram_chat_id = ? AND o.status = 'pending'
         ORDER BY o.updated_at DESC LIMIT 1`, [chatId]);
       if (activeOrder && activeOrder.accepted_at) {
-        const ownerText = 'Сообщение покупателя по заявке ' + activeOrder.id + '\nПокупатель: ' + activeOrder.username + ' (' + activeOrder.public_id + ')\nТовар: ' + activeOrder.item_name + '\n\n' + message.text.slice(0, 2500) + '\n\nЧтобы ответить, нажми кнопку ниже, а затем просто напиши сообщение в чате с ботом.';
-        if (settings.ownerChatId) {
-          try { await sendTelegramMessage(settings.ownerChatId, ownerText, { inline_keyboard: [[{ text: '↩ Ответить этому покупателю', callback_data: 'mso_chat:' + activeOrder.id }]] }); }
+        const buyerBody = message.text.trim().slice(0, 3000);
+        const saved = dbRun('INSERT OR IGNORE INTO telegram_order_messages (id,order_id,telegram_message_id,direction,body,created_at) VALUES (?,?,?,?,?,?)',
+          [crypto.randomUUID(),activeOrder.id,String(message.message_id || ''),'buyer',buyerBody,nowIso()]);
+        if (Number(saved.changes) > 0 && settings.ownerChatId) {
+          const ownerText = 'Сообщение покупателя по заявке ' + activeOrder.id + '\nПокупатель: ' + activeOrder.username + ' (' + activeOrder.public_id + ')\nТовар: ' + activeOrder.item_name + '\n\n' + buyerBody + '\n\nОткрой SOLVI OWNER, чтобы ответить.';
+          const miniAppUrl = settings.publicUrl + '/owner?telegram=1&tab=tgchats&order=' + encodeURIComponent(activeOrder.id);
+          try { await sendTelegramMessage(settings.ownerChatId, ownerText, { inline_keyboard: [
+            [{ text: 'Открыть диалог в SOLVI OWNER', web_app: { url: miniAppUrl } }]
+          ] }); }
           catch (error) { console.warn('[SOLVI] Не удалось переслать сообщение покупателя владельцу:', error.message); }
-          await sendTelegramMessage(chatId, 'Сообщение передано владельцу SOLVI.');
-        } else {
-          await sendTelegramMessage(chatId, 'Переписка открыта, но уведомления владельцу Telegram ещё не настроены.');
         }
+        await sendTelegramMessage(chatId, 'Сообщение передано владельцу SOLVI.');
       } else if (activeOrder) {
         await sendTelegramMessage(chatId, 'Твоя заявка ещё ожидает принятия владельцем. Как только он примет её, вы сможете общаться здесь.');
       } else {
@@ -1700,6 +1749,15 @@ async function main() {
           commands: ownerCommands,
           scope: { type: 'chat', chat_id: Number(settings.ownerChatId) }
         });
+      }
+      if (settings.ownerNotificationsReady) {
+        try {
+          await telegramApi('setChatMenuButton', {
+            chat_id: Number(settings.ownerChatId),
+            menu_button: { type: 'web_app', text: 'SOLVI OWNER', web_app: { url: settings.publicUrl + '/owner?telegram=1' } }
+          });
+          console.log('[SOLVI] Telegram owner Mini App menu button configured.');
+        } catch (error) { console.warn('[SOLVI] Telegram Mini App menu button setup failed:', error.message); }
       }
       console.log('[SOLVI] Telegram bot @' + settings.username + ' webhook registered and verified: ' + expectedWebhookUrl);
     } catch (error) { console.warn('[SOLVI] Telegram webhook setup failed:', error.message); }
@@ -2103,6 +2161,17 @@ async function main() {
     if (user.suspended_until && user.suspended_until > nowIso()) return res.status(403).json({ error: `Доступ временно ограничен. Причина: ${user.suspension_reason || 'нарушение правил'}.` });
     ensureStarterInventory(user.id);
     res.json({ token: issueToken(user), user: publicUser(getUserById(user.id)) });
+  });
+
+  app.post('/api/auth/telegram-miniapp', (req, res) => {
+    try {
+      const owner = verifyTelegramWebAppInitData(req.body?.initData);
+      const token = issueToken(owner);
+      auditAdmin(owner.id, 'telegram_miniapp_login', null, { platform: 'telegram' });
+      res.json({ ok: true, token, user: publicUser(getUserById(owner.id)) });
+    } catch (error) {
+      res.status(401).json({ error: error.message || 'Не удалось войти через Telegram.' });
+    }
   });
 
   app.post('/api/auth/logout', authMiddleware, (req, res) => {
@@ -2688,6 +2757,48 @@ async function main() {
     if (!isOwner(req.user)) return res.status(403).json({ error: 'Функция доступна только владельцу проекта.' });
     next();
   }
+
+  app.get('/api/admin/telegram/orders', authMiddleware, ownerOnly, (_req, res) => {
+    const orders = dbAll(`SELECT o.id,o.user_id,o.item_id,o.item_kind,o.item_name,o.amount_minor,o.currency,
+        o.status,o.telegram_username,o.telegram_chat_id,o.accepted_at,o.created_at,o.updated_at,o.paid_at,
+        u.username,u.public_id,u.account_type,
+        (SELECT m.body FROM telegram_order_messages m WHERE m.order_id=o.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+        (SELECT m.created_at FROM telegram_order_messages m WHERE m.order_id=o.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+        (SELECT COUNT(*) FROM telegram_order_messages m WHERE m.order_id=o.id AND m.direction='buyer' AND m.read_at IS NULL) AS unread_count
+      FROM manual_store_orders o JOIN users u ON u.id=o.user_id
+      WHERE o.telegram_chat_id IS NOT NULL AND o.accepted_at IS NOT NULL AND o.status IN ('pending','paid')
+      ORDER BY COALESCE((SELECT MAX(m.created_at) FROM telegram_order_messages m WHERE m.order_id=o.id),o.updated_at) DESC
+      LIMIT 100`);
+    res.json({ orders });
+  });
+
+  app.get('/api/admin/telegram/orders/:id/messages', authMiddleware, ownerOnly, (req, res) => {
+    const order = dbGet('SELECT id,status,accepted_at,telegram_chat_id FROM manual_store_orders WHERE id=?', [req.params.id]);
+    if (!order || !order.telegram_chat_id || !order.accepted_at) return res.status(404).json({ error: 'Переписка по заявке не найдена или ещё не открыта.' });
+    const readAt = nowIso();
+    dbRun("UPDATE telegram_order_messages SET read_at=COALESCE(read_at,?) WHERE order_id=? AND direction='buyer'", [readAt,order.id]);
+    const messages = dbAll('SELECT id,direction,body,created_at,read_at FROM telegram_order_messages WHERE order_id=? ORDER BY created_at ASC LIMIT 500', [order.id]);
+    res.json({ order, messages });
+  });
+
+  app.post('/api/admin/telegram/orders/:id/messages', authMiddleware, ownerOnly, async (req, res) => {
+    const order = dbGet('SELECT * FROM manual_store_orders WHERE id=?', [req.params.id]);
+    if (!order || !order.telegram_chat_id || !order.accepted_at) return res.status(404).json({ error: 'Переписка по заявке не найдена или ещё не открыта.' });
+    if (order.status !== 'pending') return res.status(409).json({ error: 'Заявка закрыта. Отправлять сообщения больше нельзя.' });
+    const body = typeof req.body?.body === 'string' ? req.body.body.trim().slice(0, 3000) : '';
+    if (!body) return res.status(400).json({ error: 'Напиши сообщение.' });
+    try {
+      const sent = await sendTelegramMessage(order.telegram_chat_id, body);
+      const at = nowIso();
+      const id = crypto.randomUUID();
+      dbRun('INSERT INTO telegram_order_messages (id,order_id,telegram_message_id,direction,body,created_at) VALUES (?,?,?,?,?,?)',
+        [id,order.id,String(sent?.message_id || ''), 'owner', body, at]);
+      auditAdmin(req.user.id, 'telegram_buyer_message_sent', order.id, { userId: order.user_id });
+      res.status(201).json({ ok: true, message: { id, direction: 'owner', body, created_at: at } });
+    } catch (error) {
+      res.status(502).json({ error: 'Не удалось отправить сообщение покупателю: ' + String(error.message || error).slice(0, 180) });
+    }
+  });
 
   // Render control-plane credentials are server-only. Never serialize the API key to the browser.
   const renderControlConfig = () => ({
