@@ -343,8 +343,15 @@
     const s=r.stats||{};
     const pw=r.paymentwall||{};
     const manualOrders=r.manualStoreOrders||[];
-    $('#manualStoreOrders').innerHTML=manualOrders.map(o=>'<article class="growth-row manual-order-row"><div><strong>'+esc(o.item_name)+' · '+(Number(o.amount_minor)/100).toFixed(2)+' '+esc(o.currency)+'</strong><small>'+esc(o.username)+' · '+esc(o.public_id)+' · '+esc(o.account_type==='guest'?'гость':'аккаунт')+'</small><small>Заявка '+esc(o.id)+' · '+date(o.created_at)+(o.telegram_username?' · @'+esc(o.telegram_username):'')+'</small><small>Статус: '+esc(o.status==='pending'?'ожидает оплаты':o.status==='paid'?'оплачено и выдано':'отменена')+'</small></div><div class="inline-actions">'+(o.status==='pending'?'<button class="primary mini" type="button" data-manual-order-action="paid" data-manual-order-id="'+esc(o.id)+'">Оплата получена · выдать</button><button class="danger mini" type="button" data-manual-order-action="cancel" data-manual-order-id="'+esc(o.id)+'">Отклонить</button>':'')+'</div></article>').join('')||'<p class="hint">Заявок на покупку пока нет.</p>';
-    $('#monetizationStats').innerHTML=stat('Токенов в обороте',num(s.tokenSupply))+stat('Заработано сегодня',num(s.earnedToday)+' ✦')+stat('Покупок за токены',num(s.storeSales))+stat('Заявки ожидают оплаты',num(r.manualStoreStats?.pending||0))+stat('Выдано вручную',num(r.manualStoreStats?.paid||0),'Подтверждённых заявок')+stat('Telegram-бот',r.telegramBotConfigured?'Подключён':'Не настроен',r.telegramOwnerConnected?'Уведомления владельцу включены':'Заявки видны в панели');
+    $('#manualStoreOrders').innerHTML=manualOrders.map(o=>{
+       const accepted=Boolean(o.accepted_at);
+       const status=o.status==='paid'?'оплачено и выдано':o.status==='cancelled'?'отменена':accepted?'диалог открыт · ожидается оплата':'ожидает принятия';
+       const actions=o.status!=='pending'?'':accepted
+         ?'<button class="primary mini" type="button" data-manual-order-action="paid" data-manual-order-id="'+esc(o.id)+'">Оплата получена · выдать</button><button class="danger mini" type="button" data-manual-order-action="cancel" data-manual-order-id="'+esc(o.id)+'">Отклонить</button>'
+         :'<button class="primary mini" type="button" data-manual-order-action="accept" data-manual-order-id="'+esc(o.id)+'">Принять заявку · открыть диалог</button><button class="danger mini" type="button" data-manual-order-action="cancel" data-manual-order-id="'+esc(o.id)+'">Отклонить</button>';
+       return '<article class="growth-row manual-order-row"><div><strong>'+esc(o.item_name)+' · '+(Number(o.amount_minor)/100).toFixed(2)+' '+esc(o.currency)+'</strong><small>'+esc(o.username)+' · '+esc(o.public_id)+' · '+esc(o.account_type==='guest'?'гость':'аккаунт')+'</small><small>Заявка '+esc(o.id)+' · '+date(o.created_at)+(o.telegram_username?' · @'+esc(o.telegram_username):'')+'</small><small>Статус: '+esc(status)+'</small></div><div class="inline-actions">'+actions+'</div></article>';
+     }).join('')||'<p class="hint">Заявок на покупку пока нет.</p>';
+     $('#monetizationStats').innerHTML=stat('Токенов в обороте',num(s.tokenSupply))+stat('Заработано сегодня',num(s.earnedToday)+' ✦')+stat('Покупок за токены',num(s.storeSales))+stat('Заявки ожидают оплаты',num(r.manualStoreStats?.pending||0))+stat('Выдано вручную',num(r.manualStoreStats?.paid||0),'Подтверждённых заявок')+stat('Telegram-бот',r.telegramBotConfigured?'Подключён':'Не настроен',r.telegramOwnerConnected?'Уведомления владельцу включены':'Заявки видны в панели');
     const names=new Map((r.products||[]).map(p=>[p.id,p.name]));
     $('#monetizationSales').innerHTML=(r.salesByItem||[]).map(x=>'<div class="detail-row"><span>'+esc(names.get(x.item_id)||x.item_id)+'</span><strong>'+num(x.sales)+' покупок · '+num(x.tokens)+' ✦</strong></div>').join('')||'<p class="hint">Покупок пока нет.</p>';
     const recent=(r.paymentwallRecent||[]).map(x=>'<div class="detail-row"><span>Paymentwall · '+esc(x.username)+' · '+num(x.token_amount)+' ✦</span><strong>'+esc(x.status==='reversed'?'Возврат':'Зачислено')+' · '+date(x.created_at)+'</strong></div>');
@@ -389,10 +396,11 @@
   $('#manualStoreOrders').addEventListener('click',async e=>{
     const button=e.target.closest('[data-manual-order-action]');if(!button)return;
     const id=button.dataset.manualOrderId,action=button.dataset.manualOrderAction;
+    if(action==='accept'&&!await confirmDialog({title:'Принять заявку?',message:'После принятия покупатель сможет писать тебе в Telegram, а его сообщения будут пересылаться владельцу. Выдачи товара пока не будет.',confirmText:'Принять и открыть диалог'}))return;
     if(action==='paid'&&!await confirmDialog({title:'Подтвердить оплату?',message:'Сначала проверь фактическое поступление денег. После подтверждения товар автоматически попадёт в инвентарь пользователя.',confirmText:'Оплата получена · выдать'}))return;
     if(action==='cancel'&&!await confirmDialog({title:'Отклонить заявку?',message:'Товар не будет выдан. Убедись, что оплаты не было или вопрос согласован с покупателем.',confirmText:'Отклонить',danger:true}))return;
     button.disabled=true;
-    try{await api('/api/admin/manual-store-orders/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({action})});await loadMonetization();toast(action==='paid'?'Оплата подтверждена, товар выдан.':'Заявка отменена.');}
+    try{await api('/api/admin/manual-store-orders/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({action})});await loadMonetization();toast(action==='accept'?'Заявка принята, диалог открыт.':action==='paid'?'Оплата подтверждена, товар выдан.':'Заявка отменена.');}
     catch(err){toast(err.message);button.disabled=false;}
   });
   $('#monetizationProducts').addEventListener('click',async e=>{
