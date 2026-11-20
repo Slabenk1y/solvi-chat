@@ -1021,6 +1021,24 @@ async function main() {
     );
     CREATE INDEX IF NOT EXISTS paymentwall_store_orders_user ON paymentwall_store_orders(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS paymentwall_store_orders_status ON paymentwall_store_orders(status, created_at DESC);
+    CREATE TABLE IF NOT EXISTS manual_store_orders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      item_kind TEXT NOT NULL CHECK(item_kind IN ('catalog','membership','bundle')),
+      item_name TEXT NOT NULL,
+      amount_minor INTEGER NOT NULL CHECK(amount_minor >= 30),
+      currency TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','paid','cancelled')),
+      telegram_chat_id TEXT,
+      telegram_username TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      paid_at TEXT,
+      cancelled_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS manual_store_orders_user ON manual_store_orders(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS manual_store_orders_status ON manual_store_orders(status, created_at DESC);
     CREATE TABLE IF NOT EXISTS ad_campaigns (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -1325,6 +1343,199 @@ async function main() {
   app.use(express.json({ limit: '32kb' }));
   app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Слишком много попыток. Попробуйте позже.' } }));
   app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+
+  function manualTelegramSettings() {
+    const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
+    const username = String(process.env.TELEGRAM_BOT_USERNAME || '').trim().replace(/^@/, '');
+    const webhookSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
+    const publicUrl = String(process.env.TELEGRAM_PUBLIC_URL || process.env.APP_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, '');
+    const ownerChatId = String(process.env.TELEGRAM_OWNER_CHAT_ID || '').trim();
+    const botUsernameValid = /^[A-Za-z0-9_]{5,32}$/.test(username);
+    return { token, username, webhookSecret, publicUrl, ownerChatId, botUsernameValid,
+      ready: Boolean(token && botUsernameValid && webhookSecret && publicUrl),
+      ownerNotificationsReady: Boolean(ownerChatId) };
+  }
+  async function telegramApi(method, payload) {
+    const settings = manualTelegramSettings();
+    if (!settings.token) throw new Error('Telegram bot token is not configured.');
+    const response = await fetch('https://api.telegram.org/bot' + settings.token + '/' + method, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload || {}), signal: AbortSignal.timeout(10000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.description || ('Telegram API HTTP ' + response.status));
+    return result.result;
+  }
+  async function sendTelegramMessage(chatId, text, replyMarkup) {
+    if (!chatId) return null;
+    const payload = { chat_id: chatId, text: String(text || '').slice(0, 3900), disable_web_page_preview: true };
+    if (replyMarkup) payload.reply_markup = replyMarkup;
+    return telegramApi('sendMessage', payload);
+  }
+  function resolveManualStoreItem(itemId) {
+    const item = STORE_CATALOG.find(row => row.id === itemId)
+      || MEMBERSHIP_PACKAGES.find(row => row.id === itemId)
+      || STORE_BUNDLES.find(row => row.id === itemId);
+    if (!item) return null;
+    return { item, kind: STORE_CATALOG.some(row => row.id === itemId) ? 'catalog'
+      : MEMBERSHIP_PACKAGES.some(row => row.id === itemId) ? 'membership' : 'bundle' };
+  }
+  function manualOrderTelegramLink(orderId) {
+    const settings = manualTelegramSettings();
+    return settings.ready ? 'https://t.me/' + settings.username + '?start=' + encodeURIComponent(orderId) : '';
+  }
+  function deliverManualStoreOrder(orderId, actorId) {
+    const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
+    if (!order) throw new Error('Заявка не найдена.');
+    if (order.status !== 'pending') throw new Error('Заявка уже обработана.');
+    const resolved = resolveManualStoreItem(order.item_id);
+    if (!resolved || resolved.kind !== order.item_kind) throw new Error('Товар больше не доступен.');
+    const { item, kind } = resolved;
+    const at = nowIso();
+    const delivered = [];
+    transaction(() => {
+      if (kind === 'catalog') {
+        dbRun('INSERT OR IGNORE INTO store_inventory (user_id,item_id,acquired_at,source) VALUES (?,?,?,?)', [order.user_id,item.id,at,'manual-cash-purchase']);
+        if (Number(dbGet('SELECT changes() AS n').n) < 1) throw new Error('Пользователь уже владеет этим предметом.');
+        delivered.push(item.id);
+      } else if (kind === 'bundle') {
+        for (const itemId of item.itemIds) {
+          dbRun('INSERT OR IGNORE INTO store_inventory (user_id,item_id,acquired_at,source) VALUES (?,?,?,?)', [order.user_id,itemId,at,'manual-cash-purchase']);
+          if (Number(dbGet('SELECT changes() AS n').n) > 0) delivered.push(itemId);
+        }
+        if (!delivered.length) throw new Error('Все предметы набора уже есть у пользователя.');
+      } else {
+        const targetUser = getUserById(order.user_id);
+        if (!targetUser) throw new Error('Аккаунт покупателя не найден.');
+        const durationMs = item.hours * 3600000;
+        const currentExpiry = targetUser.paid_subscription_expires_at && Date.parse(targetUser.paid_subscription_expires_at) > Date.now()
+          ? Date.parse(targetUser.paid_subscription_expires_at) : Date.now();
+        const currentTier = targetUser.paid_subscription_tier === 'premium' && currentExpiry > Date.now() ? 'premium' : 'vip';
+        const nextTier = currentTier === 'premium' || item.tier === 'premium' ? 'premium' : 'vip';
+        dbRun('UPDATE users SET paid_subscription_tier = ?, paid_subscription_expires_at = ? WHERE id = ?',
+          [nextTier,new Date(currentExpiry + durationMs).toISOString(),order.user_id]);
+      }
+      const update = dbRun("UPDATE manual_store_orders SET status = 'paid', paid_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'", [at,at,order.id]);
+      if (Number(update.changes) !== 1) throw new Error('Заявка уже обработана.');
+      auditAdmin(actorId, 'manual_store_order_paid', order.id, {
+        userId: order.user_id, itemId: order.item_id, itemKind: order.item_kind,
+        amountMinor: order.amount_minor, currency: order.currency, delivered
+      });
+    });
+    io?.to?.(userRoom(order.user_id))?.emit('billing:store-purchase-completed', { itemId: order.item_id });
+    return { order, delivered };
+  }
+  async function notifyManualOrderBuyer(orderId, message) {
+    const order = dbGet('SELECT telegram_chat_id FROM manual_store_orders WHERE id = ?', [orderId]);
+    if (!order?.telegram_chat_id) return;
+    try { await sendTelegramMessage(order.telegram_chat_id, message); }
+    catch (error) { console.warn('[SOLVI] Не удалось отправить уведомление покупателю в Telegram:', error.message); }
+  }
+  async function handleTelegramSupportUpdate(update) {
+    const settings = manualTelegramSettings();
+    const message = update?.message;
+    if (message?.chat?.type === 'private' && typeof message.text === 'string') {
+      const chatId = String(message.chat.id);
+      const parts = message.text.trim().split(/\s+/);
+      const command = (parts[0] || '').toLowerCase();
+      if (command === '/id') {
+        await sendTelegramMessage(chatId, 'ID этого чата: ' + chatId + '\nДобавь число в Render → Environment → TELEGRAM_OWNER_CHAT_ID для уведомлений о новых заявках.');
+        return;
+      }
+      if (command === '/help' || (command === '/start' && !parts[1])) {
+        await sendTelegramMessage(chatId, 'SOLVI — поддержка заявок. Создай заявку на покупку в магазине SOLVI, затем открой эту переписку по ссылке из заявки. Команда /id показывает ID приватного чата владельца.');
+        return;
+      }
+      if (command === '/paysupport') {
+        await sendTelegramMessage(chatId, 'Бот SOLVI не принимает и не подтверждает платежи. По вопросам оплаты обратись к владельцу проекта; Telegram support не обрабатывает покупки SOLVI.');
+        return;
+      }
+      if (command === '/start' && parts[1] && /^mso[a-f0-9]{32}$/i.test(parts[1])) {
+        const orderId = parts[1];
+        const order = dbGet('SELECT o.*,u.username,u.public_id FROM manual_store_orders o JOIN users u ON u.id=o.user_id WHERE o.id = ?', [orderId]);
+        if (!order) { await sendTelegramMessage(chatId, 'Не нашёл эту заявку. Создай новую из магазина SOLVI.'); return; }
+        if (order.status !== 'pending') { await sendTelegramMessage(chatId, 'Эта заявка уже обработана. Статус: ' + order.status + '.'); return; }
+        const telegramUsername = String(message.from?.username || '');
+        dbRun("UPDATE manual_store_orders SET telegram_chat_id = ?, telegram_username = ?, updated_at = ? WHERE id = ? AND status = 'pending'",
+          [chatId,telegramUsername,nowIso(),orderId]);
+        await sendTelegramMessage(chatId, 'Заявка SOLVI принята. Номер: ' + orderId + '. Владелец увидит запрос и свяжется с тобой. Оплата не проходит через этого бота — согласуй её с владельцем отдельно. Не отправляй сюда пароли или данные банковской карты.');
+        if (settings.ownerChatId) {
+          const keyboard = { inline_keyboard: [[
+            { text: '✅ Подтвердить оплату и выдать', callback_data: 'mso_paid:' + orderId },
+            { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
+          ]] };
+          const ownerText = 'Новая заявка SOLVI\nПокупатель: ' + order.username + ' (' + order.public_id + ')\nTelegram: ' +
+            (telegramUsername ? '@' + telegramUsername : 'username не указан') + '\nТовар: ' + order.item_name +
+            '\nЦена: ' + (Number(order.amount_minor) / 100).toFixed(2) + ' ' + order.currency +
+            '\nЗаявка: ' + orderId + '\nПроверь оплату вне Telegram, затем подтверди выдачу в панели.';
+          try { await sendTelegramMessage(settings.ownerChatId, ownerText, keyboard); }
+          catch (error) { console.warn('[SOLVI] Не удалось уведомить владельца о заявке:', error.message); }
+        }
+        return;
+      }
+      return;
+    }
+    const callback = update?.callback_query;
+    if (callback?.data) {
+      const current = manualTelegramSettings();
+      const chatId = String(callback.message?.chat?.id || '');
+      const senderId = String(callback.from?.id || '');
+      if (!current.ownerChatId || chatId !== current.ownerChatId || senderId !== current.ownerChatId) {
+        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Эта кнопка доступна только владельцу.' });
+        return;
+      }
+      const match = callback.data.match(/^mso_(paid|cancel):(mso[a-f0-9]{32})$/i);
+      if (!match) {
+        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Неизвестное действие.' });
+        return;
+      }
+      const orderId = match[2];
+      const ownerPublicId = String(process.env.OWNER_PUBLIC_ID || '').trim();
+      const owner = ownerPublicId ? dbGet('SELECT id FROM users WHERE public_id = ?', [ownerPublicId]) : null;
+      if (!owner) {
+        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Владелец SOLVI ещё не назначен.' });
+        return;
+      }
+      try {
+        if (match[1].toLowerCase() === 'paid') {
+          deliverManualStoreOrder(orderId, owner.id);
+          await notifyManualOrderBuyer(orderId, 'Оплата по заявке SOLVI подтверждена. Товар выдан в твой аккаунт.');
+          await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Оплата подтверждена, товар выдан.' });
+        } else {
+          const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
+          if (!order || order.status !== 'pending') throw new Error('Заявка уже обработана.');
+          transaction(() => {
+            dbRun("UPDATE manual_store_orders SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),nowIso(),orderId]);
+            auditAdmin(owner.id, 'manual_store_order_cancelled', orderId, { userId: order.user_id, itemId: order.item_id });
+          });
+          await notifyManualOrderBuyer(orderId, 'Заявка SOLVI отменена. Товар не выдавался.');
+          await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Заявка отклонена.' });
+        }
+      } catch (error) {
+        await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: error.message.slice(0, 180), show_alert: true });
+      }
+    }
+  }
+  async function configureTelegramSupportWebhook() {
+    const settings = manualTelegramSettings();
+    if (!settings.ready) {
+      console.log('[SOLVI] Telegram support bot is not configured; manual orders remain available in the owner panel.');
+      return;
+    }
+    try {
+      await telegramApi('setWebhook', { url: settings.publicUrl + '/telegram/webhook', secret_token: settings.webhookSecret, allowed_updates: ['message','callback_query'], drop_pending_updates: false });
+      console.log('[SOLVI] Telegram support webhook configured.');
+    } catch (error) { console.warn('[SOLVI] Telegram webhook setup failed:', error.message); }
+  }
+  app.post('/telegram/webhook', (req, res) => {
+    const secret = String(manualTelegramSettings().webhookSecret || '');
+    const provided = String(req.get('x-telegram-bot-api-secret-token') || '');
+    const expectedBuffer = Buffer.from(secret);
+    const providedBuffer = Buffer.from(provided);
+    if (!secret || expectedBuffer.length !== providedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, providedBuffer)) return res.sendStatus(403);
+    res.sendStatus(200);
+    Promise.resolve(handleTelegramSupportUpdate(req.body)).catch(error => console.warn('[SOLVI] Telegram update failed:', error.message));
+  });
 
   app.get('/api/ping', (_req, res) => res.status(200).json({ ok: true, service: 'solvi-chat' }));
 
@@ -1763,14 +1974,72 @@ async function main() {
     const owned = new Set(dbAll('SELECT item_id FROM store_inventory WHERE user_id = ?', [req.user.id]).map(row => row.item_id));
     const equipped = getEquippedItems(req.user.id);
     const items = STORE_CATALOG.map(item => {
-      const override = storePrice(item.id, item.price);
-      return { ...item, price: override.price, enabled: override.enabled, owned: owned.has(item.id), equipped: equipped[item.slot] === item.id };
+      const token = storePrice(item.id, item.price);
+      const cash = cashStorePrice(item.id);
+      return {
+        ...item, price: token.price, tokenEnabled: token.enabled,
+        cashPriceMinor: cash.cashPriceMinor, cashCurrency: cash.cashCurrency, cashEnabled: cash.cashEnabled,
+        enabled: token.enabled || cash.cashEnabled,
+        owned: owned.has(item.id), equipped: equipped[item.slot] === item.id
+      };
     });
     const inventory = dbAll('SELECT item_id, acquired_at, source FROM store_inventory WHERE user_id = ? ORDER BY acquired_at DESC', [req.user.id]);
     const collections = [...new Set(STORE_CATALOG.map(item => item.collection).filter(Boolean))].map(name => ({ name, total: STORE_CATALOG.filter(item => item.collection === name).length, owned: STORE_CATALOG.filter(item => item.collection === name && owned.has(item.id)).length }));
     res.json({ balance: Number(user.tokens || 0), categories: ['Все', ...new Set(STORE_CATALOG.map(item => item.category))], collections, equipped, items, inventory,
-      memberships: MEMBERSHIP_PACKAGES.map(item => ({ ...item, ...storePrice(item.id, item.price), current: effectiveSubscription(user) === item.tier })),
-      bundles: STORE_BUNDLES.map(bundle => ({ ...bundle, ...storePrice(bundle.id, bundle.price), owned: Boolean(dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id]) || dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id])), available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectiveSubscription(user)) : effectiveSubscription(user) === 'premium', requirement: 'Нужен активный VIP или Premium' })) });
+      memberships: MEMBERSHIP_PACKAGES.map(item => {
+        const token = storePrice(item.id, item.price);
+        const cash = cashStorePrice(item.id);
+        return { ...item, ...token, tokenEnabled: token.enabled, ...cash, enabled: token.enabled || cash.cashEnabled, current: effectiveSubscription(user) === item.tier };
+      }),
+      bundles: STORE_BUNDLES.map(bundle => {
+        const token = storePrice(bundle.id, bundle.price);
+        const cash = cashStorePrice(bundle.id);
+        const ownedBundle = Boolean(
+          dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id, bundle.id]) ||
+          dbGet("SELECT id FROM paymentwall_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id]) ||
+          dbGet("SELECT id FROM manual_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,bundle.id])
+        );
+        return {
+          ...bundle, ...token, tokenEnabled: token.enabled, ...cash, enabled: token.enabled || cash.cashEnabled,
+          owned: ownedBundle,
+          available: bundle.tier === 'vip' ? ['vip','premium'].includes(effectiveSubscription(user)) : effectiveSubscription(user) === 'premium',
+          requirement: 'Нужен активный VIP или Premium'
+        };
+      })
+    });
+  });
+  app.post('/api/billing/manual-store/orders', authMiddleware, rateLimit({ windowMs: 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }), (req, res) => {
+    if (req.user.account_type === 'guest' || isOwner(req.user)) return res.status(403).json({ error: 'Денежные заявки доступны постоянным пользовательским аккаунтам.' });
+    const itemId = String(req.body?.itemId || '');
+    const resolved = resolveManualStoreItem(itemId);
+    if (!resolved) return res.status(404).json({ error: 'Товар не найден.' });
+    const { item, kind } = resolved;
+    const cash = cashStorePrice(item.id);
+    if (!cash.cashEnabled || !Number.isSafeInteger(cash.cashPriceMinor) || cash.cashPriceMinor < 30) return res.status(403).json({ error: 'Для этого товара не включена покупка за реальные деньги.' });
+    if (kind === 'catalog' && dbGet('SELECT item_id FROM store_inventory WHERE user_id = ? AND item_id = ?', [req.user.id,item.id])) return res.status(409).json({ error: 'Этот предмет уже находится в твоей коллекции.' });
+    if (kind === 'bundle') {
+      const tier = effectivePaidSubscription(req.user);
+      if (item.tier === 'premium' ? tier !== 'premium' : !['vip','premium'].includes(tier)) return res.status(403).json({ error: 'Для этого набора нужен активный VIP или Premium.' });
+      if (dbGet('SELECT id FROM store_purchases WHERE user_id = ? AND item_id = ?', [req.user.id,item.id]) ||
+          dbGet("SELECT id FROM manual_store_orders WHERE user_id = ? AND item_id = ? AND status = 'paid'", [req.user.id,item.id])) return res.status(409).json({ error: 'Этот набор уже приобретён.' });
+    }
+    let order = dbGet("SELECT * FROM manual_store_orders WHERE user_id = ? AND item_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1", [req.user.id,item.id]);
+    if (!order) {
+      const id = 'mso' + crypto.randomUUID().replace(/-/g, '');
+      const at = nowIso();
+      dbRun('INSERT INTO manual_store_orders (id,user_id,item_id,item_kind,item_name,amount_minor,currency,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [id,req.user.id,item.id,kind,item.name,cash.cashPriceMinor,cash.cashCurrency,'pending',at,at]);
+      order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [id]);
+    }
+    const settings = manualTelegramSettings();
+    res.status(201).json({
+      ok: true, orderId: order.id, itemName: order.item_name,
+      amountMinor: Number(order.amount_minor), currency: order.currency, status: order.status,
+      telegramUrl: manualOrderTelegramLink(order.id),
+      telegramReady: settings.ready,
+      ownerNotificationsReady: settings.ownerNotificationsReady,
+      contactUrl: String(process.env.SOLVI_TELEGRAM_CONTACT_URL || '').trim()
+    });
   });
   app.get('/api/inventory', authMiddleware, (req, res) => {
     ensureStarterInventory(req.user.id);
@@ -2749,7 +3018,7 @@ async function main() {
   });
   app.patch('/api/admin/store/:itemId/cash-price', authMiddleware, ownerOnly, (req, res) => {
     const item = STORE_CATALOG.find(row => row.id === req.params.itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === req.params.itemId) || STORE_BUNDLES.find(row => row.id === req.params.itemId);
-    if (!item || item.price <= 0) return res.status(404).json({ error: 'Товар не поддерживает прямую денежную цену.' });
+    if (!item) return res.status(404).json({ error: 'Товар не найден.' });
     const priceMinor = Math.trunc(Number(req.body?.priceMinor));
     const currency = String(req.body?.currency || 'RUB').trim().toUpperCase();
     if (!Number.isSafeInteger(priceMinor) || priceMinor < 30 || priceMinor > 100000000 || !/^[A-Z]{3}$/.test(currency)) return res.status(400).json({ error: 'Цена должна быть от 0,30 до 1 000 000 в валюте ISO.' });
@@ -2760,6 +3029,15 @@ async function main() {
       auditAdmin(req.user.id,'store_cash_price',item.id,{priceMinor,currency,enabled:Boolean(enabled)});
     });
     res.json({ ok:true,itemId:item.id,priceMinor,currency,enabled:Boolean(enabled) });
+  });
+  app.delete('/api/admin/store/:itemId/cash-price', authMiddleware, ownerOnly, (req, res) => {
+    const item = STORE_CATALOG.find(row => row.id === req.params.itemId) || MEMBERSHIP_PACKAGES.find(row => row.id === req.params.itemId) || STORE_BUNDLES.find(row => row.id === req.params.itemId);
+    if (!item) return res.status(404).json({ error: 'Товар не найден.' });
+    transaction(() => {
+      dbRun('DELETE FROM cash_store_price_overrides WHERE item_id = ?', [item.id]);
+      auditAdmin(req.user.id, 'store_cash_price_cleared', item.id, {});
+    });
+    res.json({ ok: true, itemId: item.id, cashEnabled: false });
   });
 
   app.get('/api/ads/slot', authMiddleware, (req, res) => {
@@ -2822,6 +3100,35 @@ async function main() {
     res.json({ ok:true });
   });
 
+  app.get('/api/admin/manual-store-orders', authMiddleware, ownerOnly, (_req, res) => {
+    const rows = dbAll(`SELECT o.id,o.user_id,o.item_id,o.item_kind,o.item_name,o.amount_minor,o.currency,o.status,o.telegram_username,o.created_at,o.paid_at,o.cancelled_at,u.username,u.public_id,u.account_type
+      FROM manual_store_orders o JOIN users u ON u.id = o.user_id
+      ORDER BY CASE o.status WHEN 'pending' THEN 0 WHEN 'paid' THEN 1 ELSE 2 END, o.created_at DESC LIMIT 100`);
+    res.json({ orders: rows });
+  });
+  app.patch('/api/admin/manual-store-orders/:id', authMiddleware, ownerOnly, async (req, res) => {
+    const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [req.params.id]);
+    if (!order) return res.status(404).json({ error: 'Заявка не найдена.' });
+    if (order.status !== 'pending') return res.status(409).json({ error: 'Эта заявка уже обработана.' });
+    const action = String(req.body?.action || '');
+    try {
+      if (action === 'paid') {
+        const result = deliverManualStoreOrder(order.id, req.user.id);
+        await notifyManualOrderBuyer(order.id, 'Оплата по заявке SOLVI подтверждена. Товар «' + order.item_name + '» выдан в твой аккаунт.');
+        return res.json({ ok: true, status: 'paid', delivered: result.delivered });
+      }
+      if (action === 'cancel') {
+        transaction(() => {
+          dbRun("UPDATE manual_store_orders SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),nowIso(),order.id]);
+          auditAdmin(req.user.id, 'manual_store_order_cancelled', order.id, { userId: order.user_id, itemId: order.item_id });
+        });
+        await notifyManualOrderBuyer(order.id, 'Заявка SOLVI на «' + order.item_name + '» отменена. Товар не выдавался.');
+        return res.json({ ok: true, status: 'cancelled' });
+      }
+      return res.status(400).json({ error: 'Выбери действие paid или cancel.' });
+    } catch (error) { return res.status(409).json({ error: error.message || 'Не удалось обработать заявку.' }); }
+  });
+
   app.get('/api/admin/monetization', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const now = nowIso();
@@ -2841,8 +3148,28 @@ async function main() {
     const paymentwallRecent = dbAll("SELECT p.provider_reference, p.user_id, u.username, p.token_amount, p.status, p.created_at, p.updated_at FROM paymentwall_token_purchases p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 20");
     const adStats = dbAll("SELECT currency, COUNT(*) AS campaigns, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(CASE WHEN payment_status IN ('paid','comped') THEN price_minor ELSE 0 END),0) AS booked_minor FROM ad_campaigns GROUP BY currency");
     const adCampaigns = dbAll('SELECT * FROM ad_campaigns ORDER BY created_at DESC LIMIT 100');
-    const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => ({ id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'), basePrice: item.price, ...storePrice(item.id, item.price), ...cashStorePrice(item.id), cashSellable: Number(item.price || 0) > 0 && (STORE_CATALOG.some(row => row.id === item.id) || MEMBERSHIP_PACKAGES.some(row => row.id === item.id) || STORE_BUNDLES.some(row => row.id === item.id)), bundleOnly: Boolean(item.bundleOnly) }));
-    res.json({ stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium }, products, salesByItem, payments, paymentwall, paymentwallRecent, cashStoreSales, cashStoreRecent, adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured, paymentwallGoodsConfigured: paymentwallGoodsSettings().configured });
+    const products = [...STORE_CATALOG, ...MEMBERSHIP_PACKAGES, ...STORE_BUNDLES].map(item => {
+      const token = storePrice(item.id, item.price);
+      const cash = cashStorePrice(item.id);
+      return {
+        id: item.id, name: item.name, category: item.category || (item.tier ? item.tier.toUpperCase() + ' · статус' : 'Набор'),
+        basePrice: item.price, price: token.price, tokenEnabled: token.enabled,
+        cashPriceMinor: cash.cashPriceMinor, cashCurrency: cash.cashCurrency, cashEnabled: cash.cashEnabled,
+        enabled: token.enabled || cash.cashEnabled, cashSellable: true, bundleOnly: Boolean(item.bundleOnly)
+      };
+    });
+    const manualStoreOrders = dbAll(`SELECT o.id,o.user_id,o.item_id,o.item_kind,o.item_name,o.amount_minor,o.currency,o.status,o.telegram_username,o.created_at,o.paid_at,o.cancelled_at,u.username,u.public_id,u.account_type
+      FROM manual_store_orders o JOIN users u ON u.id = o.user_id
+      ORDER BY CASE o.status WHEN 'pending' THEN 0 WHEN 'paid' THEN 1 ELSE 2 END, o.created_at DESC LIMIT 100`);
+    const manualStoreStats = dbGet(`SELECT COUNT(*) AS total, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) AS paid FROM manual_store_orders`);
+    const telegramSettings = manualTelegramSettings();
+    res.json({
+      stats: { tokenSupply, earnedToday, tokensEarned: Number(tokenFlow.earned || 0), tokensSpent: Number(tokenFlow.spent || 0), storeSales, activeVip, activePremium, paidVip, paidPremium },
+      products, salesByItem, payments, paymentwall, paymentwallRecent, cashStoreSales, cashStoreRecent, manualStoreOrders, manualStoreStats,
+      telegramBotConfigured: telegramSettings.ready, telegramOwnerConnected: telegramSettings.ownerNotificationsReady,
+      adStats, adCampaigns, paymentwallConfigured: paymentwallSettings().configured, paymentwallGoodsConfigured: paymentwallGoodsSettings().configured
+    });
   });
   app.get('/api/admin/economy', authMiddleware, ownerOnly, (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -3356,6 +3683,7 @@ async function main() {
     console.log('  Для доступа друзьям запустите start-public.bat и передайте им URL + код приглашения.');
     console.log('  Остановка: Ctrl + C\n');
     console.log(`  Готово за ${Date.now() - BOOT_STARTED_AT} мс.\n`);
+    configureTelegramSupportWebhook().catch(error => console.warn('[SOLVI] Telegram webhook setup failed:', error.message));
     if (process.env.SOVLI_AUTO_START_TUNNEL === '1') {
       if (!PUBLIC_TEST_CODE) PUBLIC_TEST_CODE = crypto.randomBytes(6).toString('hex').toUpperCase();
       PUBLIC_MODE = true; PUBLIC_MATCHING = true;
