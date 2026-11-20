@@ -1035,7 +1035,8 @@ async function main() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       paid_at TEXT,
-      cancelled_at TEXT
+      cancelled_at TEXT,
+      accepted_at TEXT
     );
     CREATE INDEX IF NOT EXISTS manual_store_orders_user ON manual_store_orders(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS manual_store_orders_status ON manual_store_orders(status, created_at DESC);
@@ -1117,6 +1118,9 @@ async function main() {
   `);
 
   await initializePersistentStorage();
+
+  const manualOrderColumns = dbAll('PRAGMA table_info(manual_store_orders)').map(column => column.name);
+  if (!manualOrderColumns.includes('accepted_at')) db.exec('ALTER TABLE manual_store_orders ADD COLUMN accepted_at TEXT');
 
   // Backward-compatible migration: keep legacy accounts, normalize unique nicknames,
   // and add synced preferences without collecting birth dates or age declarations.
@@ -1391,6 +1395,7 @@ async function main() {
     const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
     if (!order) throw new Error('Заявка не найдена.');
     if (order.status !== 'pending') throw new Error('Заявка уже обработана.');
+    if (!order.accepted_at) throw new Error('Сначала прими заявку и начни диалог с покупателем.');
     const resolved = resolveManualStoreItem(order.item_id);
     if (!resolved || resolved.kind !== order.item_kind) throw new Error('Товар больше не доступен.');
     const { item, kind } = resolved;
@@ -1469,6 +1474,10 @@ async function main() {
           await sendTelegramMessage(chatId, 'У этой заявки нет привязанного Telegram-чата.');
           return;
         }
+        if (targetOrder.status !== 'pending' || !targetOrder.accepted_at) {
+          await sendTelegramMessage(chatId, 'Сначала прими заявку кнопкой «Принять заявку». До принятия переписка с покупателем закрыта.');
+          return;
+        }
         await sendTelegramMessage(targetOrder.telegram_chat_id, 'Ответ владельца SOLVI по заявке ' + orderId + ':\n' + replyText);
         await sendTelegramMessage(chatId, 'Ответ отправлен покупателю по заявке ' + orderId + '.');
         return;
@@ -1483,36 +1492,42 @@ async function main() {
           await sendTelegramMessage(chatId, 'Эта заявка уже привязана к другому Telegram-чату. Напиши владельцу SOLVI через панель сайта.');
           return;
         }
-        dbRun("UPDATE manual_store_orders SET telegram_chat_id = ?, telegram_username = ?, updated_at = ? WHERE id = ? AND status = 'pending'",
+        dbRun("UPDATE manual_store_orders SET telegram_chat_id = COALESCE(telegram_chat_id, ?), telegram_username = COALESCE(telegram_username, ?), updated_at = ? WHERE id = ? AND status = 'pending'",
           [chatId,telegramUsername,nowIso(),orderId]);
-        await sendTelegramMessage(chatId, 'Заявка SOLVI принята. Номер: ' + orderId + '. Владелец увидит запрос и свяжется с тобой. Оплата не проходит через этого бота — согласуй её с владельцем отдельно. Не отправляй сюда пароли или данные банковской карты.');
-        if (settings.ownerChatId) {
+        if (order.accepted_at) {
+          await sendTelegramMessage(chatId, 'Заявка SOLVI уже принята владельцем. Можешь продолжать переписку здесь. Номер: ' + orderId + '.');
+          return;
+        }
+        await sendTelegramMessage(chatId, 'Заявка SOLVI зарегистрирована. Номер: ' + orderId + '. Сначала владелец должен принять её — после этого вы сможете обсудить товар и способ оплаты. Оплата не проходит через этого бота. Не отправляй сюда пароли или данные банковской карты.');
+        if (settings.ownerChatId && !order.telegram_chat_id) {
           const keyboard = { inline_keyboard: [[
-            { text: '✅ Подтвердить оплату и выдать', callback_data: 'mso_paid:' + orderId },
+            { text: '✅ Принять заявку', callback_data: 'mso_accept:' + orderId },
             { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
           ]] };
-          const ownerText = 'Новая заявка SOLVI\nПокупатель: ' + order.username + ' (' + order.public_id + ')\nTelegram: ' +
+          const ownerText = 'Новая заявка SOLVI · ожидает принятия\nПокупатель: ' + order.username + ' (' + order.public_id + ')\nTelegram: ' +
             (telegramUsername ? '@' + telegramUsername : 'username не указан') + '\nТовар: ' + order.item_name +
             '\nЦена: ' + (Number(order.amount_minor) / 100).toFixed(2) + ' ' + order.currency +
-            '\nЗаявка: ' + orderId + '\nПроверь оплату вне Telegram, затем подтверди выдачу в панели.';
+            '\nЗаявка: ' + orderId + '\nНажми «Принять заявку», чтобы открыть переписку. После обсуждения и фактического получения денег подтверди оплату отдельной кнопкой. Не проси у покупателя данные карты или пароли.';
           try { await sendTelegramMessage(settings.ownerChatId, ownerText, keyboard); }
           catch (error) { console.warn('[SOLVI] Не удалось уведомить владельца о заявке:', error.message); }
         }
         return;
       }
-      const activeOrder = dbGet(`SELECT o.id,o.item_name,u.username,u.public_id
+      const activeOrder = dbGet(`SELECT o.id,o.item_name,o.accepted_at,o.status,u.username,u.public_id
         FROM manual_store_orders o JOIN users u ON u.id=o.user_id
         WHERE o.telegram_chat_id = ? AND o.status = 'pending'
         ORDER BY o.updated_at DESC LIMIT 1`, [chatId]);
-      if (activeOrder) {
-        const ownerText = 'Сообщение покупателя по заявке ' + activeOrder.id + '\nПокупатель: ' + activeOrder.username + ' (' + activeOrder.public_id + ')\nТовар: ' + activeOrder.item_name + '\n\n' + message.text.slice(0, 2500) + '\n\nОтветь командой: /reply ' + activeOrder.id + ' текст ответа';
+      if (activeOrder && activeOrder.accepted_at) {
+        const ownerText = 'Сообщение покупателя по принятой заявке ' + activeOrder.id + '\nПокупатель: ' + activeOrder.username + ' (' + activeOrder.public_id + ')\nТовар: ' + activeOrder.item_name + '\n\n' + message.text.slice(0, 2500) + '\n\nОтветь командой: /reply ' + activeOrder.id + ' текст ответа';
         if (settings.ownerChatId) {
           try { await sendTelegramMessage(settings.ownerChatId, ownerText); }
           catch (error) { console.warn('[SOLVI] Не удалось переслать сообщение покупателя владельцу:', error.message); }
-          await sendTelegramMessage(chatId, 'Сообщение передано владельцу SOLVI. Он сможет ответить здесь.');
+          await sendTelegramMessage(chatId, 'Сообщение передано владельцу SOLVI.');
         } else {
-          await sendTelegramMessage(chatId, 'Заявка сохранена. Владелец увидит её в панели SOLVI, но уведомления Telegram ещё не настроены.');
+          await sendTelegramMessage(chatId, 'Переписка открыта, но уведомления владельцу Telegram ещё не настроены.');
         }
+      } else if (activeOrder) {
+        await sendTelegramMessage(chatId, 'Твоя заявка ещё ожидает принятия владельцем. Как только он примет её, вы сможете общаться здесь.');
       } else {
         await sendTelegramMessage(chatId, 'Чтобы связаться с владельцем по покупке, сначала создай заявку в магазине SOLVI и открой бота по ссылке из неё.');
       }
@@ -1527,7 +1542,7 @@ async function main() {
         await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Эта кнопка доступна только владельцу.' });
         return;
       }
-      const match = callback.data.match(/^mso_(paid|cancel):(mso[a-f0-9]{32})$/i);
+      const match = callback.data.match(/^mso_(accept|paid|cancel):(mso[a-f0-9]{32})$/i);
       if (!match) {
         await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Неизвестное действие.' });
         return;
@@ -1540,18 +1555,36 @@ async function main() {
         return;
       }
       try {
-        if (match[1].toLowerCase() === 'paid') {
+        const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
+        if (!order || order.status !== 'pending') throw new Error('Заявка уже обработана.');
+        if (match[1].toLowerCase() === 'accept') {
+          if (order.accepted_at) throw new Error('Заявка уже принята.');
+          const acceptedAt = nowIso();
+          const updated = dbRun("UPDATE manual_store_orders SET accepted_at = ?, updated_at = ? WHERE id = ? AND status = 'pending' AND accepted_at IS NULL", [acceptedAt,acceptedAt,orderId]);
+          if (Number(updated.changes) !== 1) throw new Error('Заявку уже принял другой оператор.');
+          auditAdmin(owner.id, 'manual_store_order_accepted', orderId, { userId: order.user_id, itemId: order.item_id });
+          await notifyManualOrderBuyer(orderId, 'Владелец SOLVI принял твою заявку на «' + order.item_name + '». Теперь можешь писать сюда, чтобы обсудить покупку и оплату. Не отправляй данные банковской карты или пароли.');
+          await telegramApi('editMessageReplyMarkup', {
+            chat_id: chatId, message_id: callback.message.message_id,
+            reply_markup: { inline_keyboard: [[
+              { text: '💸 Оплата получена · выдать товар', callback_data: 'mso_paid:' + orderId },
+              { text: '✖ Отклонить', callback_data: 'mso_cancel:' + orderId }
+            ]] }
+          });
+          await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Заявка принята. Переписка открыта.' });
+        } else if (match[1].toLowerCase() === 'paid') {
+          if (!order.accepted_at) throw new Error('Сначала прими заявку и обсуди оплату.');
           deliverManualStoreOrder(orderId, owner.id);
-          await notifyManualOrderBuyer(orderId, 'Оплата по заявке SOLVI подтверждена. Товар выдан в твой аккаунт.');
+          await notifyManualOrderBuyer(orderId, 'Оплата по заявке SOLVI подтверждена. Товар «' + order.item_name + '» выдан в твой аккаунт.');
+          await telegramApi('editMessageReplyMarkup', { chat_id: chatId, message_id: callback.message.message_id, reply_markup: { inline_keyboard: [] } });
           await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Оплата подтверждена, товар выдан.' });
         } else {
-          const order = dbGet('SELECT * FROM manual_store_orders WHERE id = ?', [orderId]);
-          if (!order || order.status !== 'pending') throw new Error('Заявка уже обработана.');
           transaction(() => {
             dbRun("UPDATE manual_store_orders SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'", [nowIso(),nowIso(),orderId]);
             auditAdmin(owner.id, 'manual_store_order_cancelled', orderId, { userId: order.user_id, itemId: order.item_id });
           });
           await notifyManualOrderBuyer(orderId, 'Заявка SOLVI отменена. Товар не выдавался.');
+          await telegramApi('editMessageReplyMarkup', { chat_id: chatId, message_id: callback.message.message_id, reply_markup: { inline_keyboard: [] } });
           await telegramApi('answerCallbackQuery', { callback_query_id: callback.id, text: 'Заявка отклонена.' });
         }
       } catch (error) {
@@ -1577,7 +1610,7 @@ async function main() {
         throw new Error('TELEGRAM_BOT_USERNAME does not match the bot token.');
       }
       const expectedWebhookUrl = settings.publicUrl + '/telegram/webhook';
-      await telegramApi('setWebhook', { url: expectedWebhookUrl, secret_token: settings.webhookSecret, allowed_updates: ['message'], drop_pending_updates: false });
+      await telegramApi('setWebhook', { url: expectedWebhookUrl, secret_token: settings.webhookSecret, allowed_updates: ['message', 'callback_query'], drop_pending_updates: false });
       const webhookInfo = await telegramApi('getWebhookInfo', {});
       if (webhookInfo.url !== expectedWebhookUrl) throw new Error('Telegram did not confirm the configured webhook URL.');
       const publicCommands = [
@@ -3201,7 +3234,7 @@ async function main() {
   });
 
   app.get('/api/admin/manual-store-orders', authMiddleware, ownerOnly, (_req, res) => {
-    const rows = dbAll(`SELECT o.id,o.user_id,o.item_id,o.item_kind,o.item_name,o.amount_minor,o.currency,o.status,o.telegram_username,o.created_at,o.paid_at,o.cancelled_at,u.username,u.public_id,u.account_type
+    const rows = dbAll(`SELECT o.id,o.user_id,o.item_id,o.item_kind,o.item_name,o.amount_minor,o.currency,o.status,o.telegram_username,o.telegram_chat_id,o.accepted_at,o.created_at,o.paid_at,o.cancelled_at,u.username,u.public_id,u.account_type
       FROM manual_store_orders o JOIN users u ON u.id = o.user_id
       ORDER BY CASE o.status WHEN 'pending' THEN 0 WHEN 'paid' THEN 1 ELSE 2 END, o.created_at DESC LIMIT 100`);
     res.json({ orders: rows });
@@ -3212,7 +3245,17 @@ async function main() {
     if (order.status !== 'pending') return res.status(409).json({ error: 'Эта заявка уже обработана.' });
     const action = String(req.body?.action || '');
     try {
+      if (action === 'accept') {
+        if (order.accepted_at) return res.status(409).json({ error: 'Заявка уже принята.' });
+        const at = nowIso();
+        const updated = dbRun("UPDATE manual_store_orders SET accepted_at = ?, updated_at = ? WHERE id = ? AND status = 'pending' AND accepted_at IS NULL", [at,at,order.id]);
+        if (Number(updated.changes) !== 1) return res.status(409).json({ error: 'Заявка уже принята.' });
+        auditAdmin(req.user.id, 'manual_store_order_accepted', order.id, { userId: order.user_id, itemId: order.item_id });
+        await notifyManualOrderBuyer(order.id, 'Владелец SOLVI принял твою заявку на «' + order.item_name + '». Теперь можешь писать в Telegram, чтобы обсудить покупку и оплату. Не отправляй данные карты или пароли.');
+        return res.json({ ok: true, status: 'accepted' });
+      }
       if (action === 'paid') {
+        if (!order.accepted_at) return res.status(409).json({ error: 'Сначала прими заявку и начни диалог с покупателем.' });
         const result = deliverManualStoreOrder(order.id, req.user.id);
         await notifyManualOrderBuyer(order.id, 'Оплата по заявке SOLVI подтверждена. Товар «' + order.item_name + '» выдан в твой аккаунт.');
         return res.json({ ok: true, status: 'paid', delivered: result.delivered });
@@ -3225,7 +3268,7 @@ async function main() {
         await notifyManualOrderBuyer(order.id, 'Заявка SOLVI на «' + order.item_name + '» отменена. Товар не выдавался.');
         return res.json({ ok: true, status: 'cancelled' });
       }
-      return res.status(400).json({ error: 'Выбери действие paid или cancel.' });
+      return res.status(400).json({ error: 'Выбери действие accept, paid или cancel.' });
     } catch (error) { return res.status(409).json({ error: error.message || 'Не удалось обработать заявку.' }); }
   });
 
@@ -3258,7 +3301,7 @@ async function main() {
         enabled: token.enabled || cash.cashEnabled, cashSellable: true, bundleOnly: Boolean(item.bundleOnly)
       };
     });
-    const manualStoreOrders = dbAll(`SELECT o.id,o.user_id,o.item_id,o.item_kind,o.item_name,o.amount_minor,o.currency,o.status,o.telegram_username,o.created_at,o.paid_at,o.cancelled_at,u.username,u.public_id,u.account_type
+    const manualStoreOrders = dbAll(`SELECT o.id,o.user_id,o.item_id,o.item_kind,o.item_name,o.amount_minor,o.currency,o.status,o.telegram_username,o.telegram_chat_id,o.accepted_at,o.created_at,o.paid_at,o.cancelled_at,u.username,u.public_id,u.account_type
       FROM manual_store_orders o JOIN users u ON u.id = o.user_id
       ORDER BY CASE o.status WHEN 'pending' THEN 0 WHEN 'paid' THEN 1 ELSE 2 END, o.created_at DESC LIMIT 100`);
     const manualStoreStats = dbGet(`SELECT COUNT(*) AS total, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,
