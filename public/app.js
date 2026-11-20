@@ -1164,7 +1164,6 @@ function activateMatch(match) {
   clearSearchTimer();
   releaseMediaUrls();
   state.activeMatch = match;
-  setMascotEmotion('happy');
   state.messages = [];
   state.favorites = [];
   state.tokenHistoryLoaded = false;
@@ -1422,12 +1421,6 @@ function markRead() {
   state.readPending = true;
   state.socket.emit('chat:read', { matchId: state.activeMatch.matchId }, () => { state.readPending = false; });
 }
-function setMascotEmotion(emotion) {
-  const stage = $('#mascotStage');
-  if (!stage) return;
-  const allowed = ['angry', 'shy', 'surprised', 'bored', 'happy', 'stomp'];
-  stage.dataset.emotion = allowed.includes(emotion) ? emotion : 'shy';
-}
 function startSearch() {
   if (state.config.matchingEnabled === false) { showToast('Публичный подбор пока отключён до завершения проверки безопасности.'); return; }
   if (!state.socket?.connected) { showToast('Подключаемся к серверу. Попробуй ещё раз через секунду.'); return; }
@@ -1440,7 +1433,6 @@ function startSearch() {
   $('#searchStatusText').textContent = 'Подбираем человека с похожими интересами.';
   $('#mascotMessage').textContent = 'Я не волнуюсь! Просто уже ищу тебе собеседника… >///<';
   $('#mascotStage').classList.add('mascot-active');
-  setMascotEmotion('angry');
   $('#mascotSpeech').textContent = 'Б-БАКА! Я УЖЕ ИЩУ!';
   $('#searchWaitingHint').textContent = state.selectedLanguages.length ? 'Ищем человека, с которым у вас есть общий язык.' : 'Языковых ограничений нет — ищем любого подходящего собеседника.';
   setView('search');
@@ -1474,15 +1466,7 @@ function updateSearchTimer() {
     'Я уже приготовила приветствие… Н-но не для тебя лично!'
   ];
   const mascotSpeech = ['Я ИЩУ!', 'УСИКИ НАСТРОЕНЫ!', 'СЫР ПОТОМ!', 'ПИ-ПИ, Я НА ПОСТУ!', 'ХВОСТИК В ДЕЛЕ!', 'МЫШИНОЕ ЧУТЬЁ!'];
-  if (seconds % 6 === 0) {
-    const lineIndex = Math.floor(seconds / 6) % mascotLines.length;
-    $('#mascotMessage').textContent = mascotLines[lineIndex];
-    $('#mascotSpeech').textContent = mascotSpeech[lineIndex % mascotSpeech.length];
-    const lineEmotions = ['angry', 'stomp', 'surprised', 'bored', 'happy', 'shy', 'angry', 'stomp', 'bored', 'happy', 'surprised', 'shy'];
-    setMascotEmotion(lineEmotions[lineIndex % lineEmotions.length]);
-  } else if (seconds > 15) {
-    setMascotEmotion('bored');
-  }
+  if (seconds % 6 === 0) { $('#mascotMessage').textContent = mascotLines[Math.floor(seconds / 6) % mascotLines.length]; $('#mascotSpeech').textContent = mascotSpeech[Math.floor(seconds / 6) % mascotSpeech.length]; }
   $('#mascotStage').dataset.mood = seconds > 15 ? 'impatient' : 'hopeful';
   if (seconds >= 20) $('#searchWaitingHint').textContent = 'Пока ищем — можно подождать или снять часть фильтров.';
   if (seconds >= 30 && (state.selectedLanguages.length || state.selectedInterests.length)) $('#expandSearchButton').hidden = false;
@@ -1500,7 +1484,6 @@ function nextPartner() {
   $('#searchStatusText').textContent = 'Закрываем предыдущий разговор и ищем новую встречу.';
   $('#mascotMessage').textContent = 'Топ-топ! Я уже ищу следующего собеседника. Не благодари!';
   $('#mascotStage').classList.add('mascot-active');
-  setMascotEmotion('stomp');
   $('#mascotSpeech').textContent = 'ТОП-ТОП! ВПЕРЁД!';
   setView('search');
   updateSearchTimer();
@@ -1524,7 +1507,6 @@ function cancelSearch() {
   $('#expandSearchButton').hidden = true;
   state.searching = false;
   $('#mascotStage').classList.remove('mascot-active');
-  setMascotEmotion('shy');
   clearSearchTimer();
   setView('home');
 }

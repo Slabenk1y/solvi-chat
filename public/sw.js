@@ -1,22 +1,12 @@
 'use strict';
 
-const CACHE_NAME = 'sovli-shell-v55-0';
+const CACHE_NAME = 'sovli-shell-v54-0';
 const SHELL = [
   '/',
-  '/styles.css?v=39',
-  '/app.js?v=54',
+  '/styles.css?v=38',
+  '/app.js?v=53',
   '/favicon.svg',
   '/mascot-tsundere.avif',
-  '/mascot-emotions-loader.js?v=1',
-  '/mascot-chunks/part-01.txt',
-  '/mascot-chunks/part-02.txt',
-  '/mascot-chunks/part-03.txt',
-  '/mascot-chunks/part-04.txt',
-  '/mascot-chunks/part-05.txt',
-  '/mascot-chunks/part-06.txt',
-  '/mascot-chunks/part-07.txt',
-  '/mascot-chunks/part-08.txt',
-  '/mascot-chunks/part-09.txt',
   '/manifest.webmanifest',
   '/socket.io/socket.io.js',
   '/owner',
