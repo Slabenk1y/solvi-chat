@@ -176,6 +176,14 @@ try {
   else pass('Публичный магазин показывает цену в валюте и отдельную кнопку покупки за деньги');
   if (!ownerPanel.includes('manualStoreOrders') || !ownerPanel.includes('data-manual-order-action="paid"')) fail('В панели владельца нет очереди ручных денежных заявок');
   else pass('Панель владельца показывает заявки, подтверждает оплату и выдаёт товар');
+  if (!server.includes("placement === 'home'") && !server.includes("['store','home'].includes(placement)")) fail('Рекламные кампании не поддерживают главную страницу');
+  else pass('Реклама выводится на главной странице и в магазине');
+  if (!server.includes("priceMinor === 0 ? 'comped' : 'unpaid'") || !ownerPanel.includes('data-ad-free-launch')) fail('Бесплатная реклама не запускается автоматически или вручную');
+  else pass('Бесплатная реклама может сразу публиковаться без платёжного подтверждения');
+  if (!app.includes("doneButton.onclick = () =>") || !app.includes("loadHomeSponsoredAd")) fail('Кнопка завершения заявки или загрузка рекламы на главной не подключены');
+  else pass('Кнопка «Понятно» закрывает окно заявки; домашняя рекламная зона подключена');
+  if (!server.includes("telegramMissing.push('TELEGRAM_WEBHOOK_SECRET')") || !server.includes("webhookUrl: telegram.ready")) fail('Диагностика Telegram webhook не подключена');
+  else pass('Публичная диагностика Telegram показывает только готовность и недостающие переменные, без секретов');
   if (!server.includes("app.get('/api/ads/slot'") || !server.includes("app.post('/api/admin/ad-campaigns'") || !server.includes("app.patch('/api/admin/ad-campaigns/:id'") || !server.includes('payment_status IN (\'paid\',\'comped\')') || !html.includes('id="storeSponsoredAd"') || !ownerPanel.includes('adCampaignForm')) fail('Платные рекламные размещения не связаны между сервером, магазином и панелью владельца');
   else pass('Прямые рекламные кампании требуют оплаты, показываются в магазине и учитывают статистику');
   if (!server.includes('registration_bonus') || !server.includes('VALUES (?, ?, ?, ?, ?, ?, ?, ?, 50, ?)')) fail('Регистрационный бонус 50 ✦ не настроен');
