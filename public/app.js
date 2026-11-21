@@ -1218,26 +1218,6 @@ function connectSocket() {
     mergeMessage(message);
     playUiSound(740);
   });
-  socket.on('ai:typing:start', message => {
-    if (!state.activeMatch?.isAi || message.match_id !== state.activeMatch.matchId) return;
-    const draft = { ...message, content: '', isTypingDraft: true };
-    const index = state.messages.findIndex(item => item.id === draft.id);
-    if (index >= 0) state.messages[index] = draft;
-    else state.messages.push(draft);
-    renderMessages();
-  });
-  socket.on('ai:typing:chunk', data => {
-    if (!state.activeMatch?.isAi || data.matchId !== state.activeMatch.matchId) return;
-    const draft = state.messages.find(item => item.id === data.messageId && item.isTypingDraft);
-    if (!draft) return;
-    draft.content = String(data.content || '');
-    renderMessages();
-  });
-  socket.on('ai:typing:cancel', data => {
-    state.messages = state.messages.filter(item => item.id !== data.messageId);
-    $('#typingIndicator').hidden = true;
-    renderMessages();
-  });
   socket.on('ai:reward', data => {
     showToast(data.message || 'Награда от ИИ-собеседника!', 5200);
     if (data.itemId && currentView() === 'inventory') loadInventory();
