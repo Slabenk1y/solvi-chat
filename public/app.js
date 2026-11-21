@@ -1235,7 +1235,8 @@ function connectSocket() {
     if (data.userId !== state.activeMatch?.partner?.id) return;
     $('#typingIndicator').hidden = !data.typing;
     clearTimeout(state.partnerTypingTimer);
-    if (data.typing) state.partnerTypingTimer = setTimeout(() => { $('#typingIndicator').hidden = true; }, 2200);
+    // AI typing lasts for its full simulated WPM interval; human typing keeps the safety timeout.
+    if (data.typing && !data.isAi) state.partnerTypingTimer = setTimeout(() => { $('#typingIndicator').hidden = true; }, 2200);
   });
   socket.on('chat:recording', data => {
     if (data.userId === state.activeMatch?.partner?.id) $('#recordingIndicator').hidden = !data.recording;
