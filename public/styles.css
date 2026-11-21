@@ -677,3 +677,13 @@ body.purchase-confirm-open{overflow:hidden;overscroll-behavior:none}
 .membership-price-stack{margin:3px 0}
 .bundle-footer .store-price-stack{margin-right:auto}
 @media(max-width:520px){.store-purchase-actions{width:100%;justify-content:stretch}.store-purchase-actions button{flex:1;min-width:0}.store-item-footer .store-price-stack{width:100%}}
+
+
+/* SOLVI custom gender selectors — avoid native Android/Chrome select popups. */
+.gender-choice-group{display:flex;flex-wrap:wrap;gap:9px;max-width:460px}
+.gender-choice-button{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:46px;min-width:112px;padding:11px 18px;border:1px solid var(--line);border-radius:13px;background:var(--surface);color:var(--ink);font:700 13px/1.2 inherit;cursor:pointer;touch-action:manipulation;transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease}
+.gender-choice-button:hover{border-color:var(--primary);color:var(--primary)}
+.gender-choice-button:active{transform:scale(.98)}
+.gender-choice-button.selected{border-color:var(--primary);background:var(--surface-soft);color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+.gender-choice-button:focus-visible{outline:3px solid color-mix(in srgb,var(--primary) 28%,transparent);outline-offset:2px}
+@media(max-width:620px){.gender-choice-group{max-width:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}.gender-choice-button{width:100%;min-width:0;min-height:48px;padding:10px 8px}}
