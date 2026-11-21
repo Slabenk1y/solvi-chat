@@ -15,7 +15,7 @@
       }
     } catch { /* Private browsing may block local storage. */ }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=42">
+  <link rel="stylesheet" href="/styles.css?v=43">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -124,8 +124,8 @@
           <div id="homeSponsoredAd" class="store-sponsored-ad home-sponsored-ad" hidden></div>
           <div class="search-card">
             <div class="search-card-top"><div class="search-symbol">◎</div><div><div class="card-kicker">СЛУЧАЙНЫЙ ЧАТ · 1 НА 1</div><h2>Найди собеседника</h2><p>Выбери пол собеседника и начни разговор.</p></div><div class="search-decor">✳</div></div>
-            <div class="filter-block gender-filter-block"><div class="filter-heading"><span>ТВОЙ ПОЛ</span><small>Нужен для взаимного подбора</small></div><select id="ownGender" class="field"><option value="">Выбери свой пол</option><option value="male">Мужчина</option><option value="female">Женщина</option></select></div>
-            <div class="filter-block gender-filter-block"><div class="filter-heading"><span>ПОЛ СОБЕСЕДНИКА</span><small>Кого предпочитаешь встретить</small></div><select id="desiredGender" class="field"><option value="male">Мужчина</option><option value="female">Женщина</option><option value="any">Неважно</option></select></div>
+            <div class="filter-block gender-filter-block"><div class="filter-heading"><span>ТВОЙ ПОЛ</span><small>Нужен для взаимного подбора</small></div><div id="ownGenderChoices" class="gender-choice-group" role="group" aria-label="Твой пол"><button class="gender-choice-button" type="button" data-gender-target="own" data-gender="male" aria-pressed="false">Мужчина</button><button class="gender-choice-button" type="button" data-gender-target="own" data-gender="female" aria-pressed="false">Женщина</button></div></div>
+            <div class="filter-block gender-filter-block"><div class="filter-heading"><span>ПОЛ СОБЕСЕДНИКА</span><small>Кого предпочитаешь встретить</small></div><div id="desiredGenderChoices" class="gender-choice-group" role="group" aria-label="Пол собеседника"><button class="gender-choice-button" type="button" data-gender-target="desired" data-gender="male" aria-pressed="false">Мужчина</button><button class="gender-choice-button" type="button" data-gender-target="desired" data-gender="female" aria-pressed="false">Женщина</button><button class="gender-choice-button" type="button" data-gender-target="desired" data-gender="any" aria-pressed="false">Неважно</button></div></div>
             <div class="filter-block" hidden>
               <div class="filter-heading"><span>ЯЗЫК ОБЩЕНИЯ</span><small>Доступен русский язык</small></div>
               <details class="filter-dropdown" id="languagesDropdown">
@@ -375,6 +375,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js" defer></script>
-  <script src="/app.js?v=57" defer></script>
+  <script src="/app.js?v=58" defer></script>
 </body>
 </html>
