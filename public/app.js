@@ -979,7 +979,7 @@ function setUser(user) {
   $('#profileCreatedAt').textContent = `В SOLVI с ${new Date(user.createdAt).toLocaleDateString('ru-RU')}`;
   $('#profileUsername').value = user.username;
   state.ownGender = ['male', 'female'].includes(user.gender) ? user.gender : '';
-  if ($('#ownGender')) $('#ownGender').value = state.ownGender;
+  renderGenderChoices();
   const isGuest = user.accountType === 'guest';
   $('#profileUsername').disabled = isGuest;
   $('#profileUsernameLabel').hidden = isGuest;
@@ -1068,14 +1068,26 @@ function toggleChoice(listName, value, container, values, limit) {
   else state[listName] = [...list, value];
   renderFilters();
 }
+function renderGenderChoices() {
+  const selectedValues = {
+    own: state.ownGender || '',
+    desired: state.desiredGender || 'any'
+  };
+  document.querySelectorAll('[data-gender-target][data-gender]').forEach(button => {
+    const target = button.dataset.genderTarget;
+    const selected = button.dataset.gender === selectedValues[target];
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+}
+
 function renderFilters() {
   const tier = state.user?.subscriptionTier || 'free';
   const languageLimit = tier === 'premium' ? 10 : (tier === 'vip' ? 5 : 3);
   const languages = Array.isArray(state.config.languages) ? state.config.languages : [];
   state.selectedLanguages = (Array.isArray(state.selectedLanguages) ? state.selectedLanguages : [])
     .filter(value => languages.includes(value)).slice(0, languageLimit);
-  if ($('#desiredGender')) $('#desiredGender').value = state.desiredGender || 'any';
-  if ($('#ownGender')) $('#ownGender').value = state.ownGender || '';
+  renderGenderChoices();
   if ($('#standardInterestBlock')) $('#standardInterestBlock').hidden = true;
   if ($('#languageOptions')) renderChoices($('#languageOptions'), languages, state.selectedLanguages, value => toggleChoice('selectedLanguages', value, $('#languageOptions'), languages, languageLimit));
   if ($('#languageSummary')) $('#languageSummary').textContent = state.selectedLanguages.length ? state.selectedLanguages.join(', ') : 'Любой язык';
@@ -1099,7 +1111,7 @@ function buildMatchingPreferences() {
 function validateMatchingPreferences() {
   if (!['male', 'female'].includes(state.ownGender)) {
     showToast('Сначала выбери свой пол в форме поиска — он нужен для взаимного подбора.');
-    $('#ownGender')?.focus();
+    $('#ownGenderChoices button')?.focus();
     return false;
   }
   return true;
@@ -2124,8 +2136,18 @@ $('#guestButton').addEventListener('click', async () => {
   } catch (error) { setAuthError(error.message); }
   finally { button.disabled = false; button.querySelector('span:first-child').textContent = 'Продолжить гостем'; }
 });
-$('#desiredGender').addEventListener('change', () => { state.desiredGender = $('#desiredGender').value; renderFilters(); });
-$('#ownGender').addEventListener('change', () => { state.ownGender = $('#ownGender').value; });
+$('#desiredGenderChoices')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-gender-target="desired"][data-gender]');
+  if (!button) return;
+  state.desiredGender = button.dataset.gender;
+  renderFilters();
+});
+$('#ownGenderChoices')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-gender-target="own"][data-gender]');
+  if (!button) return;
+  state.ownGender = button.dataset.gender;
+  renderGenderChoices();
+});
 $('#findButton').addEventListener('click', startSearch);
 $('#clearFiltersButton').addEventListener('click', () => { state.selectedLanguages = []; state.selectedInterests = []; state.desiredGender = 'any'; if ($('#languagesDropdown')) $('#languagesDropdown').open = false; if ($('#interestsDropdown')) $('#interestsDropdown').open = false; renderFilters(); showToast('Фильтры сброшены.'); });
 $('#nextChatButton').addEventListener('click', nextPartner);
