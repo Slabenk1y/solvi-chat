@@ -697,6 +697,15 @@ const AI_PERSONA_PROFILES = [
   { names: ['Лёша', 'Марк', 'Илья', 'Даня', 'Тим', 'Макс', 'Егор'], avatar: '🎧', gender: 'male', style: 'общительный, любознательный, говорит просто и без пафоса' },
   { names: ['Сэм', 'Рэй', 'Саша', 'Крис', 'Мика'], avatar: '🐸', gender: 'other', style: 'неформальный, доброжелательный, любит необычные идеи и мемы' }
 ];
+function weightedRandom(entries) {
+  const total = entries.reduce((sum, item) => sum + item.weight, 0);
+  let roll = Math.random() * total;
+  for (const item of entries) {
+    roll -= item.weight;
+    if (roll <= 0) return item.value;
+  }
+  return entries[entries.length - 1].value;
+}
 function chooseAiPersona(entry) {
   const candidates = AI_PERSONA_PROFILES.filter(persona => entry.desiredGender === 'any' || persona.gender === entry.desiredGender);
   const pool = candidates.length ? candidates : AI_PERSONA_PROFILES;
@@ -707,7 +716,21 @@ function chooseAiPersona(entry) {
     age: 18 + Math.floor(Math.random() * 18),
     avatar: profile.avatar,
     gender: profile.gender,
-    style: profile.style
+    style: profile.style,
+    typingWpm: weightedRandom([
+      { value: 30, weight: 35 },
+      { value: 60, weight: 30 },
+      { value: 100, weight: 20 },
+      { value: 150, weight: 10 },
+      { value: 200, weight: 5 }
+    ]),
+    writingStyle: weightedRandom([
+      { value: 'grammatical', weight: 22 },
+      { value: 'lowercase_clean', weight: 25 },
+      { value: 'lowercase_commas', weight: 25 },
+      { value: 'casual_typos', weight: 18 },
+      { value: 'short_chat', weight: 10 }
+    ])
   };
 }
 async function startAiFallback(userId) {
@@ -727,6 +750,13 @@ async function startAiFallback(userId) {
   const systemPrompt = [
     'Ты — ИИ-собеседник SOLVI по имени ' + persona.name + '. Твой вымышленный возраст в этой беседе — ' + persona.age + ' лет. У каждого диалога новая персона. Пользователь видит отметку «ИИ-собеседник»: никогда не притворяйся настоящим человеком и не отрицай, что ты ИИ.',
     'Твой характер: ' + persona.style + '. Общайся по-русски естественно, непринуждённо, как живой собеседник в обычном чате: можно шутить, удивляться, спорить, проявлять интерес, иногда использовать эмодзи и разговорные слова. Не будь официозным, не говори как служба поддержки и не превращай разговор в анкету.',
+    'Твоя постоянная манера письма: ' + ({
+      grammatical: 'пиши грамотно: заглавные буквы, нормальная пунктуация, аккуратные формулировки',
+      lowercase_clean: 'пиши преимущественно маленькими буквами, но сохраняй понятные запятые и точки',
+      lowercase_commas: 'пиши маленькими буквами, часто опускай точки, но естественно используй запятые',
+      casual_typos: 'пиши небрежно, в основном маленькими буквами; иногда допускай одну небольшую естественную опечатку, но не порть смысл и не делай ошибки в каждом слове',
+      short_chat: 'пиши короткими разговорными сообщениями, иногда сокращай слова, не злоупотребляй пунктуацией'
+    }[persona.writingStyle] || 'пиши естественно') + '. Не меняй эту манеру от сообщения к сообщению.',
     'В первую очередь отвечай на смысл последнего сообщения и учитывай предыдущие реплики. Не используй случайные реакции и заготовки. Запрещено отвечать фразами вроде «вот это поворот», «понятно», «интересно» или «расскажи ещё» без ясной связи с контекстом. Если сообщение короткое или неоднозначное (например, «а», «хм», «ну»), отреагируй естественно и уточни, что собеседник хотел сказать; не выдумывай за него целую историю. Если задан вопрос — дай прямой ответ. Если человек делится мнением — обсуди именно это мнение, можешь мягко не согласиться и объяснить почему. Не повторяй своими словами всё сообщение пользователя вместо ответа.',
     'Не задавай вопрос в конце каждой реплики. Иногда просто ответь, поделись мыслью или пошути. Спроси что-то по теме только когда это действительно помогает продолжить беседу. Не перескакивай на случайные темы и не задавай повторно то, что уже обсуждали. Помни детали из истории этого диалога.',
     'Не нужно искусственно ограничивать каждый ответ двумя предложениями. Обычно отвечай коротко и по-человечески, но если вопрос требует объяснения — объясни нормально. Не злоупотребляй многоточиями, одинаковыми эмодзи, комплиментами и одинаковым началом сообщений. Не обязательно всегда писать строчными буквами.',
@@ -799,9 +829,11 @@ async function generateAiReply(session, isGreeting = false) {
   }
   throw lastError || new Error('No Gemini model is configured');
 }
-function aiTypingDelay(text) {
-  const length = String(text || '').trim().length;
-  return Math.min(4600, Math.max(1100, 650 + length * 34 + Math.floor(Math.random() * 750)));
+function aiTypingDelay(text, wpm = 60) {
+  const words = Math.max(1, String(text || '').trim().split(/\\s+/).filter(Boolean).length);
+  const baseMs = (words / Math.max(20, Number(wpm) || 60)) * 60_000;
+  const humanVariation = 0.85 + Math.random() * 0.3;
+  return Math.round(Math.min(22_000, Math.max(900, baseMs * humanVariation)));
 }
 function queueAiTurn(userId, session, text) {
   // Keep every user turn in order; never replace a message sent during generation.
@@ -818,7 +850,6 @@ function queueAiTurn(userId, session, text) {
         ? 'Начни разговор одним коротким сообщением: поздоровайся, представься как ИИ-персонаж и задай только один простой вопрос об имени.'
         : input;
       session.history.push({ role: 'user', parts: [{ text: userPrompt }] });
-      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true });
       let generated;
       try { generated = await generateAiReply(session, input === null); }
       catch (error) {
@@ -828,7 +859,11 @@ function queueAiTurn(userId, session, text) {
       if (aiSessions.get(userId) !== session) break;
       const reply = String(generated || '').split(/\\s*<MSG>\\s*/i).map(value => value.trim()).filter(Boolean)[0]
         || fallbackAiReply(session, input === null);
-      await new Promise(resolve => setTimeout(resolve, aiTypingDelay(reply)));
+      // A short pause before typing, then a speed-dependent typing interval.
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      if (aiSessions.get(userId) !== session) break;
+      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true, isAi: true, wpm: session.persona.typingWpm });
+      await new Promise(resolve => setTimeout(resolve, aiTypingDelay(reply, session.persona.typingWpm)));
       if (aiSessions.get(userId) !== session) break;
       const message = {
         id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
