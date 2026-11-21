@@ -592,7 +592,7 @@ async function loadInventory() {
       const category = document.createElement('span'); category.className = 'store-item-category'; category.textContent = `${item.category} · ${item.rarity}`;
       const title = document.createElement('h3'); title.textContent = item.name;
       const desc = document.createElement('p'); desc.textContent = item.description;
-      const source = document.createElement('small'); source.className = 'store-item-collection'; source.textContent = `Получено: ${item.source === 'promo' ? 'промокод' : item.source === 'purchase' ? 'покупка' : item.source === 'manual-cash-purchase' ? 'покупка за деньги' : item.source === 'cash-purchase' ? 'покупка за деньги' : item.source === 'starter' ? 'стартовый предмет' : 'коллекция'} · ${new Date(item.acquiredAt).toLocaleDateString('ru-RU')}`;
+      const source = document.createElement('small'); source.className = 'store-item-collection'; source.textContent = `Получено: ${item.source === 'promo' ? 'промокод' : item.source === 'purchase' ? 'покупка' : item.source === 'manual-cash-purchase' ? 'покупка за деньги' : item.source === 'cash-purchase' ? 'покупка за деньги' : item.source === 'starter' ? 'стартовый предмет' : item.source === 'ai-gift' ? 'подарок от ИИ' : 'коллекция'} · ${new Date(item.acquiredAt).toLocaleDateString('ru-RU')}`;
       meta.append(category, title, desc, source);
       const footer = document.createElement('div'); footer.className = 'store-item-footer';
       const label = document.createElement('strong'); label.className = 'store-item-price'; label.textContent = item.equipped ? 'Используется' : 'В коллекции';
@@ -1170,7 +1170,7 @@ function connectSocket() {
     if (state.activeMatch) $('#partnerStateText').textContent = 'Переподключение…';
   });
   socket.on('presence:count', data => { $('#onlineCount').textContent = String(data.count ?? 0); });
-  socket.on('wallet:updated', data => { if (state.user) state.user.tokens = Number(data.balance || 0); const balance = $('#storeBalance'); if (balance) balance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); const profileBalance = $('#profileTokenBalance'); if (profileBalance) profileBalance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); if (data.earned) showToast(`+${data.earned} токен(ов) за активное общение ✦`, 2200); });
+  socket.on('wallet:updated', data => { if (state.user) state.user.tokens = Number(data.balance || 0); const balance = $('#storeBalance'); if (balance) balance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); const profileBalance = $('#profileTokenBalance'); if (profileBalance) profileBalance.textContent = Number(data.balance || 0).toLocaleString('ru-RU'); if (data.earned && data.reason !== 'ai_chat_reward') showToast(`+${data.earned} токен(ов) за активное общение ✦`, 2200); });
   socket.on('moderation:notice', payload => {
     const message = String(payload?.message || '').trim();
     if (message) showToast(`Сообщение от команды SOLVI: ${message}`, 7500);
@@ -1217,6 +1217,31 @@ function connectSocket() {
     if (!state.activeMatch?.isAi || message.match_id !== state.activeMatch.matchId) return;
     mergeMessage(message);
     playUiSound(740);
+  });
+  socket.on('ai:typing:start', message => {
+    if (!state.activeMatch?.isAi || message.match_id !== state.activeMatch.matchId) return;
+    const draft = { ...message, content: '', isTypingDraft: true };
+    const index = state.messages.findIndex(item => item.id === draft.id);
+    if (index >= 0) state.messages[index] = draft;
+    else state.messages.push(draft);
+    renderMessages();
+  });
+  socket.on('ai:typing:chunk', data => {
+    if (!state.activeMatch?.isAi || data.matchId !== state.activeMatch.matchId) return;
+    const draft = state.messages.find(item => item.id === data.messageId && item.isTypingDraft);
+    if (!draft) return;
+    draft.content = String(data.content || '');
+    renderMessages();
+  });
+  socket.on('ai:typing:cancel', data => {
+    state.messages = state.messages.filter(item => item.id !== data.messageId);
+    $('#typingIndicator').hidden = true;
+    renderMessages();
+  });
+  socket.on('ai:reward', data => {
+    showToast(data.message || 'Награда от ИИ-собеседника!', 5200);
+    if (data.itemId && state.view === 'inventory') loadInventory();
+    if (data.itemId && state.view === 'store') loadStore();
   });
   socket.on('chat:status', data => {
     const item = state.messages.find(message => message.id === data.messageId);
@@ -1406,7 +1431,7 @@ function renderMessages() {
     const mine = message.sender_id === state.user.id;
     const row = document.createElement('div');
     row.id = `message-${String(message.id).replace(/[^a-zA-Z0-9_-]/g, '')}`;
-    row.className = `message-row${mine ? ' mine' : ''}${message.status === 'failed' ? ' failed' : ''}`;
+    row.className = `message-row${mine ? ' mine' : ''}${message.status === 'failed' ? ' failed' : ''}${message.isTypingDraft ? ' ai-streaming' : ''}`;
     const bubble = document.createElement('div');
     bubble.className = `message-bubble${message.type === 'sticker' ? ' sticker-bubble' : ''}`;
     if (message.type === 'sticker') {
@@ -1429,7 +1454,7 @@ function renderMessages() {
       });
       bubble.append(quote);
     }
-    if (message.content) {
+    if (message.content || message.isTypingDraft) {
       const text = document.createElement('div');
       text.className = 'message-text';
       text.textContent = message.content;
@@ -1499,7 +1524,7 @@ function renderMessages() {
       pill.textContent = `${reaction.emoji}${Number(reaction.count) > 1 ? ` ${reaction.count}` : ''}`;
       reactions.append(pill);
     });
-    if (!String(message.id).startsWith('pending:') && !mine) {
+    if (!String(message.id).startsWith('pending:') && !mine && !message.isTypingDraft) {
       ['❤️', '😂', '🔥', '👏'].forEach(emoji => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -1510,7 +1535,7 @@ function renderMessages() {
         reactions.append(button);
       });
     }
-    if (!String(message.id).startsWith('pending:') && !mine) {
+    if (!String(message.id).startsWith('pending:') && !mine && !message.isTypingDraft) {
       const reply = document.createElement('button'); reply.type = 'button'; reply.className = 'message-reply-button'; reply.textContent = '↩ Ответить';
       reply.addEventListener('click', () => {
         state.replyTarget = message;
