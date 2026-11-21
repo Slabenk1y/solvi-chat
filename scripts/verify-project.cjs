@@ -172,7 +172,8 @@ try {
   else pass('Ручные денежные заявки, выдача после подтверждения и сброс денежной цены подключены');
   if (!server.includes("app.post('/telegram/webhook'") || !server.includes('configureTelegramSupportWebhook') || !server.includes('answerCallbackQuery')) fail('Telegram support webhook не подключён');
   else pass('Telegram-бот поддерживает deep links, уведомление владельца и ручное подтверждение заказа');
-  if (!server.includes('telegram_owner_chat_state') || !server.includes("mso_chat:") || !server.includes('selected.telegram_chat_id') || !server.includes('setActiveTelegramOrder(chatId, orderId)')) fail('Автоматическая переписка владельца с выбранным покупателем не подключена');
+  if (!server.includes('telegram_owner_chat_state') || !server.includes("mso_chat:") || !server.includes('setActiveTelegramOrder(chatId, orderId)')) fail('Выбор заявки для Telegram support не подключён');
+  else pass('Telegram support keeps order selection callbacks; owner messages are sent from SOLVI OWNER Mini App');
   else pass('Владелец может отвечать обычными сообщениями; выбор диалога и переключение между заявками работают без /reply');
   if (!server.includes('verifyTelegramWebAppInitData') || !server.includes("app.post('/api/auth/telegram-miniapp'") || !server.includes("app.get('/api/admin/telegram/orders'") || !server.includes("app.post('/api/admin/telegram/orders/:id/messages'") || !server.includes('setChatMenuButton') || !server.includes('telegram_order_messages')) fail('Telegram Mini App auth, buyer inbox or message storage is incomplete');
   else pass('Telegram Mini App: verified owner login, persistent buyer messages, order chat API and owner menu button connected');
