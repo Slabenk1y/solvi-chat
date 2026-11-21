@@ -840,8 +840,8 @@ async function streamAiReply(userId, session, reply) {
 
   const characters = Array.from(String(reply || '').slice(0, 500));
   let visible = '';
-  for (let index = 0; index < characters.length; index += 2) {
-    const chunk = characters.slice(index, index + 2);
+  for (let index = 0; index < characters.length; index += 3) {
+    const chunk = characters.slice(index, index + 3);
     const last = chunk[chunk.length - 1] || '';
     const millisecondsPerCharacter = 60_000 / (wpm * 6);
     let pause = millisecondsPerCharacter * chunk.length * (0.86 + Math.random() * 0.28);
