@@ -681,7 +681,15 @@ function addToQueue(socket, preferences) {
   if (aiSessions.has(userId)) return { ok: false, error: 'Сначала заверши текущий диалог с ИИ-собеседником.' };
   queue.set(userId, entry);
   tryMatch(userId);
-  // AI fallback is intentionally disabled: matching waits for a real person only.
+  if (queue.has(userId)) {
+    const fallbackDelay = Math.max(5_000, Math.min(60_000, Number(process.env.AI_FALLBACK_DELAY_MS) || 15_000));
+    const fallbackTimer = setTimeout(() => {
+      queueFallbackTimers.delete(userId);
+      if (queue.has(userId)) startAiFallback(userId);
+    }, fallbackDelay);
+    fallbackTimer.unref?.();
+    queueFallbackTimers.set(userId, fallbackTimer);
+  }
   return { ok: true };
 }
 const AI_PERSONA_PROFILES = [
@@ -709,10 +717,6 @@ async function startAiFallback(userId) {
   if (!socket) { removeFromQueue(userId); return; }
   if (entry.mode !== 'chat') {
     socket.emit('queue:aiUnavailable', { reason: 'adult_mode' });
-    return;
-  }
-  if (!String(process.env.GEMINI_API_KEY || '').trim()) {
-    socket.emit('queue:aiUnavailable', { reason: 'api_key' });
     return;
   }
   const persona = chooseAiPersona(entry);
