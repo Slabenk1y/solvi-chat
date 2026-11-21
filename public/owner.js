@@ -464,8 +464,12 @@
     const order=state.telegramOrders.find(o=>o.id===state.activeTelegramOrderId)||{};
     $('#telegramChatTitle').textContent=order.username||'Покупатель';
     $('#telegramChatMeta').textContent=(order.item_name||'Заказ SOLVI')+' · '+(Number(order.amount_minor||0)/100).toFixed(2)+' '+(order.currency||'')+' · '+(order.status==='paid'?'товар выдан':'заявка ожидает оплаты');
-    const messages=r.messages||[];
-    $('#telegramChatMessages').innerHTML=messages.map(m=>'<div class="telegram-message '+(m.direction==='owner'?'outgoing':'incoming')+'"><div>'+esc(m.body).replace(/\n/g,'<br>')+'</div><small>'+(m.direction==='owner'?'Ты':'Покупатель')+' · '+date(m.created_at)+'</small></div>').join('')||'<div class="empty-state">Пока сообщений нет. Напиши покупателю первым.</div>';
+    if(r.order&&r.order.id===state.activeTelegramOrderId){
+      const current=state.telegramOrders.find(o=>o.id===state.activeTelegramOrderId);
+      if(current){current.status=r.order.status;current.accepted_at=r.order.accepted_at;}
+    }
+    const messages=Array.isArray(r.messages)?r.messages:[];
+    $('#telegramChatMessages').innerHTML=messages.map(m=>'<div class="telegram-message '+(m.direction==='owner'?'outgoing':'incoming')+'"><div>'+esc(m.body).replace(/\n/g,'<br>')+'</div><small>'+(m.direction==='owner'?'Ты':m.direction==='system'?'SOLVI':'Покупатель')+' · '+date(m.created_at)+'</small></div>').join('')||'<div class="empty-state">Пока сообщений нет. Напиши покупателю первым.</div>';
     const canReply=order.status==='pending'&&Boolean(order.accepted_at);
     $('#telegramChatForm').hidden=!canReply;
     $('#telegramChatStatus').textContent=canReply?'Сообщение уйдёт покупателю в Telegram через @solvi_shop_bot.':order.status==='paid'?'Заявка закрыта после выдачи товара. История доступна только для просмотра.':'Сначала прими заявку, чтобы начать переписку.';
