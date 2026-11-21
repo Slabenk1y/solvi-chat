@@ -865,6 +865,8 @@ async function streamAiReply(userId, session, reply) {
   session.history = session.history.slice(-20);
   io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false, isAi: true });
   io.to(userRoom(userId)).emit('ai:message', message);
+  // Start the next activity window after the AI has finished replying, not while the user waits.
+  session.lastRewardActivityAt = Date.now();
   return true;
 }
 function recordAiChatActivity(userId, session) {
