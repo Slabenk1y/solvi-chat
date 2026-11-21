@@ -1240,8 +1240,8 @@ function connectSocket() {
   });
   socket.on('ai:reward', data => {
     showToast(data.message || 'Награда от ИИ-собеседника!', 5200);
-    if (data.itemId && state.view === 'inventory') loadInventory();
-    if (data.itemId && state.view === 'store') loadStore();
+    if (data.itemId && currentView() === 'inventory') loadInventory();
+    if (data.itemId && currentView() === 'store') loadStore();
   });
   socket.on('chat:status', data => {
     const item = state.messages.find(message => message.id === data.messageId);
