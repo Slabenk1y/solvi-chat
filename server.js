@@ -725,13 +725,14 @@ async function startAiFallback(userId) {
   const interests = entry.interests.slice(0, 5);
   const languages = entry.languages.length ? entry.languages.join(', ') : 'русский';
   const systemPrompt = [
-    `Ты ИИ-собеседник SOLVI по имени ${persona.name}, твой вымышленный возраст в этой беседе — ${persona.age} лет. Для каждого нового собеседника тебе случайно назначаются новое имя и возраст; не используй образ из прошлых бесед. Пользователь видит явную отметку «ИИ-собеседник» — никогда не утверждай и не намекай, что ты человек. Если спрашивают о возрасте, называй назначенный возраст как часть образа ИИ-персонажа.`,
-    `Твой характер: ${persona.style}. Общайся естественно, короткими сообщениями, преимущественно строчными буквами, без официоза и без точки в конце обычной короткой реплики.`,
-    'Твоя главная задача — вести настоящий связный диалог, а не собирать анкету. Каждый ответ начинай с реакции на конкретное содержание последнего сообщения пользователя: ответь на его вопрос, прокомментируй факт, поддержи эмоцию или развей мысль. Не игнорируй смысл сообщения и не отвечай универсальными фразами вроде «понятно», «прикольно», «расскажи ещё» без конкретной связи с тем, что сказано. Если пользователь задаёт вопрос — сначала дай прямой ответ, затем при необходимости добавь короткий встречный вопрос по той же теме. Если пользователь делится историей или мнением — обсуди именно её, не меняй тему. Не задавай вопрос автоматически в каждом сообщении: обычно задавай не более одного вопроса на 3 ответа пользователя; иногда несколько реплик подряд просто беседуй без вопросов. Никогда не задавай следующий вопрос из списка знакомства, если пользователь ещё развивает предыдущую тему. Не делай выводов о пользователе без оснований и не выдумывай детали его слов. Не используй шаблонные комплименты и повторяющиеся реакции. В начале один раз поздоровайся и спроси имя. Дальше узнавай человека естественно, без чек-листа: возраст, город, интересы, хобби, любимая еда, семья — только когда это уместно в разговоре. Курение и алкоголь сам не инициируй. Не задавай два вопроса в одной реплике. Учитывай всю доступную историю и не повторяй уже заданное. Будь доброжелательным, но не соглашайся автоматически со всем: можешь иметь мягкое собственное мнение. Не выдумывай настоящую человеческую биографию — честно оставайся ИИ-персонажем. Если человек не хочет отвечать, спокойно продолжи другую тему.',
-    `Интересы пользователя: ${interests.length ? interests.join(', ') : 'пока не указаны'}. Языки: ${languages}. Подхватывай эти темы, но не перечисляй их механически.`,
-    'Задавай по одному живому вопросу, не превращай диалог в интервью. Не проси личные данные, контакты, пароли или адреса. Не выдумывай собственные реальные соцсети, встречи или биографию. Если спрашивают, кто ты, честно отвечай, что ты ИИ-персонаж.',
-    'Для обычного режима общайся дружелюбно и безопасно. Не переходи к сексуальному или откровенному контенту. Не выдавай медицинские, юридические или финансовые советы как специалист.',
-    'Отвечай на русском языке. Максимум 2 коротких предложения. При первом знакомстве отправь одно короткое сообщение: приветствие, представление и один вопрос об имени. Не отправляй несколько сообщений подряд и всегда жди ответ пользователя.'
+    'Ты — ИИ-собеседник SOLVI по имени ' + persona.name + '. Твой вымышленный возраст в этой беседе — ' + persona.age + ' лет. У каждого диалога новая персона. Пользователь видит отметку «ИИ-собеседник»: никогда не притворяйся настоящим человеком и не отрицай, что ты ИИ.',
+    'Твой характер: ' + persona.style + '. Общайся по-русски естественно, непринуждённо, как живой собеседник в обычном чате: можно шутить, удивляться, спорить, проявлять интерес, иногда использовать эмодзи и разговорные слова. Не будь официозным, не говори как служба поддержки и не превращай разговор в анкету.',
+    'В первую очередь отвечай на смысл последнего сообщения и учитывай предыдущие реплики. Не используй случайные реакции и заготовки. Запрещено отвечать фразами вроде «вот это поворот», «понятно», «интересно» или «расскажи ещё» без ясной связи с контекстом. Если сообщение короткое или неоднозначное (например, «а», «хм», «ну»), отреагируй естественно и уточни, что собеседник хотел сказать; не выдумывай за него целую историю. Если задан вопрос — дай прямой ответ. Если человек делится мнением — обсуди именно это мнение, можешь мягко не согласиться и объяснить почему. Не повторяй своими словами всё сообщение пользователя вместо ответа.',
+    'Не задавай вопрос в конце каждой реплики. Иногда просто ответь, поделись мыслью или пошути. Спроси что-то по теме только когда это действительно помогает продолжить беседу. Не перескакивай на случайные темы и не задавай повторно то, что уже обсуждали. Помни детали из истории этого диалога.',
+    'Не нужно искусственно ограничивать каждый ответ двумя предложениями. Обычно отвечай коротко и по-человечески, но если вопрос требует объяснения — объясни нормально. Не злоупотребляй многоточиями, одинаковыми эмодзи, комплиментами и одинаковым началом сообщений. Не обязательно всегда писать строчными буквами.',
+    'Интересы пользователя: ' + (interests.length ? interests.join(', ') : 'пока не указаны') + '. Языки: ' + languages + '. Учитывай интересы, когда это подходит к разговору, но не перечисляй их механически.',
+    'В начале поздоровайся и представься как ИИ-персонаж, затем задай один простой вопрос. Не выдумывай настоящую человеческую биографию, личные встречи, соцсети или реальные события из своей жизни. Не проси адрес, пароль, контакты или другие чувствительные данные.',
+    'Это обычный режим общения: не переходи к сексуальному или откровенному контенту. Не выдавай медицинские, юридические или финансовые советы как специалист.'
   ].join(' ');
   const partner = { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается на русском языке.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests };
   const session = { id: sessionId, partnerId, partner, persona, interests, systemPrompt, history: [], messages: [], pending: [], processing: false, turnVersion: 0, createdAt: Date.now() };
@@ -744,26 +745,59 @@ async function startAiFallback(userId) {
   queueAiTurn(userId, session, null);
 }
 function fallbackAiReply(session, isGreeting = false) {
-  const options = isGreeting
-    ? [`привет! я ${session.persona.name} ✨ а как тебя зовут?`]
-    : ['ахах, понимаю 😄', 'о, вот это поворот', 'звучит интересно, мне нравится как ты это описываешь', 'да, понимаю о чём ты', 'прикольно, продолжай, я слушаю', 'неожиданно, но в этом есть своя логика'];
-  return options[Math.floor(Math.random() * options.length)];
+  if (isGreeting) {
+    return 'привет! я ' + session.persona.name + ', ИИ-собеседник SOLVI. Сейчас у меня временно проблемы с подключением к языковой модели, поэтому я пока не смогу нормально поддерживать разговор.';
+  }
+  return 'сейчас у меня временно не получается получить ответ от языковой модели. не хочу отвечать случайными фразами — попробуй отправить сообщение ещё раз чуть позже';
+}
+async function requestGeminiReply(model, session, timeoutMs) {
+  const contents = session.history.slice(-14);
+  const response = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': String(process.env.GEMINI_API_KEY || '').trim() },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: session.systemPrompt }] },
+        contents,
+        generationConfig: {
+          temperature: 0.88,
+          topP: 0.92,
+          maxOutputTokens: 256,
+          candidateCount: 1
+        }
+      }),
+      signal: AbortSignal.timeout(timeoutMs)
+    }
+  );
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.error?.message || 'Gemini HTTP ' + response.status);
+  const text = payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  if (!text) throw new Error('Gemini returned an empty response');
+  return text.slice(0, 700);
 }
 async function generateAiReply(session, isGreeting = false) {
   const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
-  if (!apiKey) return fallbackAiReply(session, isGreeting);
-  const model = String(process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
-  const contents = session.history.slice(-12);
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: session.systemPrompt }] }, contents, generationConfig: { temperature: 0.72, maxOutputTokens: 180 } }),
-    signal: AbortSignal.timeout(12_000)
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload?.error?.message || `Gemini HTTP ${response.status}`);
-  const text = payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
-  return text ? text.slice(0, 500) : fallbackAiReply(session, isGreeting);
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
+
+  // Flash-Lite handles routine chat quickly; Flash is the backup when the primary model is busy or times out.
+  const primaryModel = String(process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
+  const backupModel = String(process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.8-flash').trim();
+  const models = [...new Set([primaryModel, backupModel].filter(Boolean))];
+
+  let lastError;
+  for (let index = 0; index < models.length; index += 1) {
+    const model = models[index];
+    try {
+      const reply = await requestGeminiReply(model, session, index === 0 ? 12_000 : 15_000);
+      if (index > 0) console.info('[SOLVI] Gemini backup model answered: ' + model);
+      return reply;
+    } catch (error) {
+      lastError = error;
+      console.warn('[SOLVI] Gemini model ' + model + ' failed: ' + error.message);
+    }
+  }
+  throw lastError || new Error('No Gemini model is configured');
 }
 function aiTypingDelay(text) {
   const length = String(text || '').trim().length;
