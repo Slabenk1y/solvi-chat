@@ -1545,6 +1545,10 @@ async function main() {
         const orderId = parts[1];
         const order = dbGet('SELECT o.*,u.username,u.public_id FROM manual_store_orders o JOIN users u ON u.id=o.user_id WHERE o.id = ?', [orderId]);
         if (!order) { await sendTelegramMessage(chatId, 'Не нашёл эту заявку. Создай новую из магазина SOLVI.'); return; }
+        if (settings.ownerChatId && chatId === settings.ownerChatId && String(message.from?.id || '') === settings.ownerChatId) {
+          await sendTelegramMessage(chatId, 'Это Telegram-аккаунт владельца SOLVI. Для тестовой покупки привяжи отдельный Telegram-аккаунт покупателя.');
+          return;
+        }
         if (order.status !== 'pending') { await sendTelegramMessage(chatId, 'Эта заявка уже обработана. Статус: ' + order.status + '.'); return; }
         const telegramUsername = String(message.from?.username || '');
         if (order.telegram_chat_id && String(order.telegram_chat_id) !== chatId) {
@@ -1581,36 +1585,15 @@ async function main() {
         return;
       }
       if (settings.ownerChatId && chatId === settings.ownerChatId && String(message.from?.id || '') === settings.ownerChatId) {
-        const selected = dbGet(`SELECT o.id,o.item_name,o.telegram_chat_id,o.status,o.accepted_at,u.username,u.public_id
-          FROM telegram_owner_chat_state s
-          JOIN manual_store_orders o ON o.id = s.active_order_id
-          JOIN users u ON u.id = o.user_id
-          WHERE s.owner_chat_id = ? LIMIT 1`, [chatId]);
-        if (!selected || selected.status !== 'pending' || !selected.accepted_at || !selected.telegram_chat_id) {
-          clearActiveTelegramOrder(chatId);
-          const available = dbAll(`SELECT o.id,o.item_name,u.username
-            FROM manual_store_orders o JOIN users u ON u.id=o.user_id
-            WHERE o.status='pending' AND o.accepted_at IS NOT NULL AND o.telegram_chat_id IS NOT NULL
-            ORDER BY o.updated_at DESC LIMIT 8`);
-          const keyboard = available.length ? { inline_keyboard: available.map(row => [{
-            text: '💬 ' + String(row.username || 'Покупатель').slice(0, 20) + ' · ' + String(row.item_name || 'Заявка').slice(0, 24),
-            callback_data: 'mso_chat:' + row.id
-          }]) } : undefined;
-          await sendTelegramMessage(chatId, available.length
-            ? 'Сейчас диалог не выбран. Нажми кнопку нужного покупателя, и дальше просто пиши сообщения сюда.'
-            : 'Нет принятых заявок с открытой перепиской. Сначала прими заявку покупателя.', keyboard);
-          return;
-        }
-        const ownerBody = message.text.trim().slice(0, 3000);
-        const sent = await sendTelegramMessage(selected.telegram_chat_id, ownerBody);
-        dbRun('INSERT OR IGNORE INTO telegram_order_messages (id,order_id,telegram_message_id,direction,body,created_at) VALUES (?,?,?,?,?,?)',
-          [crypto.randomUUID(),selected.id,String(sent?.message_id || ''),'owner',ownerBody,nowIso()]);
+        // The owner replies only inside SOLVI OWNER. Never forward free text from the bot chat:
+        // it can accidentally echo a message back when the owner is also testing as a buyer.
         return;
       }
       const activeOrder = dbGet(`SELECT o.id,o.item_name,o.accepted_at,o.status,u.username,u.public_id
         FROM manual_store_orders o JOIN users u ON u.id=o.user_id
         WHERE o.telegram_chat_id = ? AND o.status = 'pending'
-        ORDER BY o.updated_at DESC LIMIT 1`, [chatId]);
+        ORDER BY CASE WHEN o.accepted_at IS NOT NULL THEN 0 ELSE 1 END,
+          COALESCE(o.accepted_at,o.updated_at) DESC LIMIT 1`, [chatId]);
       if (activeOrder && activeOrder.accepted_at) {
         const buyerBody = message.text.trim().slice(0, 3000);
         const saved = dbRun('INSERT OR IGNORE INTO telegram_order_messages (id,order_id,telegram_message_id,direction,body,created_at) VALUES (?,?,?,?,?,?)',
@@ -2787,6 +2770,10 @@ async function main() {
   app.post('/api/admin/telegram/orders/:id/messages', authMiddleware, ownerOnly, async (req, res) => {
     const order = dbGet('SELECT * FROM manual_store_orders WHERE id=?', [req.params.id]);
     if (!order || !order.telegram_chat_id || !order.accepted_at) return res.status(404).json({ error: 'Переписка по заявке не найдена или ещё не открыта.' });
+    const telegramSettings = manualTelegramSettings();
+    if (telegramSettings.ownerChatId && String(order.telegram_chat_id) === telegramSettings.ownerChatId) {
+      return res.status(409).json({ error: 'Эта заявка привязана к Telegram владельца. Для проверки переписки используй отдельный Telegram-аккаунт покупателя.' });
+    }
     if (order.status !== 'pending') return res.status(409).json({ error: 'Заявка закрыта. Отправлять сообщения больше нельзя.' });
     const body = typeof req.body?.body === 'string' ? req.body.body.trim().slice(0, 3000) : '';
     if (!body) return res.status(400).json({ error: 'Напиши сообщение.' });
