@@ -756,7 +756,7 @@ async function startAiFallback(userId) {
     'Не нужно искусственно ограничивать каждый ответ двумя предложениями. Обычно отвечай коротко и по-человечески, но если вопрос требует объяснения — объясни нормально. Не злоупотребляй многоточиями, одинаковыми эмодзи, комплиментами и одинаковым началом сообщений. Не обязательно всегда писать строчными буквами.',
     'Интересы пользователя: ' + (interests.length ? interests.join(', ') : 'пока не указаны') + '. Языки: ' + languages + '. Учитывай интересы, когда это подходит к разговору, но не перечисляй их механически.',
     'В начале поздоровайся и представься как ИИ-персонаж, затем задай один простой вопрос. Не выдумывай настоящую человеческую биографию, личные встречи, соцсети или реальные события из своей жизни. Не проси адрес, пароль, контакты или другие чувствительные данные.',
-    'Это обычный режим общения: не переходи к сексуальному или откровенному контенту. Не выдавай медицинские, юридические или финансовые советы как специалист.'
+    'Не зажимай обычный разговор: спокойно воспринимай мат, сленг, грубоватые шутки, флирт, темы отношений, ревности, свиданий, секса и взрослой жизни. Не читай нотации и не отказывай только из-за грубых слов или взрослой темы; отвечай естественно и по существу. Не переходи к графическим сексуальным описаниям или эротической ролевой игре: в SOLVI пока нет надёжной проверки возраста для ИИ-диалогов 18+. Не поддерживай сексуальные темы с несовершеннолетними. Не выдавай медицинские, юридические или финансовые советы как специалист.'
   ].join(' ');
   const partner = { id: partnerId, username: persona.name, gender: persona.gender, description: `ИИ-персонаж SOLVI, ${persona.age} лет. Общается на русском языке.`, avatar: persona.avatar, badge: 'ИИ-собеседник', accountType: 'ai', isAi: true, interests };
   const session = { id: sessionId, partnerId, partner, persona, interests, systemPrompt, history: [], messages: [], pending: [], processing: false, turnVersion: 0, createdAt: Date.now() };
@@ -828,44 +828,29 @@ function aiMessageWpm(session) {
   return Math.round(Math.max(50, Math.min(180, base * (0.82 + Math.random() * 0.36))));
 }
 async function streamAiReply(userId, session, reply) {
-  const wpm = aiMessageWpm(session);
   const message = {
     id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
-    client_id: 'ai:' + crypto.randomUUID(), content: '', created_at: nowIso(),
-    delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
-    sticker: null, attachments: [], reactions: [], replyTo: null, isTypingDraft: true
+    client_id: 'ai:' + crypto.randomUUID(), content: String(reply || '').slice(0, 500),
+    created_at: nowIso(), delivered_at: nowIso(), read_at: null,
+    message_type: 'text', type: 'text', sticker: null, attachments: [],
+    reactions: [], replyTo: null
   };
-  io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true, isAi: true, wpm });
-  io.to(userRoom(userId)).emit('ai:typing:start', message);
 
-  const characters = Array.from(String(reply || '').slice(0, 500));
-  let visible = '';
-  for (let index = 0; index < characters.length; index += 3) {
-    const chunk = characters.slice(index, index + 3);
-    const last = chunk[chunk.length - 1] || '';
-    const millisecondsPerCharacter = 60_000 / (wpm * 6);
-    let pause = millisecondsPerCharacter * chunk.length * (0.86 + Math.random() * 0.28);
-    if (/[,;:]/.test(last)) pause += 110 + Math.random() * 150;
-    if (/[.!?…]/.test(last)) pause += 180 + Math.random() * 220;
-
-    await new Promise(resolve => setTimeout(resolve, Math.max(45, Math.round(pause))));
-    if (aiSessions.get(userId) !== session) {
-      io.to(userRoom(userId)).emit('ai:typing:cancel', { messageId: message.id });
-      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false, isAi: true });
-      return false;
-    }
-    visible += chunk.join('');
-    io.to(userRoom(userId)).emit('ai:typing:chunk', { matchId: session.id, messageId: message.id, content: visible });
+  // Show the same simple typing indicator used for human partners, then deliver
+  // the complete message in one event (no character-by-character animation).
+  io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true, isAi: true });
+  await new Promise(resolve => setTimeout(resolve, 1800 + Math.floor(Math.random() * 2201)));
+  if (aiSessions.get(userId) !== session) {
+    io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false, isAi: true });
+    return false;
   }
 
-  message.content = visible;
-  message.isTypingDraft = false;
   session.messages.push(message);
   session.history.push({ role: 'model', parts: [{ text: message.content }] });
   session.history = session.history.slice(-20);
   io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false, isAi: true });
   io.to(userRoom(userId)).emit('ai:message', message);
-  // Start the next activity window after the AI has finished replying, not while the user waits.
+  // Start the next activity window after the AI has finished replying.
   session.lastRewardActivityAt = Date.now();
   return true;
 }
@@ -950,8 +935,6 @@ function queueAiTurn(userId, session, text) {
       if (aiSessions.get(userId) !== session) break;
       const reply = String(generated || '').split(/\\s*<MSG>\\s*/i).map(value => value.trim()).filter(Boolean)[0]
         || fallbackAiReply(session, input === null);
-      // The character first pauses to think; only then does the typing indicator appear.
-      await new Promise(resolve => setTimeout(resolve, 3000));
       if (aiSessions.get(userId) !== session) break;
       await streamAiReply(userId, session, reply.slice(0, 500));
     }
