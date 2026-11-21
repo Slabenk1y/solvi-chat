@@ -693,9 +693,9 @@ function addToQueue(socket, preferences) {
   return { ok: true };
 }
 const AI_PERSONA_PROFILES = [
-  { names: ['Мира', 'Алиса', 'Ника', 'Лея', 'Соня', 'Варя', 'Эмма'], avatar: '🌙', gender: 'female', style: 'дружелюбная, внимательная, с живым чувством юмора' },
-  { names: ['Лёша', 'Марк', 'Илья', 'Даня', 'Тим', 'Макс', 'Егор'], avatar: '🎧', gender: 'male', style: 'общительный, любознательный, говорит просто и без пафоса' },
-  { names: ['Сэм', 'Рэй', 'Саша', 'Крис', 'Мика'], avatar: '🐸', gender: 'other', style: 'неформальный, доброжелательный, любит необычные идеи и мемы' }
+  { names: ['Мира', 'Алиса', 'Ника', 'Лея', 'Соня', 'Варя', 'Полина', 'Катя', 'Настя', 'Даша'], avatar: '🌙', gender: 'female', style: 'дружелюбная, внимательная, с живым чувством юмора' },
+  { names: ['Лёша', 'Марк', 'Илья', 'Даня', 'Тим', 'Макс', 'Егор', 'Артём', 'Кирилл', 'Матвей'], avatar: '🎧', gender: 'male', style: 'общительный, любознательный, говорит просто и без пафоса' },
+  { names: ['Саша', 'Женя', 'Валя', 'Шура', 'Слава', 'Паша'], avatar: '🐸', gender: 'other', style: 'неформальный, доброжелательный, любит необычные идеи и мемы' }
 ];
 function weightedRandom(entries) {
   const total = entries.reduce((sum, item) => sum + item.weight, 0);
@@ -871,93 +871,57 @@ function recordAiChatActivity(userId, session) {
   const now = Date.now();
   if (!session.lastRewardActivityAt) {
     session.lastRewardActivityAt = now;
+    session.aiRewardActiveSeconds = 0;
+    session.aiRewardDrops = 0;
+    session.aiRewardNextAt = 60 + Math.floor(Math.random() * 61);
     return;
   }
-  const elapsedSeconds = Math.min(90, Math.max(0, Math.floor((now - session.lastRewardActivityAt) / 1000)));
-  session.lastRewardActivityAt = now;
-  if (elapsedSeconds < 5) return;
 
-  const at = new Date(now).toISOString();
-  const day = at.slice(0, 10);
-  const weeklyCutoff = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-  let tokensAwarded = 0;
-  let giftedItem = null;
-  let promoCode = '';
-  let balance = null;
+  const elapsedSeconds = Math.floor((now - session.lastRewardActivityAt) / 1000);
+  session.lastRewardActivityAt = now;
+
+  // Count only real back-and-forth activity. Long pauses are treated as AFK.
+  if (elapsedSeconds < 3 || elapsedSeconds > 35) return;
+  if (session.aiRewardDrops >= 10) return;
+
+  session.aiRewardActiveSeconds = (session.aiRewardActiveSeconds || 0) + elapsedSeconds;
+  if (session.aiRewardActiveSeconds < (session.aiRewardNextAt || 60)) return;
+
+  const reward = 1 + Math.floor(Math.random() * 30);
+  const at = nowIso();
+  let balance = 0;
 
   try {
     transaction(() => {
-      dbRun('INSERT OR IGNORE INTO ai_chat_reward_daily (user_id, day, active_seconds, reward_level, updated_at) VALUES (?, ?, 0, 0, ?)', [userId, day, at]);
-      const daily = dbGet('SELECT active_seconds, reward_level FROM ai_chat_reward_daily WHERE user_id = ? AND day = ?', [userId, day]);
-      const activeSeconds = Math.min(3600, Number(daily?.active_seconds || 0) + elapsedSeconds);
-      let rewardLevel = Number(daily?.reward_level || 0);
-      const milestones = [
-        { seconds: 300, level: 1, tokens: 3 },
-        { seconds: 900, level: 2, tokens: 5 },
-        { seconds: 1800, level: 3, tokens: 7 }
-      ];
-      for (const milestone of milestones) {
-        if (activeSeconds >= milestone.seconds && rewardLevel < milestone.level) {
-          tokensAwarded += milestone.tokens;
-          rewardLevel = milestone.level;
-        }
-      }
-      dbRun('UPDATE ai_chat_reward_daily SET active_seconds = ?, reward_level = ?, updated_at = ? WHERE user_id = ? AND day = ?', [activeSeconds, rewardLevel, at, userId, day]);
-
-      if (tokensAwarded > 0) {
-        dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokensAwarded, userId]);
-        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-          [crypto.randomUUID(), userId, 'ai_chat_reward', tokensAwarded, 'Награда за активное общение с ИИ SOLVI', at]);
-      }
-
-      if (activeSeconds >= 1800 && !dbGet("SELECT user_id FROM store_inventory WHERE user_id = ? AND source = 'ai-gift' AND acquired_at >= ?", [userId, weeklyCutoff])) {
-        const owned = new Set(dbAll('SELECT item_id FROM store_inventory WHERE user_id = ?', [userId]).map(row => row.item_id));
-        const giftPool = STORE_CATALOG.filter(item =>
-          !item.starter && !item.id.startsWith('wallpaper-') && item.price > 0 && item.price <= 650 &&
-          ['Стикеры', 'Пузырьки', 'Звуки', 'Рамки', 'Титулы'].includes(item.category) && !owned.has(item.id)
-        );
-        if (giftPool.length) {
-          giftedItem = giftPool[Math.floor(Math.random() * giftPool.length)];
-          dbRun('INSERT INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, ?)', [userId, giftedItem.id, at, 'ai-gift']);
-        }
-      }
-
-      if (activeSeconds >= 3600 && !dbGet("SELECT id FROM promo_codes WHERE target_user_id = ? AND code LIKE 'SOLVIAI-%' AND created_at >= ?", [userId, weeklyCutoff])) {
-        promoCode = 'SOLVIAI-' + crypto.randomBytes(3).toString('hex').toUpperCase();
-        dbRun('INSERT INTO promo_codes (id, code, token_reward, item_id, membership_tier, membership_days, max_uses, uses, starts_at, expires_at, active, created_by, created_at, target_user_id) VALUES (?, ?, 10, NULL, NULL, NULL, 1, 0, ?, ?, 1, NULL, ?, ?)',
-          [crypto.randomUUID(), promoCode, at, new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString(), at, userId]);
-      }
-
+      dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [reward, userId]);
+      dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [crypto.randomUUID(), userId, 'ai_chat_drop', reward, 'Случайный дроп за активный диалог с ИИ SOLVI', at]);
       balance = Number(dbGet('SELECT tokens FROM users WHERE id = ?', [userId])?.tokens || 0);
     });
 
-    if (tokensAwarded > 0) io.to(userRoom(userId)).emit('wallet:updated', { balance, earned: tokensAwarded, reason: 'ai_chat_reward' });
-    const rewardParts = [];
-    if (tokensAwarded) rewardParts.push('+' + tokensAwarded + ' ✦');
-    if (giftedItem) rewardParts.push('подарок «' + giftedItem.name + '» уже в твоём инвентаре');
-    if (promoCode) rewardParts.push('личный промокод ' + promoCode + ' на 10 ✦ (действует 7 дней)');
-    if (!rewardParts.length) return;
+    session.aiRewardDrops = (session.aiRewardDrops || 0) + 1;
+    // Each next drop has its own random active-chat interval.
+    session.aiRewardNextAt = session.aiRewardActiveSeconds + 60 + Math.floor(Math.random() * 121);
 
-    const content = 'слушай, мы уже неплохо поболтали 😊 держи награду: ' + rewardParts.join(' · ') + (promoCode ? '. введи код в разделе промокодов' : '') + ' ✨';
+    io.to(userRoom(userId)).emit('wallet:updated', { balance, earned: reward, reason: 'ai_chat_reward' });
+
+    const content = 'о, тебе выпал дроп! 🎁 +' + reward + ' монеток. продолжаем общаться — вдруг повезёт ещё 😄';
     const message = {
       id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
-      client_id: 'ai-reward:' + crypto.randomUUID(), content, created_at: nowIso(),
-      delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
+      client_id: 'ai-reward:' + crypto.randomUUID(), content, created_at: at,
+      delivered_at: at, read_at: null, message_type: 'text', type: 'text',
       sticker: null, attachments: [], reactions: [], replyTo: null, isAiReward: true
     };
     session.messages.push(message);
-    // Reward notices are UI events, not model turns; keep Gemini's user/model history alternating.
-    session.history = session.history.slice(-20);
     io.to(userRoom(userId)).emit('ai:message', message);
     io.to(userRoom(userId)).emit('ai:reward', {
-      message: 'Награда от ИИ-собеседника: ' + rewardParts.join(' · '),
-      tokens: tokensAwarded,
-      itemId: giftedItem?.id || null,
-      promoCode: promoCode || null,
+      message: 'ИИ-собеседник подарил тебе ' + reward + ' монеток!',
+      tokens: reward,
+      dropsLeft: 10 - session.aiRewardDrops,
       balance
     });
   } catch (error) {
-    console.error('[SOLVI] AI chat reward failed:', error.message);
+    console.error('[SOLVI] AI random drop failed:', error.message);
   }
 }
 function queueAiTurn(userId, session, text) {
