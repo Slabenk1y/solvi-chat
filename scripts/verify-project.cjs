@@ -22,8 +22,8 @@ try {
   else pass('Подбор работает только в обычном чате; старые режимы отклоняются сервером');
   if (!matchingServer.includes('eligibleByGender(current, candidate)') || !matchingServer.includes('eligibleByMode(current, candidate)')) fail('Серверная фильтрация пола и режима отсутствует');
   else pass('Серверная фильтрация пола и единственного режима подключена');
-  if (!matchingHtml.includes('id="desiredGender"') || (!matchingHtml.includes('id="ownGender"') && !matchingHtml.includes('id="profileGender"'))) fail('Не найден выбор пола собеседника или пола пользователя');
-  else pass('Выбор желаемого пола собеседника сохранён');
+  if (!matchingHtml.includes('id="desiredGenderChoices"') || !matchingHtml.includes('id="ownGenderChoices"')) fail('Не найдены фирменные кнопки выбора пола собеседника и пользователя');
+  else pass('Фирменные переключатели пола присутствуют в интерфейсе');
   if (!matchingServer.includes('Режимы флирта и ролевой игры отключены.') || !matchingApp.includes("mode: 'chat'")) fail('Сервер не блокирует запросы отключённых режимов');
   else pass('Прямые запросы отключённых режимов блокируются сервером');
   if (!read('test/integration.test.js').includes("for (const removedMode of ['flirt', 'roleplay'])")) fail('Нет интеграционных проверок запрета отключённых режимов');
