@@ -946,7 +946,7 @@ function recordAiChatActivity(userId, session) {
       sticker: null, attachments: [], reactions: [], replyTo: null, isAiReward: true
     };
     session.messages.push(message);
-    session.history.push({ role: 'model', parts: [{ text: content }] });
+    // Reward notices are UI events, not model turns; keep Gemini's user/model history alternating.
     session.history = session.history.slice(-20);
     io.to(userRoom(userId)).emit('ai:message', message);
     io.to(userRoom(userId)).emit('ai:reward', {
