@@ -717,13 +717,7 @@ function chooseAiPersona(entry) {
     avatar: profile.avatar,
     gender: profile.gender,
     style: profile.style,
-    typingWpm: weightedRandom([
-      { value: 30, weight: 35 },
-      { value: 60, weight: 30 },
-      { value: 100, weight: 20 },
-      { value: 150, weight: 10 },
-      { value: 200, weight: 5 }
-    ]),
+    typingWpm: Math.round(55 + ((Math.random() + Math.random() + Math.random()) / 3) * 110),
     writingStyle: weightedRandom([
       { value: 'grammatical', weight: 22 },
       { value: 'lowercase_clean', weight: 25 },
@@ -829,11 +823,142 @@ async function generateAiReply(session, isGreeting = false) {
   }
   throw lastError || new Error('No Gemini model is configured');
 }
-function aiTypingDelay(text, wpm = 60) {
-  const words = Math.max(1, String(text || '').trim().split(/\\s+/).filter(Boolean).length);
-  const baseMs = (words / Math.max(20, Number(wpm) || 60)) * 60_000;
-  const humanVariation = 0.85 + Math.random() * 0.3;
-  return Math.round(Math.min(22_000, Math.max(900, baseMs * humanVariation)));
+function aiMessageWpm(session) {
+  const base = Number(session.persona.typingWpm) || 95;
+  return Math.round(Math.max(50, Math.min(180, base * (0.82 + Math.random() * 0.36))));
+}
+async function streamAiReply(userId, session, reply) {
+  const wpm = aiMessageWpm(session);
+  const message = {
+    id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
+    client_id: 'ai:' + crypto.randomUUID(), content: '', created_at: nowIso(),
+    delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
+    sticker: null, attachments: [], reactions: [], replyTo: null, isTypingDraft: true
+  };
+  io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true, isAi: true, wpm });
+  io.to(userRoom(userId)).emit('ai:typing:start', message);
+
+  const characters = Array.from(String(reply || '').slice(0, 500));
+  let visible = '';
+  for (let index = 0; index < characters.length; index += 2) {
+    const chunk = characters.slice(index, index + 2);
+    const last = chunk[chunk.length - 1] || '';
+    const millisecondsPerCharacter = 60_000 / (wpm * 6);
+    let pause = millisecondsPerCharacter * chunk.length * (0.86 + Math.random() * 0.28);
+    if (/[,;:]/.test(last)) pause += 110 + Math.random() * 150;
+    if (/[.!?…]/.test(last)) pause += 180 + Math.random() * 220;
+
+    await new Promise(resolve => setTimeout(resolve, Math.max(45, Math.round(pause))));
+    if (aiSessions.get(userId) !== session) {
+      io.to(userRoom(userId)).emit('ai:typing:cancel', { messageId: message.id });
+      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false, isAi: true });
+      return false;
+    }
+    visible += chunk.join('');
+    io.to(userRoom(userId)).emit('ai:typing:chunk', { matchId: session.id, messageId: message.id, content: visible });
+  }
+
+  message.content = visible;
+  message.isTypingDraft = false;
+  session.messages.push(message);
+  session.history.push({ role: 'model', parts: [{ text: message.content }] });
+  session.history = session.history.slice(-20);
+  io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false, isAi: true });
+  io.to(userRoom(userId)).emit('ai:message', message);
+  return true;
+}
+function recordAiChatActivity(userId, session) {
+  const now = Date.now();
+  if (!session.lastRewardActivityAt) {
+    session.lastRewardActivityAt = now;
+    return;
+  }
+  const elapsedSeconds = Math.min(90, Math.max(0, Math.floor((now - session.lastRewardActivityAt) / 1000)));
+  session.lastRewardActivityAt = now;
+  if (elapsedSeconds < 5) return;
+
+  const at = new Date(now).toISOString();
+  const day = at.slice(0, 10);
+  const weeklyCutoff = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  let tokensAwarded = 0;
+  let giftedItem = null;
+  let promoCode = '';
+  let balance = null;
+
+  try {
+    transaction(() => {
+      dbRun('INSERT OR IGNORE INTO ai_chat_reward_daily (user_id, day, active_seconds, reward_level, updated_at) VALUES (?, ?, 0, 0, ?)', [userId, day, at]);
+      const daily = dbGet('SELECT active_seconds, reward_level FROM ai_chat_reward_daily WHERE user_id = ? AND day = ?', [userId, day]);
+      const activeSeconds = Math.min(3600, Number(daily?.active_seconds || 0) + elapsedSeconds);
+      let rewardLevel = Number(daily?.reward_level || 0);
+      const milestones = [
+        { seconds: 300, level: 1, tokens: 3 },
+        { seconds: 900, level: 2, tokens: 5 },
+        { seconds: 1800, level: 3, tokens: 7 }
+      ];
+      for (const milestone of milestones) {
+        if (activeSeconds >= milestone.seconds && rewardLevel < milestone.level) {
+          tokensAwarded += milestone.tokens;
+          rewardLevel = milestone.level;
+        }
+      }
+      dbRun('UPDATE ai_chat_reward_daily SET active_seconds = ?, reward_level = ?, updated_at = ? WHERE user_id = ? AND day = ?', [activeSeconds, rewardLevel, at, userId, day]);
+
+      if (tokensAwarded > 0) {
+        dbRun('UPDATE users SET tokens = tokens + ? WHERE id = ?', [tokensAwarded, userId]);
+        dbRun('INSERT INTO token_transactions (id, user_id, kind, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [crypto.randomUUID(), userId, 'ai_chat_reward', tokensAwarded, 'Награда за активное общение с ИИ SOLVI', at]);
+      }
+
+      if (activeSeconds >= 1800 && !dbGet("SELECT user_id FROM store_inventory WHERE user_id = ? AND source = 'ai-gift' AND acquired_at >= ?", [userId, weeklyCutoff])) {
+        const owned = new Set(dbAll('SELECT item_id FROM store_inventory WHERE user_id = ?', [userId]).map(row => row.item_id));
+        const giftPool = STORE_CATALOG.filter(item =>
+          !item.starter && !item.id.startsWith('wallpaper-') && item.price > 0 && item.price <= 650 &&
+          ['Стикеры', 'Пузырьки', 'Звуки', 'Рамки', 'Титулы'].includes(item.category) && !owned.has(item.id)
+        );
+        if (giftPool.length) {
+          giftedItem = giftPool[Math.floor(Math.random() * giftPool.length)];
+          dbRun('INSERT INTO store_inventory (user_id, item_id, acquired_at, source) VALUES (?, ?, ?, ?)', [userId, giftedItem.id, at, 'ai-gift']);
+        }
+      }
+
+      if (activeSeconds >= 3600 && !dbGet("SELECT id FROM promo_codes WHERE target_user_id = ? AND code LIKE 'SOLVIAI-%' AND created_at >= ?", [userId, weeklyCutoff])) {
+        promoCode = 'SOLVIAI-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+        dbRun('INSERT INTO promo_codes (id, code, token_reward, item_id, membership_tier, membership_days, max_uses, uses, starts_at, expires_at, active, created_by, created_at, target_user_id) VALUES (?, ?, 10, NULL, NULL, NULL, 1, 0, ?, ?, 1, NULL, ?, ?)',
+          [crypto.randomUUID(), promoCode, at, new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString(), at, userId]);
+      }
+
+      balance = Number(dbGet('SELECT tokens FROM users WHERE id = ?', [userId])?.tokens || 0);
+    });
+
+    if (tokensAwarded > 0) io.to(userRoom(userId)).emit('wallet:updated', { balance, earned: tokensAwarded, reason: 'ai_chat_reward' });
+    const rewardParts = [];
+    if (tokensAwarded) rewardParts.push('+' + tokensAwarded + ' ✦');
+    if (giftedItem) rewardParts.push('подарок «' + giftedItem.name + '» уже в твоём инвентаре');
+    if (promoCode) rewardParts.push('личный промокод ' + promoCode + ' на 10 ✦ (действует 7 дней)');
+    if (!rewardParts.length) return;
+
+    const content = 'слушай, мы уже неплохо поболтали 😊 держи награду: ' + rewardParts.join(' · ') + (promoCode ? '. введи код в разделе промокодов' : '') + ' ✨';
+    const message = {
+      id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
+      client_id: 'ai-reward:' + crypto.randomUUID(), content, created_at: nowIso(),
+      delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
+      sticker: null, attachments: [], reactions: [], replyTo: null, isAiReward: true
+    };
+    session.messages.push(message);
+    session.history.push({ role: 'model', parts: [{ text: content }] });
+    session.history = session.history.slice(-20);
+    io.to(userRoom(userId)).emit('ai:message', message);
+    io.to(userRoom(userId)).emit('ai:reward', {
+      message: 'Награда от ИИ-собеседника: ' + rewardParts.join(' · '),
+      tokens: tokensAwarded,
+      itemId: giftedItem?.id || null,
+      promoCode: promoCode || null,
+      balance
+    });
+  } catch (error) {
+    console.error('[SOLVI] AI chat reward failed:', error.message);
+  }
 }
 function queueAiTurn(userId, session, text) {
   // Keep every user turn in order; never replace a message sent during generation.
@@ -859,23 +984,10 @@ function queueAiTurn(userId, session, text) {
       if (aiSessions.get(userId) !== session) break;
       const reply = String(generated || '').split(/\\s*<MSG>\\s*/i).map(value => value.trim()).filter(Boolean)[0]
         || fallbackAiReply(session, input === null);
-      // A short pause before typing, then a speed-dependent typing interval.
+      // The character first pauses to think; only then does the typing indicator appear.
       await new Promise(resolve => setTimeout(resolve, 3000));
       if (aiSessions.get(userId) !== session) break;
-      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: true, isAi: true, wpm: session.persona.typingWpm });
-      await new Promise(resolve => setTimeout(resolve, aiTypingDelay(reply, session.persona.typingWpm)));
-      if (aiSessions.get(userId) !== session) break;
-      const message = {
-        id: crypto.randomUUID(), match_id: session.id, sender_id: session.partnerId,
-        client_id: `ai:${crypto.randomUUID()}`, content: reply.slice(0, 500), created_at: nowIso(),
-        delivered_at: nowIso(), read_at: null, message_type: 'text', type: 'text',
-        sticker: null, attachments: [], reactions: [], replyTo: null
-      };
-      session.messages.push(message);
-      session.history.push({ role: 'model', parts: [{ text: message.content }] });
-      session.history = session.history.slice(-20);
-      io.to(userRoom(userId)).emit('chat:typing', { userId: session.partnerId, typing: false });
-      io.to(userRoom(userId)).emit('ai:message', message);
+      await streamAiReply(userId, session, reply.slice(0, 500));
     }
   })().catch(error => {
     console.error('[SOLVI] AI conversation queue failed:', error.message);
@@ -1180,6 +1292,14 @@ async function main() {
     CREATE TABLE IF NOT EXISTS token_earning_daily (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, day TEXT NOT NULL,
       earned INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(user_id, day)
+    );
+    CREATE TABLE IF NOT EXISTS ai_chat_reward_daily (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      active_seconds INTEGER NOT NULL DEFAULT 0,
+      reward_level INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, day)
     );
     CREATE TABLE IF NOT EXISTS message_reactions (
       id TEXT PRIMARY KEY,
@@ -3964,6 +4084,7 @@ async function main() {
       window.count += 1;
       messageWindows.set(userId, window);
       const text = content || `Пользователь отправил стикер ${sticker}`;
+      recordAiChatActivity(userId, session);
       const userMessage = { id: crypto.randomUUID(), match_id: session.id, sender_id: userId, client_id: `user:${payload?.clientId || crypto.randomUUID()}`, content: text, created_at: nowIso(), message_type: sticker ? 'sticker' : 'text', type: sticker ? 'sticker' : 'text', sticker: sticker || null, attachments: [], reactions: [], replyTo: null };
       session.messages.push(userMessage);
       ack({ ok: true });
