@@ -176,6 +176,10 @@ try {
   else pass('Владелец может отвечать обычными сообщениями; выбор диалога и переключение между заявками работают без /reply');
   if (!server.includes('verifyTelegramWebAppInitData') || !server.includes("app.post('/api/auth/telegram-miniapp'") || !server.includes("app.get('/api/admin/telegram/orders'") || !server.includes("app.post('/api/admin/telegram/orders/:id/messages'") || !server.includes('setChatMenuButton') || !server.includes('telegram_order_messages')) fail('Telegram Mini App auth, buyer inbox or message storage is incomplete');
   else pass('Telegram Mini App: verified owner login, persistent buyer messages, order chat API and owner menu button connected');
+  if (!server.includes('The owner replies only inside SOLVI OWNER') || !server.includes('For the check') && !server.includes('привязана к Telegram владельца') || !server.includes('COALESCE(o.accepted_at,o.updated_at)')) fail('Telegram owner/buyer chat separation or accepted-order priority is missing');
+  else pass('Telegram chat: owner text cannot echo to buyers; self-chat is blocked and accepted orders have priority');
+  if (!ownerPanel.includes('state.telegramSending') || !ownerPanel.includes('if(state.telegramSending)return')) fail('Telegram Mini App duplicate-send guard is missing');
+  else pass('Telegram Mini App: duplicate-send guard is enabled');
   if (!ownerPublicHtml.includes('data-page="tgchats"') || !ownerPublicHtml.includes('telegram.org/js/telegram-web-app.js') || !ownerPanel.includes('function loadTelegramOrders') || !ownerPanel.includes('function sendTelegramBuyerMessage') || !ownerPublicHtml.includes('id="telegramChatForm"')) fail('Telegram Mini App buyer chat interface is incomplete');
   else pass('Telegram Mini App owner workspace includes buyer list, chat composer and Telegram SDK');
   if (!server.includes('cashPriceMinor: cash.cashPriceMinor') || !app.includes("requestManualCashPurchase(item)") || !app.includes("cashAction.textContent = 'За деньги'") || !server.includes('tokenEnabled: token.enabled')) fail('Магазин не отображает отдельные способы покупки за токены и реальные деньги');
