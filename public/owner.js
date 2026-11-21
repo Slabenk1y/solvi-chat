@@ -4,7 +4,7 @@
   const safeStorageGet = key => { try { return window.localStorage.getItem(key); } catch { return null; } };
   const safeStorageSet = (key, value) => { try { window.localStorage.setItem(key, value); return true; } catch { return false; } };
   const safeStorageRemove = key => { try { window.localStorage.removeItem(key); return true; } catch { return false; } };
-  const state = { token:safeStorageGet('sovli_admin_token')||safeStorageGet('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null, telegramOrders:[], activeTelegramOrderId:'', telegramMiniApp:false };
+  const state = { token:safeStorageGet('sovli_admin_token')||safeStorageGet('sovli_token')||'', users:[], userOffset:0, userTotal:0, userHasMore:false, userQuery:'', selectedUserId:'', matches:[], matchSearch:'', reports:[], reportFilter:'all', reportQuery:'', tickets:[], ticketFilter:'all', ticketQuery:'', activeTicketId:'', socialLinks:[], tasks:[], submissions:[], monetization:null, inspectMatchId:'', matchesTimer:null, telegramOrders:[], activeTelegramOrderId:'', telegramMiniApp:false, telegramSending:false };
   const esc = v => String(v==null?'':v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num = v => Number(v||0).toLocaleString('ru-RU');
   const date = v => v ? new Date(v).toLocaleString('ru-RU',{dateStyle:'medium',timeStyle:'short'}) : '—';
@@ -486,13 +486,17 @@
   }
   async function sendTelegramBuyerMessage(e){
     e.preventDefault();
+    if(state.telegramSending)return;
     const body=$('#telegramChatInput').value.trim();
     if(!body||!state.activeTelegramOrderId)return;
-    const button=$('#telegramChatSend');button.disabled=true;
+    const button=$('#telegramChatSend'),input=$('#telegramChatInput');
+    state.telegramSending=true;button.disabled=true;input.disabled=true;
     try{
       await api('/api/admin/telegram/orders/'+encodeURIComponent(state.activeTelegramOrderId)+'/messages',{method:'POST',body:JSON.stringify({body})});
-      $('#telegramChatInput').value='';await loadTelegramOrders();await loadTelegramMessages();
-    }catch(err){toast(err.message);}finally{button.disabled=false;$('#telegramChatInput').focus();}
+      input.value='';await loadTelegramOrders();await loadTelegramMessages();
+    }catch(err){toast(err.message);}finally{
+      state.telegramSending=false;button.disabled=false;input.disabled=false;input.focus();
+    }
   }
   async function runTelegramOrderAction(action,id,button){
     const b=button;if(b)b.disabled=true;
